@@ -1755,7 +1755,9 @@ function tickHour(){
       const rev=gross-comm;
       prop.commToday=(prop.commToday||0)+comm;
       prop.channelRev[g.channel]=(prop.channelRev[g.channel]||0)+rev;
-      prop.revToday+=rev;prop.lifetimeRev+=rev;G.totalRevenue+=rev;G.cash+=rev;
+      const _dep=(g.depositPaid&&g.deposit)?g.deposit:0; // already collected at booking — net it off the bill (audit B7)
+      prop.revToday+=rev;prop.lifetimeRev+=rev;G.totalRevenue+=rev;G.cash+=rev-_dep;
+      if(_dep)prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-_dep);
       writeGuestDB(prop,g);
       if(g.parked==='ev'&&prop.parking)prop.parking.evOccupied=Math.max(0,prop.parking.evOccupied-1);
       else if(g.parked==='std'&&prop.parking)prop.parking.occupied=Math.max(0,prop.parking.occupied-1);
@@ -1794,7 +1796,7 @@ function dayRollover(){
 /* ---------------- REPEAT GUEST DB ---------------- */
 function writeGuestDB(prop,g){
   const key=g.name+'|'+g.type;const db=G.guestDB;let e=db[key];
-  if(!e){e={name:g.name,type:g.type,stays:0,totalSpend:0,complaints:0,satSum:0,avgSat:70,favRT:null,rtCount:{},loyalty:null,firstDay:G.day};db[key]=e;if(G.chain)G.chain.loyaltyMembers++;}
+  if(!e){e={name:g.name,type:g.type,stays:0,totalSpend:0,complaints:0,satSum:0,avgSat:70,favRT:null,rtCount:{},loyalty:null,firstDay:G.day};db[key]=e;} // (audit B15) every unique guest is not a loyalty member — membership is computed from stays via loyalMembers()
   e.stays++;e.totalSpend+=g.price*g.nights+(g.extraRev||0);e.complaints+=g.complaints||0;
   e.satSum+=g.sat;e.avgSat=e.satSum/e.stays;
   const rm=prop.rooms.find(r=>r.id===g.roomId);const rtype=g.favRT||(rm?rm.type:'standard');
@@ -2234,7 +2236,7 @@ function tabHQ(p){
   <div class="cards cols-4" style="margin-bottom:12px">
     ${ovCard('Chain Reputation',Math.round(ch.rep)+'/100','avg across hotels',barH(ch.rep,'#d8a24a'))}
     ${ovCard('Brand Awareness',Math.round(ch.brand)+'/100','drives demand everywhere',barH(ch.brand,'#eebd6a'))}
-    ${ovCard('Loyalty Members',ch.loyaltyMembers,'shared programme','')}
+    ${ovCard('Loyalty Members',(typeof loyalMembers==='function'?loyalMembers().m:(ch.loyaltyMembers||0)),'shared programme','')}
     ${ovCard('Central Cash',cr(G.cash),'shared treasury','')}
   </div>
   <div class="cards cols-2">
@@ -3294,7 +3296,9 @@ function tickHour(){
       const rev=gross-comm;
       prop.commToday=(prop.commToday||0)+comm;
       prop.channelRev[g.channel]=(prop.channelRev[g.channel]||0)+rev;
-      prop.revToday+=rev;prop.lifetimeRev+=rev;G.totalRevenue+=rev;G.cash+=rev;
+      const _dep=(g.depositPaid&&g.deposit)?g.deposit:0; // already collected at booking — net it off the bill (audit B7)
+      prop.revToday+=rev;prop.lifetimeRev+=rev;G.totalRevenue+=rev;G.cash+=rev-_dep;
+      if(_dep)prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-_dep);
       writeGuestDB(prop,g);
       if(g.parked==='ev'&&prop.parking)prop.parking.evOccupied=Math.max(0,prop.parking.evOccupied-1);
       else if(g.parked==='std'&&prop.parking)prop.parking.occupied=Math.max(0,prop.parking.occupied-1);
@@ -3979,6 +3983,8 @@ function scheduleDay(){
       }
       st.bookings++;if(g.returning)st.repeat++;
       (prop.marketing.campaigns||[]).forEach(cm=>{const M=MKT[cm.type];if(M&&((M.ch&&M.ch===g.channel)||(M.seg&&M.seg===g.type)))cm.bookings=(cm.bookings||0)+1;});
+      g._propIdx=G.active;
+      if(g.deposit>0){G.cash+=g.deposit;g.depositPaid=true;prop.depositsHeld=(prop.depositsHeld||0)+g.deposit;} // deposit collected at booking, held as a liability (audit B7)
       g.checkedIn=false;arrivals.push(g);booked++;chCount[g.channel]=(chCount[g.channel]||0)+1;
     }
   }
@@ -4020,17 +4026,11 @@ function finalizeStay(prop,room,g){
   if(g.sat<45)g.complaints=(g.complaints||0)+1;
   g.satComponents={clean:cleanScore,service:serviceScore,value:valueScore,location:locScore,comfort:comfortScore,fnb:fnbScore,tech:techScore,experience:Math.round(experience),expectation:Math.round(expectation)};
   if(!prop.compAvg)prop.compAvg={};['clean','service','value','location','comfort','fnb','tech'].forEach(k=>{prop.compAvg[k]=prop.compAvg[k]==null?g.satComponents[k]:prop.compAvg[k]*.9+g.satComponents[k]*.1;});
-  // --- ancillary revenue + USALI department tagging ---
-  let extra=0,fnbExtra=0,otherExtra=0;
-  prop.facilities.forEach(f=>{if(FACILITIES[f].rev&&Math.random()<.5){const v=rnd(300,1500)*gt.budgetF;extra+=v;otherExtra+=v;}});
-  if((prop.facilities.includes('restaurant')||prop.facilities.includes('breakfast'))&&!(prop.invShort&&(prop.invShort.foodstock||prop.invShort.beverages))){
-    const b=rnd(120,420)*g.nights,l=prop.facilities.includes('restaurant')?rnd(0,500)*g.nights:0,dn=prop.facilities.includes('restaurant')?rnd(150,700)*g.nights:0;
-    prop.fnbRev.breakfast+=b;prop.fnbRev.lunch+=l;prop.fnbRev.dinner+=dn;const fv=b+l+dn;extra+=fv;fnbExtra+=fv;
-  }
-  if(prop.policies.laundry==='paid'&&prop.facilities.includes('laundry')&&Math.random()<.4){const v=rnd(200,700);extra+=v;otherExtra+=v;}
-  if(prop.policies.roomsvc24&&prop.facilities.includes('roomsvc')&&Math.random()<.3){const v=rnd(250,900);extra+=v;otherExtra+=v;}
-  g.extraRev=Math.round(extra);
-  prop._deptDay=prop._deptDay||{fnb:0,other:0};prop._deptDay.fnb+=fnbExtra;prop._deptDay.other+=otherExtra+(g.extraPark||0);
+  // --- ancillary revenue: charged per use during the stay via the department
+  // model (guestRoutine → deptPrice). The old checkout lump-sums duplicated
+  // that money and are removed (audit B8). Parking fees keep their own path.
+  g.extraRev=0;
+  prop._deptDay=prop._deptDay||{fnb:0,other:0};prop._deptDay.other+=(g.extraPark||0);
   g.aspects=buildAspects(prop,room,g,cleanScore);
   const st=prop.channelStats[g.channel];if(st){st.satSum=(st.satSum||0)+g.sat;st.satN=(st.satN||0)+1;st.revenue=(st.revenue||0)+(rate*g.nights*(1-(CHANNELS[g.channel].comm||0)));}
   const reviewChance=g.reviewT*(.4+Math.abs(g.sat-65)/65)*G.D.harsh*.9;
@@ -4627,6 +4627,7 @@ function guestRoutine(prop,room,g){
   const use=(key,cat,ic)=>{const st=prop.dept[key];if(!st)return;g.used[key]=1;st._cust=(st._cust||0)+1;
     if(st.service==='comp'){st._comp=(st._comp||0)+1;g.sat=clamp(g.sat+(DEPTS[key].sat||3)*.15,0,100);}
     else{const amt=deptPrice(prop,key);if(amt>0){g.spendIn+=amt;prop.revToday+=amt;G.cash+=amt;G.totalRevenue+=amt;prop.lifetimeRev+=amt;st._rev=(st._rev||0)+amt;prop._deptDay=prop._deptDay||{fnb:0,other:0};if(cat==='fnb')prop._deptDay.fnb+=amt;else prop._deptDay.other+=amt;
+      if(cat==='fnb'&&prop.fnbRev){const hh=G.hour;if(hh<=10)prop.fnbRev.breakfast+=amt;else if(hh<=15)prop.fnbRev.lunch+=amt;else prop.fnbRev.dinner+=amt;}
       const cls=hotelClass(prop);g.sat=clamp(g.sat-clamp(amt/(g.budget*.35)-1,-.3,1)*3,0,100);}}};
   if(h>=7&&h<=10&&!g.hadBreakfast&&(has('breakfast')||has('restaurant'))){g.hadBreakfast=true;g.act='breakfast';use(has('breakfast')?'breakfast':'restaurant','fnb');routineFeed(prop,g,'is having breakfast');return;}
   if(h>=9&&h<=16){const biz=(g.type==='business'||g.type==='corporate');if((biz&&!weekend&&Math.random()<.5)||(['tourist','family','wedding'].includes(g.type)&&!rainy&&Math.random()<.5)){g.out=true;g.act=biz?'at a meeting':'out sightseeing';routineFeed(prop,g,biz?'left for a meeting':'left to explore '+prop.city.name);return;}}
@@ -5624,8 +5625,8 @@ function runFnB(p){
    ======================================================================= */
 function roomDetail(id){
   const p=P(),r=p.rooms.find(x=>x.id===id);if(!r)return;
-  const g=r.guest,rt=ROOMTYPES[r.type],q=QUALITY[r.quality||r.q||0]||QUALITY[0];
-  const have=Array.isArray(r.comps)?r.comps:(r.comps?Object.keys(r.comps).filter(k=>r.comps[k]):[]);
+  const g=r.guest,rt=ROOMTYPES[r.type],q=(r.q&&r.q.name)?r.q:(QUALITY[r.q]||QUALITY[0]); // r.q is the quality object itself (audit B10)
+  const have=r.comp?Object.keys(r.comp).filter(k=>r.comp[k]):[];
   const equip=have.length?have.map(k=>COMPONENTS[k]?COMPONENTS[k].name:k):['Standard '+q.name+' fit-out'];
   const busy=r.status==='occupied'||r.status==='renovation'||r.status==='maintenance';
   const box=$('#mbox');if(!box)return;
@@ -6367,7 +6368,9 @@ function genResv(p){
     const cxP=.028*(r.lead>10?1.3:1)*(p.policies.cancelType==='nonref'?.55:p.policies.cancelType==='flexible'?1.2:1);
     if(Math.random()<cxP){
       r.status='cx';p.escrow=Math.max(0,p.escrow-r.dep);
-      if(r.dep>0&&p.policies.cancelType!=='flexible'){const keep=p.policies.cancelType==='partial'?Math.round(r.dep*.5):r.dep;G.cash+=keep;p.revToday+=keep;logEvent(p,'finance','Reservation cancelled — '+cr0(keep)+' of deposit retained.');}
+      // no cash movement: deposits in this pipeline are contracted, not collected —
+      // crediting a "retained" deposit here created money from nothing (audit B7)
+      logEvent(p,'booking','Reservation for Day '+r.day+' cancelled ('+r.name+').');
       const w=p.waitlist.shift();
       if(w&&w.day===r.day){w.dep=Math.round(w.rate*w.nights*resvDepFrac(p));p.escrow+=w.dep;w.status='ok';p.resv.push(w);feed('📇 Waitlist guest confirmed for Day '+w.day+'.','pos');}
     } else if(Math.random()<.03){r.day+=pick([-1,1]);if(r.day<=G.day)r.day=G.day+1;r.modified=true;}
@@ -6377,8 +6380,7 @@ function genResv(p){
   let n=0;
   today.forEach(r=>{
     if(Math.random()<.04){r.status='noshow';p.escrow=Math.max(0,p.escrow-r.dep);
-      if(r.dep>0){G.cash+=r.dep;p.revToday+=r.dep;}
-      logEvent(p,'booking','No-show: '+r.name+' (Day '+r.day+')'+(r.dep?' — deposit retained.':'.'));
+      logEvent(p,'booking','No-show: '+r.name+' (Day '+r.day+').');
     } else {r.status='arrived';p.escrow=Math.max(0,p.escrow-r.dep);n++;}
   });
   p._otbToday=n;
@@ -6392,10 +6394,10 @@ function tabReservations(p){
   const days={};up.forEach(r=>{days[r.day]=(days[r.day]||0)+1;});
   const cells=[];for(let off=1;off<=21;off++){const d=G.day+off;const n=days[d]||0;const pct=clamp(Math.round(n/Math.max(1,p.rooms.length)*100),0,110);
     cells.push(`<div style="min-width:58px;padding:6px 5px;border:1px solid var(--line);border-radius:8px;text-align:center;background:var(--panel2);overflow:hidden"><div class="muted sm">D${d}</div><div style="font-weight:700">${n}</div>${barInline(Math.min(100,pct),pct>85?'#dc2626':pct>60?'#d8a24a':'#46c06a')}</div>`);}
-  return `<div class="page-head"><div><h2>Reservations</h2><div class="desc">Real bookings on the books — deposits held in escrow, cancellations refunded or forfeited by your policy, no-shows charged.</div></div></div>
+  return `<div class="page-head"><div><h2>Reservations</h2><div class="desc">Bookings on the books for the days ahead — deposits settle when stays actually occur; walk-in demand fills the rest.</div></div></div>
   <div class="cards cols-4" style="margin-bottom:12px">
     ${ovCard('On the books',up.length,'next 21 days','')}
-    ${ovCard('Advance deposits',cr(p.escrow||0),'held in escrow','')}
+    ${ovCard('Advance deposits',cr(p.escrow||0),'contracted · settles at stay','')}
     ${ovCard('Waitlist',p.waitlist.length,'promoted on cancellations','')}
     ${ovCard('Overbooking buffer',(p.policies.overbook||0)+' rooms','set in Policies','')}
   </div>
@@ -7564,6 +7566,146 @@ window.cycleSpeed=()=>{const order=[1,2,4];G.speed=order[(order.indexOf(G.speed)
 {const _v14TE=tabExpand;tabExpand=function(p){let h=_v14TE(p);try{
   const a=h.indexOf('<div class="shopitem"><div class="si-ic">🧳');
   if(a>=0){const endTok='onclick="enableValet()">Enable</button></div>';const b=h.indexOf(endTok,a);if(b>a)h=h.slice(0,a)+h.slice(b+endTok.length);}
+}catch(e){}return h;};}
+
+
+/* =======================================================================
+   AATITHYA v15 — Audit Wave 2: the economy tells the truth.
+   (See AUDIT.md — B7, B8, B11, B12, B13 here; B10/B15 fixed in place.)
+   Every rupee now moves exactly once: deposits are collected at booking,
+   held as a liability and settled at checkout / walkout / no-show; F&B
+   and ancillaries are earned only through the department model.
+   ======================================================================= */
+
+/* ---------- schema: collected-deposit liability ---------- */
+{const _v15AP=augmentProp;augmentProp=function(p){_v15AP(p);if(p.depositsHeld==null)p.depositsHeld=0;};}
+try{(G&&G.properties||[]).forEach(p=>{if(p.depositsHeld==null)p.depositsHeld=0;});}catch(e){}
+
+/* ---------- (B7) settle unresolved same-day bookings ----------
+   Walkouts get their collected deposit refunded; guests who never showed
+   forfeit it per the cancellation policy. Runs before every scheduleDay
+   (day rollover, property switch, new hotel) so paid arrivals can no
+   longer be discarded with their deposit stuck in the liability. */
+function v15SettleArrivals(){
+  try{
+    (G.pendingArrivals||[]).forEach(a=>{
+      if(a.checkedIn===true||a._settled||!a.depositPaid)return;
+      a._settled=true;
+      const prop=G.properties[a._propIdx!=null?a._propIdx:G.active]||P();
+      const dep=a.deposit||0;if(dep<=0||!prop)return;
+      if(a.checkedIn==='lost'){
+        G.cash-=dep;prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-dep);
+        logEvent(prop,'finance','Deposit '+cr0(dep)+' refunded to '+a.name+' (walkout).');
+        return;
+      }
+      const keepFr=prop.policies.cancelType==='flexible'?0:prop.policies.cancelType==='partial'?.5:1;
+      const keep=Math.round(dep*keepFr),refund=dep-keep;
+      if(refund>0)G.cash-=refund;
+      if(keep>0)prop.revToday+=keep;
+      prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-dep);
+      logEvent(prop,'booking','No-show: '+a.name+(keep?' — deposit '+cr0(keep)+' retained.':' — deposit refunded.'));
+    });
+  }catch(e){}
+}
+{const _v15SD=scheduleDay;scheduleDay=function(){v15SettleArrivals();_v15SD();};}
+
+/* ---------- (B8) one authoritative department economy ----------
+   In-house guests pay per use (guestRoutine); external customers are
+   earned here — menu-aware and capacity-gated for the restaurant. */
+runDepartments=function(prop){
+  ensureDepts(prop);
+  const mgrSkill=avgSkill(prop,'manager')||45, eff=.8+mgrSkill/100*.45;
+  const clsK=hotelClass(prop).k;
+  Object.keys(prop.dept).forEach(key=>{
+    if(!prop.facilities.includes(key)){delete prop.dept[key];return;}
+    const st=prop.dept[key],d=DEPTS[key];
+    if(st.mode==='manager'){
+      st.service=d.defComp&&(clsK==='upscale'||clsK==='luxury')?'comp':(d.defComp&&clsK==='midscale'&&Math.random()<.3?'comp':'paid');
+      st.pricing=clsK==='luxury'?'premium':clsK==='budget'?'budget':'standard';
+      if(d.strat)st.strategy='balanced';
+      if(key==='laundry'){st.express=(clsK==='luxury');st.outsource=false;}
+      if(key==='restaurant'&&prop.fnb)prop.fnb.menu=clsK==='luxury'?2:clsK==='budget'?0:1;
+    }
+    const guestCust=st._cust||0,guestRev=st._rev||0,compCust=st._comp||0;
+    let extCust=0,extRev=0;
+    if(d.external&&st.service!=='comp'){
+      const price=deptPrice(prop,key)||d.base;
+      let base= d.base>=16000 ? rnd(0,1.1) : (occupied(prop)*.35+(prop.city.tour||.3)*6);
+      if(key==='restaurant'){const s=st.strategy||'balanced';base*= s==='external'?1.8:s==='guest'?.35:1;
+        base*=[.7,1,1.25][(prop.fnb&&prop.fnb.menu)||0];}          // finer menus draw more walk-in covers
+      base*=(.7+(prop.rating||3)/5*.6)*(prop.city.spend||1)*eff;
+      extCust=Math.max(0,Math.round(base*rnd(.7,1.3)));
+      if(key==='restaurant'&&prop.fnb){                             // seats × table-turns capacity gate
+        const seatCap=Math.round((prop.fnb.seats||24)*2.8);
+        extCust=Math.max(0,Math.min(extCust,seatCap-guestCust));
+      }
+      extRev=extCust*price;
+      if(extRev){prop.revToday+=extRev;G.cash+=extRev;G.totalRevenue+=extRev;prop.lifetimeRev+=extRev;prop._deptDay=prop._deptDay||{fnb:0,other:0};if(d.meal)prop._deptDay.fnb+=extRev;else prop._deptDay.other+=extRev;
+        if(key==='restaurant'&&prop.fnbRev){prop.fnbRev.lunch+=Math.round(extRev*.35);prop.fnbRev.dinner+=Math.round(extRev*.65);}}
+    }
+    const totalCust=guestCust+extCust+compCust;
+    const rev=guestRev+extRev;
+    const fixed=(FACILITIES[key]?FACILITIES[key].daily:0)*(1+((G.macro&&G.macro.inflation)||0));
+    let cost=Math.round(totalCust*d.costUse/eff+fixed);
+    if(key==='laundry'){
+      const cap=deptCapacity(prop,key),q=prop._laundryQueue||0;
+      if(st.outsource){cost+=Math.round(q*90);prop._laundryDelay=0;}
+      else{const done=cap*(st.express?1.5:1);prop._laundryDelay=Math.max(0,q-done);if(st.express)cost+=Math.round(q*40);}
+      if(prop._laundryDelay>0){prop.hkStrain=clamp((prop.hkStrain||0)+prop._laundryDelay*.02,0,1);if(Math.random()<.3)logEvent(prop,'maintenance','Laundry backlog of '+Math.round(prop._laundryDelay)+' is delaying room readiness.');}
+      prop._laundryQueue=0;
+    }
+    G.cash-=cost;prop.expToday+=cost;prop._opExToday=(prop._opExToday||0)+cost;
+    const cap=deptCapacity(prop,key),util=clamp(totalCust/Math.max(1,cap)*100,0,145);
+    if((key==='restaurant'||key==='spa')&&util>100&&st.service!=='comp'){prop.reputation=clamp(prop.reputation-(util-100)*.008,0,100);if(Math.random()<.25)logEvent(prop,'service',d.name+' was over capacity — guests faced longer waits.');}
+    const satC=st.service==='comp'?(d.sat*.8):clamp(6-({budget:0,standard:1.5,premium:3}[st.pricing]||0),0,8);
+    st.daily={rev:Math.round(rev),cost:Math.round(cost),profit:Math.round(rev-cost),cust:totalCust,util:Math.round(util),sat:+satC.toFixed(1),inh:guestCust,ext:extCust};
+    st.mRev=(st.mRev||0)+rev;st.mCost=(st.mCost||0)+cost;st.mProfit=(st.mProfit||0)+(rev-cost);st.mCust=(st.mCust||0)+totalCust;st.mDays=(st.mDays||0)+1;
+    if(st.mDays>=30){st.pRev=Math.round(st.mRev);st.pCost=Math.round(st.mCost);st.pProfit=Math.round(st.mProfit);st.pCust=st.mCust;st.mRev=0;st.mCost=0;st.mProfit=0;st.mCust=0;st.mDays=0;}
+    st._cust=0;st._rev=0;st._comp=0;
+  });
+};
+
+/* runFnB no longer books parallel revenue (it adjusted revToday without cash —
+   audit B8/B12); it now derives the covers view from what actually happened. */
+runFnB=function(p){
+  if(!p.facilities.includes('restaurant')||!p.dept||!p.dept.restaurant){p._fnbInfo=null;return;}
+  const st=p.dept.restaurant,f=p.fnb||{menu:1,seats:24};
+  const day=st.daily||{rev:0,cust:0,inh:0,ext:0};
+  const covers=day.cust||0;
+  p._fnbInfo={turns:+((covers/Math.max(1,f.seats||24))).toFixed(2),
+    check:covers?Math.round((day.rev||0)/covers):0,
+    inhouse:day.inh||0,external:day.ext||0,covers};
+};
+
+/* menu tier scales the restaurant's average check (fine dining bills more) */
+{const _v15DP=deptPrice;deptPrice=function(prop,key){let v=_v15DP(prop,key);
+  if(key==='restaurant'&&v>0&&prop.fnb)v=Math.round(v*[.8,1,1.5][prop.fnb.menu||0]);
+  return v;};}
+
+/* ---------- (B11) insolvency no longer swallows the final summary ---------- */
+window.showFinalSummary=()=>{try{showSummary(true);}catch(e){}};
+gameOver=function(){
+  setPause(true);
+  const p=P(),box=$('#mbox');if(!box)return;
+  box.innerHTML=`<div class="mhead"><div class="mic" style="background:#ef6a6a22;color:#ef6a6a">⚠️</div><div><h3>Insolvency</h3><div class="ms">Your cash reserves are exhausted</div></div></div>
+  <div class="mbody"><div class="desc">After ${G.day} days, ${p.name} has run out of cash. Lifetime revenue ${cr(p.lifetimeRev)}, ${p.lifetimeGuests} guests served, final rating ${p.rating?p.rating.toFixed(2):'—'}★.</div>
+  <button class="btn" style="width:100%;margin-bottom:8px" onclick="showFinalSummary()">📊 View final performance summary</button>
+  <button class="btn primary" style="width:100%" onclick="location.reload()">Start a New Game</button></div>`;
+  $('#modal').style.display='flex';$('#modal').onclick=null;
+};
+
+/* ---------- (B13) autosave at the true end of the day ----------
+   The v6 autosave sits deep in the rollover wrap chain, so v7–v13
+   post-steps ran after it; save again once the day has fully closed. */
+{const _v15DR=dayRollover;dayRollover=function(){_v15DR();
+  try{localStorage.setItem('aatithya',JSON.stringify(G));G._lastSave=Date.now();}catch(e){}};}
+
+/* ---------- finance: the deposit liability is visible ---------- */
+{const _v15Fin=tabFinance;tabFinance=function(p){let h=_v15Fin(p);try{
+  h+=`<div class="card" style="margin-top:12px"><h3>Deposits &amp; Advance Payments</h3>
+   ${row('Guest deposits held (collected, unsettled)',cr(p.depositsHeld||0))}
+   ${row('Reservation deposits contracted (not yet collected)',cr(p.escrow||0))}
+   <div class="muted sm" style="margin-top:4px">Deposits are collected when a booking is made, held as a liability, and netted against the bill at checkout — refunded on walkouts, forfeited per your cancellation policy on no-shows.</div></div>`;
 }catch(e){}return h;};}
 
 renderWiz();
