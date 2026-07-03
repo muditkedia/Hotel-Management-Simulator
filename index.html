@@ -889,7 +889,7 @@ const EVENTS=[
 function occupied(p){return p.rooms.filter(r=>r.status==='occupied').length;}
 function bump(p,amt){ // affect a random in-house guest's sat & small rep
   const occ=p.rooms.filter(r=>r.status==='occupied'&&r.guest);
-  if(occ.length){ pick(occ).guest.sat=clamp(pick(occ).guest.sat+amt,0,100); }
+  if(occ.length){ const t=pick(occ).guest; t.sat=clamp(t.sat+amt,0,100); }
   p.reputation=clamp(p.reputation+amt*.1,0,100);
 }
 function hitGuest(p,amt){ p.rooms.filter(r=>r.status==='occupied'&&r.guest).forEach(r=>r.guest.sat=clamp(r.guest.sat-amt,0,100)); }
@@ -1736,7 +1736,7 @@ function tickHour(){
   const prop=P();
   G.hour++;
   if(G.hour>=24){G.hour=0;G.day++;G.dow=(G.dow+1)%7;dayRollover();}
-  const due=G.pendingArrivals.filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&a.arrHour===G.hour);
+  const due=G.pendingArrivals.filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&(a.arrHour===G.hour||(a._noFd&&a.arrHour<G.hour)));
   if(due.length){
     due.sort((x,y)=>chkPrio(y)-chkPrio(x));
     const fdN=(prop.staff.frontdesk||[]).length;
@@ -3272,7 +3272,7 @@ function tickHour(){
   G.hour++;
   if(G.hour>=24){G.hour=0;G.day++;G.dow=(G.dow+1)%7;dayRollover();}
   // arrivals + front-desk queue with fatigue
-  const due=G.pendingArrivals.filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&a.arrHour===G.hour);
+  const due=G.pendingArrivals.filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&(a.arrHour===G.hour||(a._noFd&&a.arrHour<G.hour)));
   if(due.length){
     due.sort((x,y)=>chkPrio(y)-chkPrio(x));
     const fd=(prop.staff.frontdesk||[]);fd.forEach(s=>{if(s.fatigue==null)s.fatigue=0;});
@@ -6604,8 +6604,7 @@ function compBrain(p){
     const avgIdx=cs.reduce((s,c)=>s+c.priceIdx,0)/cs.length;
     if(avgIdx<0.86)f*=(1-(0.86-avgIdx)*.6);          // price war drag
     const camps=cs.filter(c=>c.camp>0).length;
-    f*=Math.max(.9,1-camps*.025);                     // rival campaigns
-    cs.forEach(c=>{if(c.camp>0)c.camp-=1/24;});
+    f*=Math.max(.9,1-camps*.025);                     // rival campaigns (decay moved to daily rollover — see v14)
   }
 }catch(e){}return clamp(f,.35,1.4);};}
 {const _v12TM2=tabMarket;tabMarket=function(p){let html=_v12TM2(p);try{
@@ -6876,7 +6875,7 @@ window.dismissOnboarding=()=>{if(G.tut)G.tut.on=false;G._onboarded=true;renderTu
   bn.innerHTML=items.map(i=>`<div class="bn" data-bn="${i[0]}"><i>${i[1]}</i>${i[2]}</div>`).join('');
   document.body.appendChild(bn);
   bn.addEventListener('click',ev=>{const b=ev.target.closest?ev.target.closest('.bn'):null;if(!b)return;
-    if(b.dataset.bn==='__more'){const s=document.getElementById('side');if(s&&s.classList)s.classList.toggle('open');return;}
+    if(b.dataset.bn==='__more'){const a=document.getElementById('app');if(a&&a.classList)a.classList.toggle('navopen');return;}
     go(b.dataset.bn);
     bn.querySelectorAll('.bn').forEach(x=>x.classList.toggle('on',x===b));});
   const fx=document.createElement('div');fx.id='fabx';
@@ -7493,6 +7492,79 @@ function cutCard(html,needle){const at=html.indexOf(needle);if(at<0)return html;
     if(T&&e){const tp=(G.loyal.tierPerks||{})[LOYALTY.indexOf(T)]||{};
       if(tp.bday&&e.stays>0&&e.stays%5===0){e.pts=(e.pts||0)+200;g.sat=clamp(g.sat+2,0,100);logEvent(prop,'guest',g.name+' reached stay #'+e.stays+' — milestone bonus awarded.');}}
   }catch(e){}};}
+
+
+/* =======================================================================
+   AATITHYA v14 — Audit Wave 1: surgical bug fixes & UI consolidation.
+   (See AUDIT.md. No new features; corrects defects found in the audit.)
+   ======================================================================= */
+
+/* ---------- (B2) room construction: type-implied quality actually applies ----------
+   v9's quantity modal captured the pre-v10 buildRoom in a closure, so the
+   v10/v13 quality wrappers never ran and the v4 original read a #q_<rt>
+   select that no longer exists — every room was built "Basic" while the
+   modal displayed (and cash-checked) the higher-tier price. Rebuild the
+   pipeline so the enqueued project carries the TYPE_TIER furnishing. */
+window._buildRoomNow=rt=>{const p=P();
+  p.rtQuality=p.rtQuality||{};
+  if(p.rtQuality[rt]==null)p.rtQuality[rt]=(TYPE_TIER[rt]!=null?TYPE_TIER[rt]:1);
+  const qi=p.rtQuality[rt],q=QUALITY[qi]||QUALITY[0];
+  if(p.rooms.filter(r=>r.floor<=p.floors).length+(p.projects||[]).filter(x=>x.kind==='room').length>=p.floors*p.capPerFloor){toast('No floor capacity — add a floor first.','warn');return;}
+  enqueueProject(p,'room',{rt,qi},ri(3,5),ROOMTYPES[rt].build+q.cost,ROOMTYPES[rt].name+' room');};
+window.v9ConfirmRooms=(rt,unit)=>{let n=Math.max(1,Math.floor(+(($('#v9qty')||{}).value||1)));const tot=unit*n;
+  if(tot>G.cash){const afford=Math.floor(G.cash/unit);
+    if(afford<=0){toast('Not enough cash for even one '+ROOMTYPES[rt].name+' room ('+cr(unit)+').','neg');return;}
+    if(typeof confirm==='function'&&!confirm('That costs '+cr(tot)+' but you have '+cr(G.cash)+'. Build '+afford+' room(s) you can afford instead?'))return;
+    n=afford;}
+  let built=0;for(let i=0;i<n;i++){if(G.cash<unit)break;window._buildRoomNow(rt);built++;}
+  (window.v8CloseModal&&window.v8CloseModal());
+  if(built)toast('Queued '+built+' '+ROOMTYPES[rt].name+' room'+(built>1?'s':'')+' for construction.','pos');
+  renderAll();};
+
+/* ---------- (B5) save/load: resync ID counters ----------
+   roomSeq/staffSeq/maintSeq/projSeq/resvSeq reset to 1 on page reload, so
+   objects created after loading a save collided with existing IDs. */
+function v14ResyncIds(){try{
+  let rMax=0,sMax=0,mMax=0,pMax=0,vMax=0;
+  (G.properties||[]).forEach(p=>{
+    (p.rooms||[]).forEach(r=>{if(+r.id>rMax)rMax=+r.id;});
+    Object.values(p.staff||{}).forEach(a=>(a||[]).forEach(s=>{if(+s.id>sMax)sMax=+s.id;}));
+    (p.joins||[]).forEach(j=>{if(j.s&&+j.s.id>sMax)sMax=+j.s.id;});
+    (p.maintBacklog||[]).forEach(i=>{if(+i.id>mMax)mMax=+i.id;});
+    (p.projects||[]).forEach(x=>{if(+x.id>pMax)pMax=+x.id;});
+    (p.resv||[]).concat(p.waitlist||[]).forEach(x=>{if(+x.id>vMax)vMax=+x.id;});
+  });
+  if(rMax>=roomSeq)roomSeq=rMax+1;
+  if(sMax>=staffSeq)staffSeq=sMax+1;
+  if(mMax>=maintSeq)maintSeq=mMax+1;
+  if(pMax>=projSeq)projSeq=pMax+1;
+  if(vMax>=resvSeq)resvSeq=vMax+1;
+}catch(e){}}
+{const _v14AI=augmentInit;augmentInit=function(){_v14AI();v14ResyncIds();};}
+
+/* ---------- (B4 pt.2) competitor campaign decay — once per day, not per render ---------- */
+/* ---------- (B14) guest DB pruning — keep saves & return-pool scans bounded ---------- */
+{const _v14DR=dayRollover;dayRollover=function(){_v14DR();try{const p=P();
+  (p.comps||[]).forEach(c=>{if(c.camp>0)c.camp=Math.max(0,c.camp-1);});
+  const db=G.guestDB||{};const keys=Object.keys(db);
+  if(keys.length>600){
+    const oneOff=keys.filter(k=>(db[k].stays||0)<2).sort((a,b)=>(db[a].firstDay||0)-(db[b].firstDay||0));
+    for(let i=0;i<oneOff.length&&Object.keys(db).length>500;i++)delete db[oneOff[i]];
+  }
+}catch(e){}};}
+
+/* ---------- (B18) mobile FAB speed button — implement cycleSpeed ---------- */
+window.cycleSpeed=()=>{const order=[1,2,4];G.speed=order[(order.indexOf(G.speed)+1)%order.length];setPause(false);toast('Speed '+G.speed+'×');};
+
+/* ---------- UI consolidation: one authoritative home per control ----------
+   Pricing still carried the v1 "Operating Policies" card duplicating the
+   Policies tab; Expansion carried the legacy one-time-fee valet shopitem
+   alongside the tiered valet card (with a stale price). Remove both. */
+{const _v14TP=tabPricing;tabPricing=function(p){let h=_v14TP(p);try{h=cutCard(h,'Operating Policies');}catch(e){}return h;};}
+{const _v14TE=tabExpand;tabExpand=function(p){let h=_v14TE(p);try{
+  const a=h.indexOf('<div class="shopitem"><div class="si-ic">🧳');
+  if(a>=0){const endTok='onclick="enableValet()">Enable</button></div>';const b=h.indexOf(endTok,a);if(b>a)h=h.slice(0,a)+h.slice(b+endTok.length);}
+}catch(e){}return h;};}
 
 renderWiz();
 </script>
