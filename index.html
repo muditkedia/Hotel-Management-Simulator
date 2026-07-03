@@ -422,46 +422,9 @@ const LNAMES=['Sharma','Verma','Iyer','Nair','Reddy','Patel','Singh','Gupta','Me
 
 /* ---------------- GAME STATE ---------------- */
 let G=null, loop=null, lastTick=0;
-function newGame(setup){
-  const city=CITIES[setup.city], loc=LOCALITIES[setup.loc], d=DIFFS[setup.diff];
-  const prop={
-    name:setup.hotelName||'The '+city.name+' Grand',
-    city, loc, floors:1, capPerFloor:10,
-    rooms:[], staff:{}, facilities:[], prices:{},
-    rating:0, reviews:[], reputation:42, repTrend:0,
-    policies:{earlyCI:true,lateCO:true,freeUpg:false,freeCancel:true,minStay:1,generosity:.5},
-    incidents:0, lifetimeGuests:0, lifetimeRev:0,
-    revToday:0, revYest:0, expToday:0, expYest:0,
-  };
-  // seed prices per room type
-  RT_ORDER.forEach(rt=>{ prop.prices[rt]=Math.round(city.baseRate*city.spend*loc.rate*ROOMTYPES[rt].rateF/100)*100; });
-  // starting rooms 6
-  const seed=['budget','budget','standard','standard','standard','deluxe'];
-  seed.forEach((rt,i)=>prop.rooms.push(makeRoom(prop,rt,1,QUALITY[ rt==='deluxe'?1:0 ])));
-  // starting staff
-  prop.staff={
-    frontdesk:[mkStaff('frontdesk',1)],
-    housekeeping:[mkStaff('housekeeping',1),mkStaff('housekeeping',0)],
-    maintenance:[mkStaff('maintenance',0)],
-    manager:[mkStaff('manager',1)]
-  };
-  // competitors
-  prop.comps=mkComps(city,loc,d);
-
-  G={
-    diff:setup.diff, D:d, cash:Math.round(CAP_BASE[setup.diff]*d.cap),
-    day:1, hour:6, dow:0, speed:1, paused:true, tab:'overview',
-    properties:[prop], active:0,
-    feed:[], pendingArrivals:[], brand:1,
-    finHist:[], seasonNow:1, eventCooldown:6, totalRevenue:0
-  };
-  scheduleDay();
-  feed('Welcome to '+prop.name+'. '+prop.rooms.length+' rooms ready in '+loc.name+', '+city.name+'.','gold');
-}
+/* [flattened v18] dead ancestor of newGame() removed — the last declaration wins by hoisting */
 let roomSeq=1;
-function makeRoom(prop,rt,floor,q){
-  return {id:roomSeq++, type:rt, floor, q, status:'clean', guest:null, dirtyT:0, maintT:0, cond:100};
-}
+/* [flattened v18] dead ancestor of makeRoom() removed — the last declaration wins by hoisting */
 let staffSeq=1;
 function mkStaff(role,tierIdx){
   const t=HIRE_TIERS[tierIdx]||HIRE_TIERS[0];
@@ -514,65 +477,13 @@ function avgQuality(prop){
   if(!prop.rooms.length) return 50;
   return prop.rooms.reduce((s,r)=>s+roomQ(r),0)/prop.rooms.length;
 }
-function roomQ(r){ // 0-100 composite room quality
-  const base={budget:42,standard:58,deluxe:70,premium:80,suite:88,exec:94}[r.type];
-  return clamp(base + r.q.q + (r.cond-100)*.4,0,100);
-}
+/* [flattened v18] dead ancestor of roomQ() removed — the last declaration wins by hoisting */
 function facBoost(prop,key){ // sum of facility 'key' attribute
   return prop.facilities.reduce((s,f)=>s+(FACILITIES[f][key]||0),0);
 }
 
-function scheduleDay(){
-  // generate next-day arrivals into pendingArrivals (with arrival hour today)
-  const prop=P();
-  G.seasonNow=seasonFactor(G.day,prop.city,prop.loc);
-  const avail=prop.rooms.filter(r=>r.status==='clean').length;
-  const total=prop.rooms.length||1;
-  // expected occupancy pressure
-  let demandIdx = prop.city.dem*prop.loc.dem*G.seasonNow*repFactor(prop)*compFactor(prop)*G.D.demM;
-  demandIdx*= (1+facBoost(prop,'dem'));
-  // weekend lift for leisure-heavy
-  const weekend=(G.dow>=5);
-  demandIdx*= weekend? (1+prop.city.tour*.25):(1+prop.city.biz*.12);
-  // number of booking attempts ~ proportional to room count & demand
-  let attempts=Math.round(total*1.5*clamp(demandIdx,.2,2.2)*rnd(.8,1.2));
-  attempts=clamp(attempts,1,total*3);
-  const arrivals=[];
-  for(let i=0;i<attempts;i++){
-    const g=genGuest(prop);
-    // pick a room type the guest prefers and can afford, that is available
-    const cand=prop.rooms.filter(r=>(r.status==='clean')&&priceOK(prop,r,g)&&!arrivals.find(a=>a.roomId===r.id));
-    if(!cand.length) continue;
-    // prefer type
-    cand.sort((a,b)=>scoreFor(g,b)-scoreFor(g,a));
-    const room=cand[0];
-    // willingness check
-    const willing=bookWillingness(prop,room,g);
-    if(Math.random()<willing){
-      g.roomId=room.id; g.arrHour=clamp(Math.round(rnd(12,22)),11,23);
-      g.nights=ri(GUEST_TYPES[g.type].nights[0],GUEST_TYPES[g.type].nights[1]);
-      g.depDay=G.day+g.nights; g.depHour=ri(8,11); g.price=prop.prices[room.type];
-      g.checkedIn=false; arrivals.push(g);
-    }
-  }
-  G.pendingArrivals=arrivals;
-  prop.expectedToday=arrivals.length;
-}
-function genGuest(prop){
-  const mix=[];
-  const c=prop.city, l=prop.loc;
-  const w={business:c.biz*1.0+l.bizW, corporate:c.biz*.6+l.bizW*.5, tourist:c.tour*1.0+l.tourW,
-    family:c.tour*.5+.15, budget:(1-c.spend*.5)+.25, transit:l.transW+.1, premium:c.prem*.8,
-    wedding:c.tour*.25+.05, longstay:.12, vip:c.prem*.3};
-  let tot=0; for(const k in w){w[k]=Math.max(.02,w[k]); tot+=w[k];}
-  let r=Math.random()*tot, type='tourist';
-  for(const k in w){ r-=w[k]; if(r<=0){type=k;break;} }
-  const gt=GUEST_TYPES[type];
-  const budget=prop.city.baseRate*prop.city.spend*gt.budgetF*rnd(.8,1.3);
-  return {id:'g'+(roomSeq++)+''+ri(10,99), name:pick(FNAMES)+' '+pick(LNAMES), type,
-    budget, sens:gt.sens*prop.city.sens*G.D.sensM, quiet:gt.quiet, clean:gt.clean,
-    patience:gt.patience, reviewT:gt.review, sat:72, requests:[], complaints:0, served:0};
-}
+/* [flattened v18] dead ancestor of scheduleDay() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of genGuest() removed — the last declaration wins by hoisting */
 function priceOK(prop,room,g){ return prop.prices[room.type] <= g.budget*1.25; }
 function scoreFor(g,room){
   const gt=GUEST_TYPES[g.type];
@@ -594,115 +505,11 @@ function bookWillingness(prop,room,g){
 }
 
 /* ---------------- SIM TICK (per in-game hour) ---------------- */
-function tickHour(){
-  const prop=P();
-  G.hour++;
-  if(G.hour>=24){ G.hour=0; G.day++; G.dow=(G.dow+1)%7; dayRollover(); }
+/* [flattened v18] dead ancestor of tickHour() removed — the last declaration wins by hoisting */
 
-  // process arrivals
-  G.pendingArrivals.forEach(a=>{
-    if(!a.checkedIn && a.arrHour===G.hour){
-      const room=prop.rooms.find(r=>r.id===a.roomId);
-      if(room && room.status==='clean'){
-        room.status='occupied'; room.guest=a; a.checkedIn=true; prop.lifetimeGuests++;
-        // check-in service quality
-        const fd=avgSkill(prop,'frontdesk');
-        a.sat += (fd-65)*.15;
-        feed('🛎️ '+a.name+' ('+GUEST_TYPES[a.type].name+') checked into Room '+room.id+'.','info');
-        maybeRequestEvent(prop,room,a);
-      } else if(room && room.status!=='clean'){
-        // room not ready -> walk-in unhappy / reassign
-        const alt=prop.rooms.find(r=>r.status==='clean');
-        if(alt){ alt.status='occupied'; alt.guest=a; a.roomId=alt.id; a.checkedIn=true; a.sat-=6;
-          feed('⚠️ Room not ready — '+a.name+' moved to Room '+alt.id+'.','warn'); }
-        else { a.checkedIn='lost'; prop.incidents++; a.sat=20;
-          feed('❌ No clean room for '+a.name+' — walked out. Reputation hit.','neg');
-          prop.reputation=clamp(prop.reputation-1.2,0,100); }
-      }
-    }
-  });
+/* [flattened v18] dead ancestor of dayRollover() removed — the last declaration wins by hoisting */
 
-  // process check-outs
-  prop.rooms.forEach(room=>{
-    const g=room.guest;
-    if(g && g.checkedIn===true && G.day>=g.depDay && G.hour>=g.depHour){
-      // finalize satisfaction & revenue
-      finalizeStay(prop,room,g);
-      const rev=g.price*g.nights + g.extraRev;
-      prop.revToday+=rev; prop.lifetimeRev+=rev; G.totalRevenue+=rev; G.cash+=rev;
-      room.guest=null; room.status='dirty'; room.dirtyT=ri(1,3);
-      room.cond=clamp(room.cond-rnd(.5,2.2),40,100);
-    }
-  });
-
-  // housekeeping — clean dirty rooms based on capacity
-  let hk=Math.round(cleanCapacity(prop));
-  prop.rooms.filter(r=>r.status==='dirty').sort((a,b)=>a.dirtyT-b.dirtyT).forEach(r=>{
-    if(hk>0){ r.dirtyT--; if(r.dirtyT<=0){ r.status='clean'; } hk--; }
-  });
-  // maintenance recovery
-  prop.rooms.filter(r=>r.status==='maintenance').forEach(r=>{
-    r.maintT-= maintSpeed(prop);
-    if(r.maintT<=0){ r.status='dirty'; r.dirtyT=1; r.cond=clamp(r.cond+rnd(10,25),0,100);
-      feed('🔧 Room '+r.id+' maintenance complete.','pos'); }
-  });
-  // occupied guest mood drift (noise, condition)
-  prop.rooms.filter(r=>r.status==='occupied').forEach(r=>{
-    const g=r.guest; if(!g)return;
-    const noise=prop.loc.noise*(1-facBoost(prop,'sat')*.01);
-    if(noise>g.quiet+.15 && Math.random()<.04) g.sat-=rnd(.5,2);
-    if(r.cond<60 && Math.random()<.05) g.sat-=rnd(.5,1.5);
-  });
-
-  // random operational events
-  G.eventCooldown--;
-  if(G.eventCooldown<=0 && !G.paused){
-    if(Math.random()<.14){ triggerEvent(prop); G.eventCooldown=ri(8,18); }
-    else G.eventCooldown=ri(3,7);
-  }
-  accrueHourlyCost(prop);
-}
-
-function dayRollover(){
-  const prop=P();
-  // settle day
-  prop.revYest=prop.revToday; prop.expYest=prop.expToday;
-  G.finHist.push({day:G.day-1, rev:prop.revToday, exp:prop.expToday, cash:G.cash});
-  if(G.finHist.length>120) G.finHist.shift();
-  prop.revToday=0; prop.expToday=0;
-  // pay any lump daily already accrued hourly; salaries accrued hourly too
-  // reputation drift toward rating
-  if(prop.reviews.length){
-    const recent=prop.reviews.slice(-12);
-    const avgR=recent.reduce((s,r)=>s+r.stars,0)/recent.length;
-    const target=avgR*20;
-    prop.reputation += (target-prop.reputation)*.12 - prop.incidents*.3;
-    prop.reputation=clamp(prop.reputation,0,100);
-  }
-  prop.incidents=Math.max(0,prop.incidents-1);
-  // competitor moves occasionally
-  if(Math.random()<.25){
-    const c=pick(prop.comps);
-    if(prop.rating>c.rating+.3 && Math.random()<.5){ c.priceIdx=clamp(c.priceIdx-.05,.6,2); feed('🏨 '+c.name+' cut prices to compete.','warn'); }
-    else if(Math.random()<.4){ c.rating=clamp(c.rating+rnd(.02,.08),2.8,4.9); }
-  }
-  // staff morale drift
-  for(const role in prop.staff) prop.staff[role].forEach(s=>{
-    const load=workload(prop);
-    s.morale=clamp(s.morale + (load>1.1?-1.5:.6) + rnd(-.5,.5),20,100);
-  });
-  // schedule new day arrivals
-  scheduleDay();
-  feed('— Day '+G.day+' begins. '+prop.expectedToday+' bookings expected. Season index '+G.seasonNow.toFixed(2)+'. —','gold');
-  // bankruptcy check
-  if(G.cash<-500000){ gameOver(); }
-}
-
-function cleanCapacity(prop){
-  const hk=prop.staff.housekeeping||[];
-  const mgr=avgSkill(prop,'manager');
-  return hk.reduce((s,x)=>s+(x.skill/100)*(x.morale/100)*0.9,0)*(1+ (mgr-60)/200);
-}
+/* [flattened v18] dead ancestor of cleanCapacity() removed — the last declaration wins by hoisting */
 function maintSpeed(prop){
   const m=prop.staff.maintenance||[];
   return Math.max(.5, m.reduce((s,x)=>s+(x.skill/100),0)*1.4);
@@ -716,78 +523,15 @@ function workload(prop){
   const staffN=Object.values(prop.staff).reduce((s,a)=>s+a.length,0)||1;
   return occ/(staffN*2.5);
 }
-function accrueHourlyCost(prop){
-  // salaries: monthly -> /30/24 per hour
-  let sal=0; for(const role in prop.staff) prop.staff[role].forEach(s=>sal+=s.sal/30/24);
-  // utilities + maintenance per room/hour
-  let util=prop.rooms.length*250/24;
-  let maint=prop.rooms.reduce((s,r)=>s+ROOMTYPES[r.type].dmaint,0)/24*G.D.maintM;
-  let fac=prop.facilities.reduce((s,f)=>s+FACILITIES[f].daily,0)/24;
-  const cost=(sal+util+maint+fac)*G.D.costM;
-  prop.expToday+=cost; G.cash-=cost;
-}
+/* [flattened v18] dead ancestor of accrueHourlyCost() removed — the last declaration wins by hoisting */
 
 /* ---------------- SATISFACTION & REVIEWS ---------------- */
-function finalizeStay(prop,room,g){
-  const gt=GUEST_TYPES[g.type];
-  let sat=g.sat;
-  const q=roomQ(room), exp=ROOMTYPES[room.type].exp*GUEST_TYPES[g.type].clean*G.D.exp;
-  sat += (q-exp)*.5;                                   // room vs expectation
-  // value for money
-  const mkt=marketRate(prop,room.type);
-  sat -= clamp((g.price/mkt-1),-.4,1.2)*22*g.sens*.6;
-  // cleanliness (housekeeping performance proxy)
-  const hk=clamp(cleanCapacity(prop)/Math.max(1,prop.rooms.length)*100,30,100);
-  sat += (hk-65)*.18*g.clean;
-  // service
-  sat += (avgSkill(prop,'frontdesk')-65)*.16;
-  // facilities the guest wanted
-  const wants=gt.prefer.filter(f=>prop.facilities.includes(f)).length;
-  sat += wants*3 + facBoost(prop,'sat')*.15;
-  // noise
-  sat -= clamp(prop.loc.noise-g.quiet,0,1)*14;
-  // complaints handled this stay already affected g.sat
-  g.sat=clamp(sat,0,100);
-  // revenue extras from facilities (F&B, services)
-  let extra=0;
-  prop.facilities.forEach(f=>{ if(FACILITIES[f].rev && Math.random()<.5) extra+= rnd(300,1500)*(gt.budgetF); });
-  g.extraRev=Math.round(extra);
-  // review?
-  const reviewChance=g.reviewT*(.4+Math.abs(g.sat-65)/65)*G.D.harsh*.9;
-  if(Math.random()<clamp(reviewChance,.05,.95)){
-    leaveReview(prop,g,room);
-  }
-  feed((g.sat>75?'😊':g.sat>50?'😐':'😞')+' '+g.name+' checked out — satisfaction '+Math.round(g.sat)+'%.', g.sat>70?'pos':g.sat>45?'info':'neg');
-}
-function leaveReview(prop,g,room){
-  let s=g.sat - (G.D.harsh-1)*8;
-  const stars=clamp(Math.round(s/20+rnd(-.3,.3)),1,5);
-  const txt=reviewText(stars,g,room,prop);
-  prop.reviews.push({stars,txt,who:g.name,type:g.type,day:G.day});
-  if(prop.reviews.length>200) prop.reviews.shift();
-  prop.rating= prop.reviews.reduce((a,r)=>a+r.stars,0)/prop.reviews.length;
-  feed('★ '+g.name+' left a '+stars+'-star review.', stars>=4?'pos':stars<=2?'neg':'info');
-  renderTopbar();
-}
-function reviewText(stars,g,room,prop){
-  const rt=ROOMTYPES[room.type].name;
-  const POS=['Excellent stay overall.','Staff was genuinely helpful.','Spotless room and great service.','Great value for the price.','Will definitely return.','Comfortable and well-kept '+rt.toLowerCase()+' room.','Smooth check-in, lovely experience.'];
-  const MID=['Decent stay, room was fine.','Okay for the price, nothing special.','Good location but service was slow.','Clean room, but check-in took too long.','Average — could improve housekeeping.','Comfortable enough, a bit overpriced.'];
-  const NEG=['Overpriced for what was provided.','Bathroom quality was below expectations.','Room wasn\u2019t ready on arrival.','Noisy and hard to sleep.','Service was disappointing.','Not worth the rate, won\u2019t return.','Cleanliness needs serious attention.'];
-  let pool = stars>=4?POS : stars===3?MID : NEG;
-  let base=pick(pool);
-  // add a specific aspect
-  if(prop.loc.noise>.6 && stars<4 && Math.random()<.5) base+=' The area was quite noisy.';
-  if(g.sat<50 && Math.random()<.4) base+=' Expected more for the price.';
-  if(stars>=4 && prop.facilities.length>3 && Math.random()<.4) base+=' Loved the amenities.';
-  return base;
-}
+/* [flattened v18] dead ancestor of finalizeStay() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of leaveReview() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of reviewText() removed — the last declaration wins by hoisting */
 
 /* ---------------- IN-STAY REQUEST EVENTS ---------------- */
-function maybeRequestEvent(prop,room,g){
-  if(Math.random()>.28 || G.paused===false && Math.random()>.5) {}
-  // light chance to spawn a small request shortly — handled via main event engine for big ones
-}
+/* [flattened v18] dead ancestor of maybeRequestEvent() removed — the last declaration wins by hoisting */
 
 /* ---------------- EVENT ENGINE ---------------- */
 const EVENTS=[
@@ -893,29 +637,8 @@ function bump(p,amt){ // affect a random in-house guest's sat & small rep
   p.reputation=clamp(p.reputation+amt*.1,0,100);
 }
 function hitGuest(p,amt){ p.rooms.filter(r=>r.status==='occupied'&&r.guest).forEach(r=>r.guest.sat=clamp(r.guest.sat-amt,0,100)); }
-function triggerEvent(prop){
-  const elig=EVENTS.filter(e=>e.cond(prop));
-  if(!elig.length) return;
-  const ev=pick(elig);
-  showEvent(ev,prop);
-}
-function showEvent(ev,prop){
-  const wasPaused=G.paused; G.autoResume=!wasPaused; setPause(true);
-  const box=$('#mbox');
-  box.innerHTML=`
-    <div class="mhead"><div class="mic" style="background:${ev.cl}22;color:${ev.cl}">${ev.ic}</div>
-      <div><h3>${ev.title}</h3><div class="ms">${ev.sub}</div></div></div>
-    <div class="mbody"><div class="desc">${ev.desc}</div>
-      ${ev.ch.map((c,i)=>`<button class="choice" data-i="${i}"><div class="ct">${c.t}</div><div class="cc">${c.c}</div></button>`).join('')}
-    </div>`;
-  $('#modal').style.display='flex';
-  $$('.choice',box).forEach(b=>b.onclick=()=>{
-    ev.ch[+b.dataset.i].f(prop);
-    $('#modal').style.display='none';
-    if(G.autoResume) setPause(false);
-    renderAll();
-  });
-}
+/* [flattened v18] dead ancestor of triggerEvent() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of showEvent() removed — the last declaration wins by hoisting */
 
 /* ---------------- LOOP ---------------- */
 function startLoop(){ if(loop)clearInterval(loop); lastTick=performance.now(); loop=setInterval(gameLoop,80); }
@@ -945,25 +668,11 @@ function refreshLive(){
   // avoid clobbering inputs the user is editing
   const ae=document.activeElement;
   if(ae && (ae.tagName==='INPUT'||ae.tagName==='SELECT')) return;
-  if(['overview','rooms','guests','finance'].includes(G.tab)) renderTab();
+  if(['overview','rooms','guests','finance','operations','reservations','utilities'].includes(G.tab)) renderTab(); // (audit B16) newer live tabs refresh too
   updateBadges();
 }
-function renderTopbar(){
-  const p=P();
-  $('#tbProp').textContent=p.name+' · '+p.loc.name+', '+p.city.name;
-  const occ=occupied(p), total=p.rooms.length;
-  const occR= total? Math.round(occ/total*100):0;
-  $('#kpis').innerHTML=`
-    ${kpi('Cash',cr(G.cash), G.cash>0?'':'')}
-    ${kpi('Occupancy',occR+'%', occ+'/'+total+' rooms')}
-    ${kpi('ADR', cr0(adr(p)), 'avg rate')}
-    ${kpi('Rating', p.rating?p.rating.toFixed(2):'—', starStr(p.rating))}
-    ${kpi('Reputation', Math.round(p.reputation)+'/100','')}
-    ${kpi('Net/day', netDay(p), '')}
-  `;
-  updateClock();
-}
-function kpi(k,v,sub){return `<div class="kpi"><div class="k">${k}</div><div class="v">${v} ${sub?'<small>'+sub+'</small>':''}</div></div>`;}
+/* [flattened v18] dead ancestor of renderTopbar() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of kpi() removed — the last declaration wins by hoisting */
 function adr(p){ const occ=p.rooms.filter(r=>r.status==='occupied'&&r.guest); if(!occ.length)return avgPrice(p); return occ.reduce((s,r)=>s+r.guest.price,0)/occ.length; }
 function avgPrice(p){if(p.rooms&&p.rooms.length)return p.rooms.reduce((s,r)=>s+(p.prices[r.type]||0),0)/p.rooms.length;return RT_ORDER.reduce((s,rt)=>s+p.prices[rt],0)/RT_ORDER.length;}
 function netDay(p){ const n=p.revYest-p.expYest; return (n>=0?'<span class="up">+':'<span class="down">')+cr(Math.abs(n))+'</span>'; }
@@ -975,15 +684,7 @@ function updateBadges(){
   const b=$('#bgGuests'); if(arr>0){b.style.display='';b.textContent=arr;} else b.style.display='none';
 }
 
-function renderTab(){
-  const m=$('#main'); const p=P();
-  const T={overview:tabOverview,rooms:tabRooms,guests:tabGuests,pricing:tabPricing,
-    staff:tabStaff,facilities:tabFacilities,reviews:tabReviews,market:tabMarket,
-    finance:tabFinance,expand:tabExpand};
-  m.innerHTML=T[G.tab](p);
-  wireTab();
-  updateBadges();
-}
+/* [flattened v18] dead ancestor of renderTab() removed — the last declaration wins by hoisting */
 
 /* ---- OVERVIEW ---- */
 function tabOverview(p){
@@ -1067,29 +768,7 @@ function roomCell(p,r){
     <div class="bar" style="margin-top:8px"><i style="width:${roomQ(r)}%;background:#3a4a66"></i></div>
   </div>`;
 }
-function roomDetail(id){
-  const p=P(), r=p.rooms.find(x=>x.id===id); if(!r)return;
-  const g=r.guest;
-  const box=$('#mbox');
-  box.innerHTML=`<div class="mhead"><div class="mic" style="background:#1c2740">▦</div>
-    <div><h3>Room ${r.id}</h3><div class="ms">${ROOMTYPES[r.type].name} · ${r.q.name} furnishing · Floor ${r.floor}</div></div></div>
-    <div class="mbody">
-      ${row('Status','<span class="pill '+(r.status==='clean'?'green':r.status==='occupied'?'blue':r.status==='dirty'?'gold':'red')+'">'+r.status+'</span>')}
-      ${row('Nightly rate',cr0(p.prices[r.type]))}
-      ${row('Room quality',Math.round(roomQ(r))+'/100')}
-      ${row('Condition',Math.round(r.cond)+'%')}
-      ${g?`<div style="margin-top:10px" class="notice"><b>${g.name}</b> · ${GUEST_TYPES[g.type].name}<br>
-        Satisfaction: <b>${Math.round(g.sat)}%</b> · Nights: ${g.nights} · Rate ${cr0(g.price)}<br>
-        Checks out Day ${g.depDay}, ~${g.depHour}:00</div>`:''}
-      <div class="wrapf" style="margin-top:12px">
-        ${r.status==='clean'?`<button class="btn" onclick="upgradeRoomQ(${r.id})">Upgrade Furnishing</button>`:''}
-        ${r.cond<85&&r.status!=='occupied'&&r.status!=='maintenance'?`<button class="btn" onclick="renovate(${r.id})">Renovate (₹${(80000).toLocaleString('en-IN')})</button>`:''}
-        ${r.status==='clean'?`<button class="btn" onclick="sendMaint(${r.id})">Send to Maintenance</button>`:''}
-      </div>
-    </div>`;
-  $('#modal').style.display='flex';
-  $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').style.display='none';};
-}
+/* [flattened v18] dead ancestor of roomDetail() removed — the last declaration wins by hoisting */
 window.upgradeRoomQ=id=>{
   const p=P(),r=p.rooms.find(x=>x.id===id);
   const idx=QUALITY.findIndex(q=>q.name===r.q.name);
@@ -1205,154 +884,21 @@ window.hireStaff=(role,tier)=>{const p=P();const s=mkStaff(role,tier);if(G.cash<
 window.fireStaff=id=>{const p=P();for(const role in p.staff){const i=p.staff[role].findIndex(s=>s.id===id);if(i>=0){const s=p.staff[role][i];p.staff[role].splice(i,1);toast('Dismissed '+s.name+'.','warn');break;}}renderAll();};
 
 /* ---- FACILITIES ---- */
-function tabFacilities(p){
-  const owned=p.facilities;
-  return `<div class="page-head"><div><h2>Facilities & Amenities</h2><div class="desc">Add facilities to lift demand, satisfaction, rate ceiling & reputation</div></div></div>
-  <div class="card" style="margin-bottom:14px"><h3>Installed (${owned.length})</h3>
-    ${owned.length?'<div class="wrapf">'+owned.map(f=>`<span class="tag on">${FACILITIES[f].ic} ${FACILITIES[f].name}</span>`).join('')+'</div>':'<div class="muted sm">No facilities yet — start with breakfast or Wi-Fi for quick wins.</div>'}
-  </div>
-  <div class="cards cols-2">
-    ${Object.keys(FACILITIES).filter(f=>!owned.includes(f)).map(f=>{const fc=FACILITIES[f];return `<div class="shopitem">
-      <div class="si-ic">${fc.ic}</div>
-      <div class="si-b"><div class="si-t">${fc.name}</div>
-        <div class="si-d">Build ${cr(fc.build)} · Daily ${cr0(fc.daily)}${fc.staff?' · +'+fc.staff+' staff':''}</div>
-        <div class="si-d">+${Math.round(fc.dem*100)}% demand · +${fc.sat} satisfaction · +${Math.round(fc.rate*100)}% rate ceiling · +${fc.rep} rep</div>
-      </div>
-      <button class="btn primary" style="padding:7px 13px" onclick="buyFac('${f}')">Build</button>
-    </div>`}).join('')}
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabFacilities() removed — the last declaration wins by hoisting */
 window.buyFac=f=>{const p=P();const fc=FACILITIES[f];if(G.cash<fc.build){toast('Not enough cash to build '+fc.name+'.','neg');return;}G.cash-=fc.build;p.expToday+=fc.build;p.facilities.push(f);if(fc.staff){if(!p.staff.fnb)p.staff.fnb=[];for(let i=0;i<fc.staff;i++)p.staff.fnb.push(mkStaff('fnb',0));}p.reputation=clamp(p.reputation+fc.rep*.4,0,100);toast(fc.name+' built. Demand & guest appeal improved.');renderAll();};
 
 /* ---- REVIEWS ---- */
-function tabReviews(p){
-  const dist=[0,0,0,0,0]; p.reviews.forEach(r=>dist[r.stars-1]++);
-  const tot=p.reviews.length||1;
-  return `<div class="page-head"><div><h2>Reviews & Reputation</h2><div class="desc">Google-style guest ratings shape demand and pricing power</div></div></div>
-  <div class="split">
-    <div>
-      <div class="card" style="margin-bottom:12px">
-        <div class="flex" style="gap:18px;align-items:center">
-          <div style="text-align:center"><div style="font-size:42px;font-weight:760;line-height:1">${p.rating?p.rating.toFixed(1):'—'}</div>
-          <div class="stars" style="font-size:16px">${starStr(p.rating)||'<span class="star-dim">★★★★★</span>'}</div>
-          <div class="muted sm" style="margin-top:3px">${p.reviews.length} reviews</div></div>
-          <div style="flex:1">${[5,4,3,2,1].map(n=>`<div class="flex" style="gap:8px"><span class="muted sm" style="width:12px">${n}</span>${barInline(dist[n-1]/tot*100,'#d8a24a')}<span class="muted sm">${dist[n-1]}</span></div>`).join('')}</div>
-        </div>
-      </div>
-      <div class="card"><h3>Reputation Drivers</h3>
-        ${row('Reputation score',Math.round(p.reputation)+'/100')}
-        ${row('Recent trend',(p.reviews.slice(-6).reduce((s,r)=>s+r.stars,0)/Math.max(1,Math.min(6,p.reviews.length))).toFixed(1)+'★ last 6')}
-        ${row('Open incidents',p.incidents)}
-        ${row('Demand multiplier from rep','×'+repFactor(p).toFixed(2))}
-        ${row('Pricing power','×'+compFactor(p).toFixed(2)+' vs rivals')}
-      </div>
-    </div>
-    <div class="card"><h3>Recent Reviews</h3>
-      <div style="max-height:520px;overflow:auto">
-      ${p.reviews.slice().reverse().slice(0,25).map(r=>`<div class="review"><div class="rh"><span class="who">${r.who}</span><span class="stars">${'★'.repeat(r.stars)}<span class="star-dim">${'★'.repeat(5-r.stars)}</span></span></div><div class="txt">${r.txt}</div><div class="meta">${GUEST_TYPES[r.type].name} · Day ${r.day}</div></div>`).join('')||'<div class="muted sm">No reviews yet. Reviews appear after guests check out.</div>'}
-      </div>
-    </div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabReviews() removed — the last declaration wins by hoisting */
 
 /* ---- MARKET ---- */
-function tabMarket(p){
-  const c=p.city,l=p.loc;
-  return `<div class="page-head"><div><h2>Market & Competition</h2><div class="desc">${c.name} (Tier ${c.tier}) · ${l.name}</div></div></div>
-  <div class="cards cols-2" style="margin-bottom:12px">
-    <div class="card"><h3>City Profile — ${c.name}</h3>
-      ${meter('Spending power',c.spend/1.4*100)}
-      ${meter('Price sensitivity',c.sens/1.4*100)}
-      ${meter('Base demand',c.dem/1.3*100)}
-      ${meter('Competition intensity',c.comp/1.3*100)}
-      ${meter('Business share',c.biz*100)}
-      ${meter('Tourism share',c.tour*100)}
-      ${meter('Premium guest share',c.prem*100)}
-      ${meter('Seasonal volatility',c.seas/.5*100)}
-    </div>
-    <div class="card"><h3>Locality — ${l.name}</h3>
-      <div class="muted sm" style="margin-bottom:8px">${l.note}</div>
-      ${meter('Rate ceiling',(l.rate-.7)/.6*100)}
-      ${meter('Demand pull',l.dem/1.2*100)}
-      ${meter('Convenience',l.conv*100)}
-      ${meter('Noise risk',l.noise*100)}
-      ${meter('Complaint likelihood',(l.complaint-.8)/.4*100)}
-      <div style="margin-top:10px" class="notice">Current season index: <b>${G.seasonNow.toFixed(2)}</b> ${G.seasonNow>1.1?'<span class="pill green">peak season</span>':G.seasonNow<.85?'<span class="pill red">off season</span>':'<span class="pill gray">shoulder</span>'}</div>
-    </div>
-  </div>
-  <div class="tbl-wrap"><table><thead><tr><th>Competitor</th><th>Segment</th><th>Rating</th><th>Price Index</th><th>Threat</th></tr></thead><tbody>
-    ${p.comps.map(co=>`<tr><td class="b">${co.name}</td><td>${co.seg}</td><td>${co.rating.toFixed(1)} ${starStr(co.rating)}</td><td>×${co.priceIdx.toFixed(2)}</td><td>${co.rating>p.rating+.3?'<span class="pill red">high</span>':co.rating<p.rating-.3?'<span class="pill green">low</span>':'<span class="pill gold">even</span>'}</td></tr>`).join('')}
-  </tbody></table></div>
-  <div class="notice" style="margin-top:12px">Your rating <b>${p.rating?p.rating.toFixed(2):'—'}</b> vs competitor average <b>${(p.comps.reduce((s,c)=>s+c.rating,0)/p.comps.length).toFixed(2)}</b>. Beating rivals on rating widens your demand capture and lets you hold higher rates.</div>`;
-}
+/* [flattened v18] dead ancestor of tabMarket() removed — the last declaration wins by hoisting */
 function meter(l,v){return `<div class="barrow"><span class="lbl">${l}</span><div class="mtr"><i style="width:${clamp(v,2,100)}%"></i></div></div>`;}
 
 /* ---- FINANCE ---- */
-function tabFinance(p){
-  const days=G.finHist.slice(-30);
-  const totRev=days.reduce((s,d)=>s+d.rev,0),totExp=days.reduce((s,d)=>s+d.exp,0);
-  let payroll=0;for(const role in p.staff)p.staff[role].forEach(s=>payroll+=s.sal);
-  const utilities=p.rooms.length*250*30;
-  const maintC=p.rooms.reduce((s,r)=>s+ROOMTYPES[r.type].dmaint,0)*30;
-  const facC=p.facilities.reduce((s,f)=>s+FACILITIES[f].daily,0)*30;
-  const max=Math.max(1,...days.map(d=>Math.max(d.rev,d.exp)));
-  return `<div class="page-head"><div><h2>Finance</h2><div class="desc">Cash, profit & loss, cost structure</div></div></div>
-  <div class="cards cols-4" style="margin-bottom:12px">
-    ${ovCard('Cash on hand',cr(G.cash),'',barH(clamp(G.cash/10000000*100,0,100),'#46c06a'))}
-    ${ovCard('Rev (30d)',cr(totRev),'',' ')}
-    ${ovCard('Exp (30d)',cr(totExp),'',' ')}
-    ${ovCard('Net (30d)',(totRev-totExp>=0?'+':'')+cr(totRev-totExp),'profit',' ')}
-  </div>
-  <div class="split">
-    <div class="card"><h3>Revenue vs Expenses (last ${days.length} days)</h3>
-      <div style="display:flex;align-items:flex-end;gap:3px;height:180px;margin-top:8px">
-        ${days.map(d=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px" title="D${d.day}: +${cr0(d.rev)} / -${cr0(d.exp)}">
-          <div style="height:${d.rev/max*150}px;background:#46c06a;border-radius:2px 2px 0 0;min-height:1px"></div>
-          <div style="height:${d.exp/max*150}px;background:#ef6a6a55;border-radius:0 0 2px 2px;min-height:1px"></div>
-        </div>`).join('')||'<div class="muted sm">Run a few days to see trends.</div>'}
-      </div>
-      <div class="flex" style="gap:14px;margin-top:8px"><span class="sm"><span style="color:#46c06a">■</span> Revenue</span><span class="sm"><span style="color:#ef6a6a">■</span> Expenses</span></div>
-    </div>
-    <div class="card"><h3>Monthly Cost Structure</h3>
-      ${row('Payroll',cr(payroll))}
-      ${row('Utilities (est)',cr(utilities))}
-      ${row('Maintenance (est)',cr(maintC))}
-      ${row('Facilities running',cr(facC))}
-      <div class="row" style="border-top:1px solid var(--line2);margin-top:4px"><span class="b">Total monthly burn</span><span class="b">${cr(payroll+utilities+maintC+facC)}</span></div>
-      <div style="margin-top:12px">${row('Lifetime revenue',cr(p.lifetimeRev))}${row('Avg revenue/room/day',cr0(p.lifetimeRev/Math.max(1,p.rooms.length)/Math.max(1,G.day)))}</div>
-    </div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabFinance() removed — the last declaration wins by hoisting */
 
 /* ---- EXPANSION ---- */
-function tabExpand(p){
-  const floorCost=2500000+p.floors*800000;
-  const canRoom=p.rooms.filter(r=>r.floor<=p.floors).length < p.floors*p.capPerFloor;
-  return `<div class="page-head"><div><h2>Expansion</h2><div class="desc">Grow from one property into a national chain</div></div></div>
-  <div class="cards cols-2" style="margin-bottom:14px">
-    <div class="card"><h3>Build New Rooms</h3>
-      <div class="muted sm" style="margin-bottom:8px">Floor capacity: ${p.rooms.filter(r=>r.floor<=p.floors).length}/${p.floors*p.capPerFloor}. ${canRoom?'':'<span class="gold">Add a floor to build more.</span>'}</div>
-      ${RT_ORDER.map(rt=>{const t=ROOMTYPES[rt];return `<div class="shopitem"><div class="si-ic">▦</div><div class="si-b"><div class="si-t">${t.name} Room</div><div class="si-d">Build ${cr(t.build)} · ref rate ${cr0(marketRate(p,rt))} · expectation ${t.exp}</div></div>
-
-        <button class="btn primary" style="padding:7px 11px" ${canRoom?'':'disabled'} onclick="buildRoom('${rt}')">Build</button></div>`;}).join('')}
-    </div>
-    <div class="card"><h3>Property Growth</h3>
-      <div class="shopitem"><div class="si-ic">🏗️</div><div class="si-b"><div class="si-t">Add a Floor</div><div class="si-d">+${p.capPerFloor} room capacity · ${cr(floorCost)}</div></div><button class="btn primary" style="padding:7px 13px" onclick="addFloor()">Build Floor</button></div>
-      <div class="shopitem"><div class="si-ic">🏨</div><div class="si-b"><div class="si-t">Open a New Hotel</div><div class="si-d">Launch a second property in a new city/locality · from ${cr(15000000)}</div></div><button class="btn primary" style="padding:7px 13px" onclick="openNewHotel()">Expand</button></div>
-      <div class="notice" style="margin-top:10px">Your portfolio: <b>${G.properties.length}</b> ${G.properties.length>1?'hotels':'hotel'}. ${G.properties.length>1?'<br>Switch active property below.':''}</div>
-      ${G.properties.length>1?`<div class="wrapf">${G.properties.map((pp,i)=>`<button class="tag ${i===G.active?'on':''}" onclick="switchProp(${i})">${pp.name}</button>`).join('')}</div>`:''}
-    </div>
-  </div>
-  <div class="card"><h3>Milestones</h3>
-    ${milestone('Reach 4.0★ rating',p.rating>=4)}
-    ${milestone('Own 15+ rooms',p.rooms.length>=15)}
-    ${milestone('Reputation 70+',p.reputation>=70)}
-    ${milestone('Build 5 facilities',p.facilities.length>=5)}
-    ${milestone('Open a second hotel',G.properties.length>=2)}
-    ${milestone('Cash reserve ₹2 Cr+',G.cash>=20000000)}
-    ${milestone('Build a 3-city chain',new Set(G.properties.map(x=>x.city.name)).size>=3)}
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabExpand() removed — the last declaration wins by hoisting */
 function milestone(t,done){return `<div class="row"><span class="lab">${done?'✅':'⬜'} ${t}</span><span class="val">${done?'<span class="pill green">done</span>':'<span class="pill gray">pending</span>'}</span></div>`;}
 window.buildRoom=rt=>{const p=P();const qi=+($('#q_'+rt)?.value||0);const q=QUALITY[qi];const cost=ROOMTYPES[rt].build+q.cost;
   if(p.rooms.filter(r=>r.floor<=p.floors).length>=p.floors*p.capPerFloor){toast('No floor capacity — add a floor first.','warn');return;}
@@ -1362,32 +908,7 @@ window.buildRoom=rt=>{const p=P();const qi=+($('#q_'+rt)?.value||0);const q=QUAL
 window.addFloor=()=>{const p=P();const cost=2500000+p.floors*800000;if(G.cash<cost){toast('Not enough cash for a new floor.','neg');return;}G.cash-=cost;p.expToday+=cost;p.floors++;toast('Floor '+p.floors+' added (+'+p.capPerFloor+' room capacity).');renderAll();};
 window.switchProp=i=>{G.active=i;scheduleDay();toast('Now managing '+G.properties[i].name+'.');renderAll();};
 
-function openNewHotel(){
-  if(G.cash<15000000){toast('You need at least ₹1.5 Cr to open a new hotel.','neg');return;}
-  const box=$('#mbox');
-  box.innerHTML=`<div class="mhead"><div class="mic" style="background:#1c2740">🏨</div><div><h3>Open a New Hotel</h3><div class="ms">Select a city & locality for your next property</div></div></div>
-  <div class="mbody">
-    <label class="fl">City</label><select id="ncity">${CITIES.map((c,i)=>`<option value="${i}">${c.name} · Tier ${c.tier}</option>`).join('')}</select>
-    <label class="fl">Locality</label><select id="nloc">${LOCALITIES.map((l,i)=>`<option value="${i}">${l.name}</option>`).join('')}</select>
-    <label class="fl">Hotel name</label><input type="text" id="nname" placeholder="e.g. Aatithya Residency">
-    <div class="notice" style="margin-top:12px">Setup cost: <b>${cr(15000000)}</b> — includes 5 starter rooms & basic staff. The property runs on the same live engine; switch between hotels anytime.</div>
-    <button class="btn primary" id="confirmNew" style="width:100%;margin-top:6px">Open Hotel — ${cr(15000000)}</button>
-  </div>`;
-  $('#modal').style.display='flex';
-  $('#confirmNew').onclick=()=>{
-    const ci=+$('#ncity').value, li=+$('#nloc').value, city=CITIES[ci], loc=LOCALITIES[li];
-    G.cash-=15000000;
-    const prop={name:$('#nname').value||('Aatithya '+city.name),city,loc,floors:1,capPerFloor:10,
-      rooms:[],staff:{},facilities:[],prices:{},rating:0,reviews:[],reputation:40,
-      policies:{...P().policies},incidents:0,lifetimeGuests:0,lifetimeRev:0,revToday:0,revYest:0,expToday:0,expYest:0};
-    RT_ORDER.forEach(rt=>prop.prices[rt]=Math.round(city.baseRate*city.spend*loc.rate*ROOMTYPES[rt].rateF/100)*100);
-    ['budget','standard','standard','standard','deluxe'].forEach(rt=>prop.rooms.push(makeRoom(prop,rt,1,QUALITY[0])));
-    prop.staff={frontdesk:[mkStaff('frontdesk',1)],housekeeping:[mkStaff('housekeeping',0),mkStaff('housekeeping',0)],maintenance:[mkStaff('maintenance',0)],manager:[mkStaff('manager',0)]};
-    prop.comps=mkComps(city,loc,G.D);
-    G.properties.push(prop); G.active=G.properties.length-1; scheduleDay();
-    $('#modal').style.display='none'; toast('New hotel opened in '+city.name+'! Now '+G.properties.length+' properties.','pos'); renderAll();
-  };
-}
+/* [flattened v18] dead ancestor of openNewHotel() removed — the last declaration wins by hoisting */
 window.openNewHotel=openNewHotel;
 
 /* ---------------- TAB WIRING ---------------- */
@@ -1428,64 +949,11 @@ function gameOver(){
 
 /* ---------------- SAVE / LOAD ---------------- */
 function save(){try{localStorage.setItem('aatithya',JSON.stringify(G));toast('Game saved.','pos');}catch(e){toast('Save unavailable in this context.','warn');}}
-function load(){try{const s=localStorage.getItem('aatithya');if(!s){toast('No save found.','warn');return;}G=JSON.parse(s);
-  // rehydrate (objects are plain; functions resolved via data lookups, fine)
-  setPause(true);renderAll();toast('Game loaded.','pos');}catch(e){toast('Load failed.','neg');}}
+/* [flattened v18] dead ancestor of load() removed — the last declaration wins by hoisting */
 
 /* ---------------- SETUP WIZARD LOGIC ---------------- */
 let wiz={step:0,city:null,loc:0,diff:null,hotelName:''};
-function renderWiz(){
-  $$('.stepdot').forEach(d=>d.classList.toggle('on',+d.dataset.s<=wiz.step));
-  const b=$('#wizbody');
-  if(wiz.step===0){
-    b.innerHTML=`<div class="wizhead"><h2>Choose your city</h2></div>
-    <div class="muted sm">Each market behaves differently — spending power, demand, competition and seasonality all vary by tier.</div>
-    <div class="grid-cities">${CITIES.map((c,i)=>`<div class="pick ${wiz.city===i?'sel':''}" data-city="${i}">
-      <div class="ttl">${c.name}<span class="tier t${c.tier}">Tier ${c.tier}</span></div>
-      <div class="sub">${c.note}</div>
-      <div class="barrow"><span class="lbl">Spend</span><div class="mtr"><i style="width:${c.spend/1.4*100}%"></i></div></div>
-      <div class="barrow"><span class="lbl">Demand</span><div class="mtr"><i style="width:${c.dem/1.3*100}%"></i></div></div>
-      <div class="barrow"><span class="lbl">Competition</span><div class="mtr"><i style="width:${c.comp/1.3*100}%;background:linear-gradient(90deg,#c66,#e88)"></i></div></div>
-    </div>`).join('')}</div>`;
-    $$('.pick[data-city]',b).forEach(el=>el.onclick=()=>{wiz.city=+el.dataset.city;renderWiz();});
-  }
-  if(wiz.step===1){
-    const c=CITIES[wiz.city];
-    b.innerHTML=`<div class="wizhead"><h2>Choose a locality in ${c.name}</h2></div>
-    <div class="muted sm">Location within the city shapes your guest mix, rate ceiling, noise risk and demand pattern.</div>
-    <div class="grid-cities">${LOCALITIES.map((l,i)=>`<div class="pick ${wiz.loc===i?'sel':''}" data-loc="${i}">
-      <div class="ttl">${l.name}</div><div class="sub">${l.note}</div>
-      <div class="barrow"><span class="lbl">Rate ceiling</span><div class="mtr"><i style="width:${(l.rate-.7)/.6*100}%"></i></div></div>
-      <div class="barrow"><span class="lbl">Demand</span><div class="mtr"><i style="width:${l.dem/1.2*100}%"></i></div></div>
-      <div class="barrow"><span class="lbl">Noise risk</span><div class="mtr"><i style="width:${l.noise*100}%;background:linear-gradient(90deg,#c66,#e88)"></i></div></div>
-    </div>`).join('')}</div>`;
-    $$('.pick[data-loc]',b).forEach(el=>el.onclick=()=>{wiz.loc=+el.dataset.loc;renderWiz();});
-  }
-  if(wiz.step===2){
-    b.innerHTML=`<div class="wizhead"><h2>Select difficulty</h2></div>
-    <div class="muted sm">Difficulty changes capital, demand, guest expectations, competition, review harshness and operating costs.</div>
-    <div class="diff-grid">${Object.keys(DIFFS).map(k=>{const d=DIFFS[k];return `<div class="pick ${wiz.diff===k?'sel':''}" data-diff="${k}">
-      <div class="ttl">${d.name}<span class="tier ${k==='easy'?'t3':k==='normal'?'t2':'t1'}">${k}</span></div>
-      <div class="sub">${d.note}</div>
-      <div class="row"><span class="lab">Starting capital</span><span class="val gold">${cr(CAP_BASE[k])}</span></div>
-    </div>`}).join('')}</div>`;
-    $$('.pick[data-diff]',b).forEach(el=>el.onclick=()=>{wiz.diff=el.dataset.diff;renderWiz();});
-  }
-  if(wiz.step===3){
-    const c=CITIES[wiz.city],l=LOCALITIES[wiz.loc],d=DIFFS[wiz.diff];
-    b.innerHTML=`<div class="wizhead"><h2>Confirm & name your hotel</h2></div>
-    <div class="cards cols-3" style="margin:14px 0">
-      <div class="card"><h3>City</h3><div class="b" style="font-size:16px">${c.name}</div><div class="muted sm">Tier ${c.tier} market</div></div>
-      <div class="card"><h3>Locality</h3><div class="b" style="font-size:16px">${l.name}</div><div class="muted sm">${l.note.slice(0,40)}…</div></div>
-      <div class="card"><h3>Difficulty</h3><div class="b" style="font-size:16px">${d.name}</div><div class="muted sm gold">${cr(CAP_BASE[wiz.diff])} capital</div></div>
-    </div>
-    <label class="fl">Hotel name</label><input type="text" id="hotelName" value="The ${c.name} Grand" maxlength="40">
-    <div class="notice" style="margin-top:12px">You'll start small — 6 rooms, one floor, basic staff. Set rates, keep guests happy, earn reviews, and grow into a national chain. Time runs in real time (1 hour ≈ 3 seconds); the game begins paused so you can get oriented.</div>`;
-  }
-  $('#wizBack').disabled=wiz.step===0;
-  $('#wizNext').textContent=wiz.step===3?'Start Game →':'Continue';
-  $('#wizNext').disabled=(wiz.step===0&&wiz.city===null)||(wiz.step===2&&!wiz.diff);
-}
+/* [flattened v18] dead ancestor of renderWiz() removed — the last declaration wins by hoisting */
 $('#wizBack').onclick=()=>{if(wiz.step>0){wiz.step--;renderWiz();}};
 $('#wizNext').onclick=()=>{
   if(wiz.step===0&&wiz.city===null)return;
@@ -1494,12 +962,7 @@ $('#wizNext').onclick=()=>{
   wiz.hotelName=$('#hotelName').value;
   startGame();
 };
-function startGame(){
-  newGame({city:wiz.city,loc:wiz.loc,diff:wiz.diff,hotelName:wiz.hotelName});
-  $('#setup').style.display='none';
-  $('#app').style.display='grid';
-  renderAll(); startLoop();
-}
+/* [flattened v18] dead ancestor of startGame() removed — the last declaration wins by hoisting */
 
 /* ---------------- NAV & CONTROLS ---------------- */
 $$('.nav').forEach(n=>n.onclick=()=>go(n.dataset.tab));
@@ -1564,33 +1027,12 @@ const LOYALTY=[
 function loyaltyTier(stays){let t=null;for(const L of LOYALTY)if(stays>=L.min)t=L;return t;}
 
 /* ---------------- STATE AUGMENTATION ---------------- */
-function augmentInit(){
-  if(!G.guestDB)G.guestDB={};
-  if(!G.eventLog)G.eventLog=[];
-  if(!G.decisionLog)G.decisionLog=[];
-  if(!G.chain)G.chain={rep:42,brand:8,campaigns:[],loyaltyMembers:0};
-  if(!G.returnPool)G.returnPool={};
-  G.properties.forEach(augmentProp);
-  G.chain.rep=G.properties.reduce((s,p)=>s+p.reputation,0)/G.properties.length;
-}
-function augmentProp(prop){
-  prop.policies=Object.assign({earlyFee:500,lateFee:600,cancelType:'partial',maxStay:30,overbook:0,
-    payment:'partial',parking:'complimentary',evPrice:12,breakfast:'optional',laundry:'paid',roomsvc24:false},prop.policies);
-  if(!prop.parking)prop.parking={spaces:Math.max(4,Math.round(prop.rooms.length*.8)),ev:1,occupied:0,evOccupied:0};
-  if(!prop.channelRev)prop.channelRev={};
-  if(prop.bookingConfidence==null)prop.bookingConfidence=70;
-  if(!prop.analytics)prop.analytics=[];
-  if(!prop.reportHist)prop.reportHist=[];
-  if(prop.cancellations==null)prop.cancellations=0;
-  if(prop.commToday==null)prop.commToday=0;
-  if(prop.queuePeak==null)prop.queuePeak=0;
-  prop.rooms.forEach(r=>{if(!r.comp)r.comp={};if(r.renoT==null)r.renoT=0;});
-  ensureIntel(prop);
-}
+/* [flattened v18] dead ancestor of augmentInit() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of augmentProp() removed — the last declaration wins by hoisting */
 
 /* ---------------- LOG HELPERS ---------------- */
 function logEvent(prop,cat,txt){if(!G.eventLog)G.eventLog=[];G.eventLog.unshift({d:G.day,h:G.hour,cat,txt});if(G.eventLog.length>500)G.eventLog.pop();}
-function logDecision(txt,cost,reason,shortI,longI){if(!G.decisionLog)G.decisionLog=[];G.decisionLog.unshift({d:G.day,txt,cost,reason,shortI,longI});if(G.decisionLog.length>200)G.decisionLog.pop();}
+/* [flattened v18] dead ancestor of logDecision() removed — the last declaration wins by hoisting */
 
 /* ---------------- ROOM QUALITY (override: add components) ---------------- */
 function roomQ(r){
@@ -1605,100 +1047,17 @@ function makeRoom(prop,rt,floor,q){
 }
 
 /* ---------------- GUEST GENERATION (override) ---------------- */
-function pickChannel(prop,weekend){
-  const w={};
-  CH_ORDER.forEach(k=>{const C=CHANNELS[k];let v=C.vol;
-    if(C.weekday)v*=weekend?.4:1.5;
-    if(k==='ota')v*=1+prop.city.tour*.3;
-    if(k==='direct')v*=1+prop.reputation/100*.5;
-    if(k==='walkin')v*=1+prop.loc.transW*.6;
-    w[k]=v;});
-  let tot=0;for(const k in w)tot+=w[k];
-  let r=Math.random()*tot;for(const k in w){r-=w[k];if(r<=0)return k;}return 'direct';
-}
+/* [flattened v18] dead ancestor of pickChannel() removed — the last declaration wins by hoisting */
 function vehProb(type,l){const base={business:.5,corporate:.6,tourist:.35,family:.55,budget:.15,transit:.25,premium:.6,wedding:.5,longstay:.4,vip:.7}[type]||.3;return clamp(base*(1+l.conv*.2),.05,.85);}
 function buildReturnPool(){
   G.returnPool={};
   const db=G.guestDB||{};
   for(const k in db){const e=db[k];if(e.avgSat>=62)(G.returnPool[e.type]=G.returnPool[e.type]||[]).push(e);}
 }
-function genGuest(prop){
-  const c=prop.city,l=prop.loc,weekend=(G.dow>=5);
-  const ch=pickChannel(prop,weekend),CH=CHANNELS[ch];
-  const w={business:c.biz*1.0+l.bizW,corporate:c.biz*.6+l.bizW*.5,tourist:c.tour*1.0+l.tourW,
-    family:c.tour*.5+.15,budget:(1-c.spend*.5)+.25,transit:l.transW+.1,premium:c.prem*.8,
-    wedding:c.tour*.25+.05,longstay:.12,vip:c.prem*.3};
-  for(const k in w){w[k]=Math.max(.02,w[k]);if(CH.arche.includes(k))w[k]*=2.4;}
-  let tot=0;for(const k in w)tot+=w[k];
-  let r=Math.random()*tot,type='tourist';
-  for(const k in w){r-=w[k];if(r<=0){type=k;break;}}
-  let returning=null,prior=0,favRT=null,loyalty=null;
-  const poolT=G.returnPool&&G.returnPool[type];
-  if(poolT&&poolT.length&&Math.random()<clamp(.12+prop.reputation/100*.25,0,.5)){
-    returning=pick(poolT);prior=returning.stays;favRT=returning.favRT;type=returning.type;loyalty=loyaltyTier(prior);
-  }
-  const gt=GUEST_TYPES[type];
-  const budget=c.baseRate*c.spend*gt.budgetF*rnd(.8,1.3)*(ch==='ota'?.95:ch==='corp'?1.08:1);
-  const veh=Math.random()<vehProb(type,l);
-  const ev=veh&&Math.random()<(['premium','business','corporate','vip'].includes(type)?.3:.08);
-  return {id:'g'+(roomSeq++)+''+ri(10,99),name:returning?returning.name:pick(FNAMES)+' '+pick(LNAMES),type,
-    channel:ch,budget,sens:gt.sens*c.sens*G.D.sensM,quiet:gt.quiet,clean:gt.clean,
-    patience:gt.patience,reviewT:gt.review*CH.reviewM,expM:CH.expM*(loyalty?1.06:1),
-    returning:!!returning,prior,favRT,loyalty:loyalty?loyalty.name:null,
-    vehicle:veh,ev,sat:72+(returning?4:0),requests:[],complaints:0,served:0};
-}
+/* [flattened v18] dead ancestor of genGuest() removed — the last declaration wins by hoisting */
 
 /* ---------------- DAY SCHEDULING (override) ---------------- */
-function scheduleDay(){
-  const prop=P();
-  buildReturnPool();
-  G.seasonNow=seasonFactor(G.day,prop.city,prop.loc);
-  const total=prop.rooms.length||1;
-  let demandIdx=prop.city.dem*prop.loc.dem*G.seasonNow*repFactor(prop)*compFactor(prop)*G.D.demM;
-  demandIdx*=(1+facBoost(prop,'dem'));
-  demandIdx*=(1+(G.chain?G.chain.brand:0)/100*.5);
-  const weekend=(G.dow>=5);
-  demandIdx*=weekend?(1+prop.city.tour*.25):(1+prop.city.biz*.12);
-  let attempts=Math.round(total*1.6*clamp(demandIdx,.2,2.3)*rnd(.8,1.2));
-  attempts=clamp(attempts,1,total*3);
-  const arrivals=[],chCount={};const overbook=prop.policies.overbook||0;let booked=0;
-  for(let i=0;i<attempts;i++){
-    const g=genGuest(prop);
-    g.nights=clamp(ri(GUEST_TYPES[g.type].nights[0],GUEST_TYPES[g.type].nights[1]),prop.policies.minStay||1,prop.policies.maxStay||30);
-    let cand=prop.rooms.filter(r=>r.status==='clean'&&priceOK(prop,r,g)&&!arrivals.find(a=>a.roomId===r.id));
-    if(!cand.length){
-      if(overbook>0 && booked<total+overbook){
-        cand=prop.rooms.filter(r=>!arrivals.find(a=>a.roomId===r.id)&&priceOK(prop,r,g));
-      }
-      if(!cand.length)continue;
-    }
-    cand.sort((a,b)=>scoreFor(g,b)-scoreFor(g,a));
-    const room=cand[0];
-    let willing=bookWillingness(prop,room,g);
-    if(prop.policies.cancelType==='nonref')willing*=.9;
-    if(prop.policies.payment==='full')willing*=.92;
-    if(prop.policies.cancelType==='flexible')willing*=1.04;
-    if(g.loyalty)willing*=1.08;
-    if(Math.random()<willing){
-      g.roomId=room.id;g.arrHour=clamp(Math.round(rnd(12,22)),11,23);
-      g.depDay=G.day+g.nights;g.depHour=ri(8,11);g.price=prop.prices[room.type];
-      if(g.loyalty){const L=LOYALTY.find(x=>x.name===g.loyalty);if(L)g.price=Math.round(g.price*(1-L.disc));}
-      const depFrac=prop.policies.payment==='full'?1:prop.policies.payment==='partial'?.3:0;
-      g.deposit=Math.round(g.price*g.nights*depFrac);g.bookingAmt=g.price*g.nights;
-      const cancelP=CHANNELS[g.channel].cancel*(prop.policies.cancelType==='nonref'?.5:prop.policies.cancelType==='flexible'?1.15:1);
-      if(Math.random()<cancelP){
-        prop.cancellations=(prop.cancellations||0)+1;
-        const refundable=prop.policies.cancelType==='flexible';
-        if(!refundable&&g.deposit>0){G.cash+=g.deposit;prop.revToday+=g.deposit;logEvent(prop,'booking',g.name+' cancelled — deposit '+cr0(g.deposit)+' retained.');}
-        else logEvent(prop,'booking',g.name+' cancelled (refundable).');
-        continue;
-      }
-      g.checkedIn=false;arrivals.push(g);booked++;chCount[g.channel]=(chCount[g.channel]||0)+1;
-    }
-  }
-  G.pendingArrivals=arrivals;prop.expectedToday=arrivals.length;prop.chCountToday=chCount;
-  ensureIntel(prop);
-}
+/* [flattened v18] dead ancestor of scheduleDay() removed — the last declaration wins by hoisting */
 
 /* ---------------- CHECK-IN / QUEUE / PARKING ---------------- */
 function chkPrio(a){let p=0;if(a.loyalty==='Platinum')p+=3;else if(a.loyalty==='Gold')p+=2;if(a.type==='vip')p+=3;if(a.type==='premium')p+=2;return p;}
@@ -1712,86 +1071,13 @@ function assignParking(prop,a){
   else{a.parked='none';a.sat-=guaranteed?rnd(6,12):rnd(2,5);prop._compToday=(prop._compToday||0)+1;
     if(Math.random()<.5)logEvent(prop,'service',a.name+' found parking full on arrival.');}
 }
-function checkInGuest(prop,a,waiting){
-  let room=prop.rooms.find(r=>r.id===a.roomId);
-  if(!(room&&room.status==='clean')){
-    const alt=prop.rooms.find(r=>r.status==='clean');
-    if(alt){room=alt;a.roomId=alt.id;a.sat-=6;feed('⚠️ Room not ready — '+a.name+' moved to Room '+alt.id+'.','warn');}
-    else{a.checkedIn='lost';prop.incidents++;a.sat=20;prop._compToday=(prop._compToday||0)+1;
-      feed('❌ No clean room for '+a.name+' — walked out.','neg');prop.reputation=clamp(prop.reputation-1.2,0,100);
-      logEvent(prop,'service','Walkout: no clean room for '+a.name+'.');return;}
-  }
-  room.status='occupied';room.guest=a;a.checkedIn=true;prop.lifetimeGuests++;prop._arrToday=(prop._arrToday||0)+1;
-  const fd=avgSkill(prop,'frontdesk');a.sat+=(fd-65)*.15;
-  if(waiting>0&&chkPrio(a)<3){a.sat-=clamp(waiting*rnd(3,6),0,22);a.queued=waiting;}
-  if(a.loyalty){const L=LOYALTY.find(x=>x.name===a.loyalty);if(L&&L.upg&&Math.random()<L.upg){a.sat+=4;a.upgraded=true;}if(L&&L.brk)a.sat+=2;}
-  assignParking(prop,a);
-  if(prop.policies.breakfast==='included'||prop.policies.breakfast==='buffet')a.sat+=2;
-  feed('🛎️ '+a.name+' ('+(a.returning?'returning ':'')+GUEST_TYPES[a.type].name+(a.loyalty?', '+a.loyalty:'')+') checked into Room '+room.id+(a.queued?' after a wait':'')+'.',a.returning?'gold':'info');
-  if(a.returning)logEvent(prop,'guest',a.name+' returned for stay #'+(a.prior+1)+'.');
-}
+/* [flattened v18] dead ancestor of checkInGuest() removed — the last declaration wins by hoisting */
 
 /* ---------------- SIM TICK (override) ---------------- */
-function tickHour(){
-  const prop=P();
-  G.hour++;
-  if(G.hour>=24){G.hour=0;G.day++;G.dow=(G.dow+1)%7;dayRollover();}
-  const due=G.pendingArrivals.filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&(a.arrHour===G.hour||(a._noFd&&a.arrHour<G.hour)));
-  if(due.length){
-    due.sort((x,y)=>chkPrio(y)-chkPrio(x));
-    const fdN=(prop.staff.frontdesk||[]).length;
-    const fdCap=Math.max(1,Math.round(fdN*(avgSkill(prop,'frontdesk')/100*1.4+.6)*2));
-    prop.queuePeak=Math.max(prop.queuePeak||0,due.length);
-    due.forEach((a,idx)=>checkInGuest(prop,a,Math.max(0,idx+1-fdCap)));
-    if(due.length>fdCap){prop._compToday=(prop._compToday||0)+1;logEvent(prop,'service','Front-desk queue of '+due.length+' exceeded capacity '+fdCap+'.');if(Math.random()<.3)prop.reputation=clamp(prop.reputation-.4,0,100);}
-  }
-  prop.rooms.forEach(room=>{
-    const g=room.guest;
-    if(g&&g.checkedIn===true&&G.day>=g.depDay&&G.hour>=g.depHour){
-      finalizeStay(prop,room,g);
-      prop.channelRev=prop.channelRev||{};
-      const gross=g.price*g.nights+(g.extraRev||0)+(g.extraPark||0);
-      const comm=Math.round((g.price*g.nights)*((CHANNELS[g.channel]&&CHANNELS[g.channel].comm)||0));
-      const rev=gross-comm;
-      prop.commToday=(prop.commToday||0)+comm;
-      prop.channelRev[g.channel]=(prop.channelRev[g.channel]||0)+rev;
-      const _dep=(g.depositPaid&&g.deposit)?g.deposit:0; // already collected at booking — net it off the bill (audit B7)
-      prop.revToday+=rev;prop.lifetimeRev+=rev;G.totalRevenue+=rev;G.cash+=rev-_dep;
-      if(_dep)prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-_dep);
-      writeGuestDB(prop,g);
-      if(g.parked==='ev'&&prop.parking)prop.parking.evOccupied=Math.max(0,prop.parking.evOccupied-1);
-      else if(g.parked==='std'&&prop.parking)prop.parking.occupied=Math.max(0,prop.parking.occupied-1);
-      prop._depToday=(prop._depToday||0)+1;
-      room.guest=null;room.status='dirty';room.dirtyT=ri(1,3);room.cond=clamp(room.cond-rnd(.5,2.2),40,100);
-    }
-  });
-  let hk=Math.round(cleanCapacity(prop));
-  prop.rooms.filter(r=>r.status==='dirty').sort((a,b)=>a.dirtyT-b.dirtyT).forEach(r=>{if(hk>0){r.dirtyT--;if(r.dirtyT<=0)r.status='clean';hk--;}});
-  prop.rooms.filter(r=>r.status==='maintenance').forEach(r=>{r.maintT-=maintSpeed(prop);if(r.maintT<=0){r.status='dirty';r.dirtyT=1;r.cond=clamp(r.cond+rnd(10,25),0,100);feed('🔧 Room '+r.id+' maintenance complete.','pos');}});
-  prop.rooms.filter(r=>r.status==='occupied').forEach(r=>{const g=r.guest;if(!g)return;const noise=prop.loc.noise*(1-facBoost(prop,'sat')*.01)-(r.comp&&r.comp.soundproof?.25:0);if(noise>g.quiet+.15&&Math.random()<.04)g.sat-=rnd(.5,2);if(r.cond<60&&Math.random()<.05)g.sat-=rnd(.5,1.5);});
-  G.eventCooldown--;
-  if(G.eventCooldown<=0&&!G.paused){if(Math.random()<.14){triggerEvent(prop);G.eventCooldown=ri(8,18);}else G.eventCooldown=ri(3,7);}
-  accrueHourlyCost(prop);
-}
+/* [flattened v18] dead ancestor of tickHour() removed — the last declaration wins by hoisting */
 
 /* ---------------- DAY ROLLOVER (override) ---------------- */
-function dayRollover(){
-  const prop=P();
-  prop.revYest=prop.revToday;prop.expYest=prop.expToday;
-  G.finHist.push({day:G.day-1,rev:prop.revToday,exp:prop.expToday,cash:G.cash});
-  if(G.finHist.length>120)G.finHist.shift();
-  if(prop.reviews.length){const recent=prop.reviews.slice(-12);const avgR=recent.reduce((s,r)=>s+r.stars,0)/recent.length;const target=avgR*20;prop.reputation+=(target-prop.reputation)*.12-prop.incidents*.3;prop.reputation=clamp(prop.reputation,0,100);}
-  prop.incidents=Math.max(0,prop.incidents-1);
-  competitorAI(prop);
-  for(const role in prop.staff)prop.staff[role].forEach(s=>{const load=workload(prop);s.morale=clamp(s.morale+(load>1.1?-1.5:.6)+rnd(-.5,.5),20,100);});
-  prop.rooms.forEach(r=>{if(r.status==='renovation'){r.renoT--;if(r.renoT<=0){r.status='clean';r.cond=100;if(r._renoGain>=26){const qi=QUALITY.findIndex(q=>q.name===r.q.name);if(qi<QUALITY.length-1)r.q=QUALITY[qi+1];}logEvent(prop,'service','Room '+r.id+' reopened after renovation.');feed('✨ Room '+r.id+' reopened after renovation.','pos');}}});
-  captureAnalytics(prop);buildDailyReport(prop);updateChain();bookingConfidenceDrift(prop);
-  prop.revToday=0;prop.expToday=0;
-  prop._arrToday=0;prop._depToday=0;prop._compToday=0;prop._satSum=0;prop._satN=0;prop.commToday=0;
-  scheduleDay();
-  feed('— Day '+G.day+' begins. '+prop.expectedToday+' bookings expected. Season index '+G.seasonNow.toFixed(2)+'. —','gold');
-  if(G.cash<-500000)gameOver();
-}
+/* [flattened v18] dead ancestor of dayRollover() removed — the last declaration wins by hoisting */
 
 /* ---------------- REPEAT GUEST DB ---------------- */
 function writeGuestDB(prop,g){
@@ -1806,36 +1092,7 @@ function writeGuestDB(prop,g){
 }
 
 /* ---------------- SATISFACTION & REVIEWS (override) ---------------- */
-function finalizeStay(prop,room,g){
-  const gt=GUEST_TYPES[g.type];let sat=g.sat;
-  const q=roomQ(room);
-  let exp=ROOMTYPES[room.type].exp*gt.clean*G.D.exp*(g.expM||1);
-  if(g.loyalty)exp+=(g.prior||0)*.6;
-  sat+=(q-exp)*.5;
-  const mkt=marketRate(prop,room.type);
-  sat-=clamp((g.price/mkt-1),-.4,1.2)*22*g.sens*.6;
-  const hk=clamp(cleanCapacity(prop)/Math.max(1,prop.rooms.length)*100,30,100);
-  sat+=(hk-65)*.18*g.clean;
-  sat+=(avgSkill(prop,'frontdesk')-65)*.16;
-  const wants=gt.prefer.filter(f=>prop.facilities.includes(f)).length;
-  sat+=wants*3+facBoost(prop,'sat')*.15;
-  let compVal=0;for(const k in (room.comp||{}))if(room.comp[k]&&COMPONENTS[k]&&COMPONENTS[k].val.includes(g.type))compVal+=2.4;
-  sat+=Math.min(compVal,14);
-  let noise=prop.loc.noise-(room.comp&&room.comp.soundproof?.3:0);
-  sat-=clamp(noise-g.quiet,0,1)*14;
-  g.sat=clamp(sat,0,100);
-  if(g.sat<45)g.complaints=(g.complaints||0)+1;
-  let extra=0;
-  prop.facilities.forEach(f=>{if(FACILITIES[f].rev&&Math.random()<.5)extra+=rnd(300,1500)*(gt.budgetF);});
-  if(prop.policies.breakfast==='alacarte'||prop.policies.breakfast==='buffet')extra+=rnd(150,500)*g.nights;
-  if(prop.policies.laundry==='paid'&&Math.random()<.4)extra+=rnd(200,700);
-  if(prop.policies.roomsvc24&&Math.random()<.3)extra+=rnd(250,900);
-  g.extraRev=Math.round(extra);
-  g.aspects=buildAspects(prop,room,g,hk);
-  const reviewChance=g.reviewT*(.4+Math.abs(g.sat-65)/65)*G.D.harsh*.9;
-  if(Math.random()<clamp(reviewChance,.05,.95))leaveReview(prop,g,room);
-  feed((g.sat>75?'😊':g.sat>50?'😐':'😞')+' '+g.name+' checked out — satisfaction '+Math.round(g.sat)+'%.',g.sat>70?'pos':g.sat>45?'info':'neg');
-}
+/* [flattened v18] dead ancestor of finalizeStay() removed — the last declaration wins by hoisting */
 function buildAspects(prop,room,g,hk){
   const has=f=>prop.facilities.includes(f);const a={};
   a.cleanliness=hk>75?1.5:hk>55?.3:-1.5;
@@ -1860,37 +1117,7 @@ function leaveReview(prop,g,room){
   feed('★ '+g.name+' left a '+stars+'-star review.',stars>=4?'pos':stars<=2?'neg':'info');
   renderTopbar();
 }
-function reviewText(stars,g,room,prop){
-  const rt=ROOMTYPES[room.type].name.toLowerCase();
-  const TIT={5:['Fantastic stay','Exceeded expectations','Would book again','Truly memorable'],
-    4:['Very good stay','Pleasant experience','Solid choice','Comfortable and clean'],
-    3:['Decent but average','An okay stay','Fair for the price','Room to improve'],
-    2:['Disappointing','Below expectations','Not great','Needs work'],
-    1:['Poor experience','Best avoided','Very disappointing','Would not return']};
-  const OPEN={5:['Genuinely impressed with everything.','One of the better stays I have had.'],
-    4:['A comfortable, well-run hotel.','Good value and friendly service.'],
-    3:['It did the job, nothing more.','An average stay overall.'],
-    2:['A few things let this place down.','Expected more for what I paid.'],
-    1:['A frustrating stay from start to finish.','Multiple problems during my stay.']};
-  const A=g.aspects||{};const ap=[];
-  const ment=(k,pos,neg)=>{if(A[k]>=1&&pos)ap.push(pos);else if(A[k]<=-1&&neg)ap.push(neg);};
-  ment('cleanliness','The room was spotless.','Cleanliness was below par.');
-  ment('staff','Staff were warm and efficient.','The front desk was slow and indifferent.');
-  ment('wifi','Wi-Fi was fast and reliable.','The Wi-Fi barely worked.');
-  ment('noise','It was quiet and restful.','Noise made it hard to sleep.');
-  ment('bathroom','Loved the bathroom.','The bathroom needs attention.');
-  ment('breakfast','Breakfast was a great touch.','No proper breakfast option.');
-  ment('restaurant','The restaurant was excellent.','');
-  ment('roomservice','Room service was prompt.','');
-  ment('parking','Parking was convenient.','Parking was full when I arrived.');
-  let body=pick(OPEN[stars]);
-  if(g.returning)body='Back again — '+body.charAt(0).toLowerCase()+body.slice(1);
-  const chosen=ap.filter(Boolean).sort(()=>Math.random()-.5).slice(0,2);
-  if(chosen.length)body+=' '+chosen.join(' ');
-  if(stars>=4&&prop.facilities.length>3&&Math.random()<.3)body+=' The amenities were a nice bonus.';
-  if(g.upgraded&&Math.random()<.5)body+=' Appreciated the complimentary upgrade.';
-  return {title:pick(TIT[stars]),body:body.trim()+' ('+rt+' room)'};
-}
+/* [flattened v18] dead ancestor of reviewText() removed — the last declaration wins by hoisting */
 
 /* ---------------- COMPETITOR AI + FOG OF WAR ---------------- */
 const DIFF_FOG={easy:['rating','price','fac'],normal:['rating'],hard:[]};
@@ -1903,25 +1130,7 @@ function ensureIntel(prop){
   });
 }
 function knows(co,f){return co.viz&&co.viz[f]&&co.viz[f]>=G.day;}
-function competitorAI(prop){
-  ensureIntel(prop);
-  prop.comps.forEach(co=>{
-    co.cash+=rnd(-.04,.05);
-    const gap=(prop.rating||3)-co.rating;let act=null;
-    if(Math.random()<.2){
-      const roll=Math.random();
-      if(gap>.35&&roll<.4&&co.cash>.5){co.rating=clamp(co.rating+rnd(.04,.12),2.4,4.9);co.cash-=.14;act='renovated rooms';}
-      else if(roll<.56){co.priceIdx=clamp(co.priceIdx+(gap>0?-.05:.04),.55,2);act=gap>0?'cut prices':'raised rates';}
-      else if(roll<.7){co.strength=clamp((co.strength||1)+.05,.6,1.7);co.cash-=.07;act='hired staff';}
-      else if(roll<.82){co.promo=ri(2,5);co.priceIdx=clamp(co.priceIdx-.08,.55,2);act='launched a promo';}
-      else if(roll<.9&&co.cash>1.1){co.rating=clamp(co.rating+.05,2.4,4.9);co.facN++;co.cash-=.22;act='added a facility';}
-      else if(co.cash<.35){co.rating=clamp(co.rating-rnd(.04,.1),2.2,4.9);act='cut back amid losses';}
-    }
-    if(co.promo){co.promo--;if(co.promo<=0)co.priceIdx=clamp(co.priceIdx+.08,.55,2);}
-    co.occ=clamp(co.occ+rnd(-.06,.06),.2,.98);
-    if(act){co.lastAct=act;co.lastActDay=G.day;if(knows(co,'rating')||knows(co,'price'))feed('🏨 '+co.name+' '+act+'.','warn');}
-  });
-}
+/* [flattened v18] dead ancestor of competitorAI() removed — the last declaration wins by hoisting */
 window.research=kind=>{
   const prop=P();const C={market:40000,mystery:25000,web:8000,report:60000}[kind];
   if(G.cash<C){toast('Not enough cash for this research.','neg');return;}
@@ -1935,34 +1144,13 @@ window.research=kind=>{
 };
 
 /* ---------------- ANALYTICS / REPORTS / CHAIN ---------------- */
-function captureAnalytics(prop){
-  const total=prop.rooms.length||1;
-  const occR=occupied(prop)/total*100;
-  const sold=prop.rooms.filter(r=>r.status==='occupied'&&r.guest);
-  const adrV=sold.length?sold.reduce((s,r)=>s+r.guest.price,0)/sold.length:avgPrice(prop);
-  const sat=prop._satN?prop._satSum/prop._satN:(prop.analytics.length?prop.analytics[prop.analytics.length-1].sat:70);
-  prop.analytics.push({day:G.day-1,occ:occR,adr:adrV,revpar:adrV*occR/100,rev:prop.revYest,exp:prop.expYest,
-    profit:prop.revYest-prop.expYest,sat,rep:prop.reputation,rating:prop.rating||0,complaints:prop._compToday||0,arrivals:prop._arrToday||0});
-  if(prop.analytics.length>400)prop.analytics.shift();
-}
+/* [flattened v18] dead ancestor of captureAnalytics() removed — the last declaration wins by hoisting */
 function marketShare(prop){
   const mine=(prop.rating||3)+prop.reputation/40;
   const tot=prop.comps.reduce((s,c)=>s+c.rating+(c.strength||1),mine);
   return mine/tot*100;
 }
-function buildDailyReport(prop){
-  const total=prop.rooms.length||1;
-  const compNews=prop.comps.filter(c=>c.lastActDay===G.day-1).map(c=>c.name+' '+c.lastAct);
-  const prevRating=prop._prevRating!=null?prop._prevRating:prop.rating;
-  prop.lastReport={day:G.day-1,
-    fin:{rev:prop.revYest,exp:prop.expYest,profit:prop.revYest-prop.expYest,comm:prop.commToday||0},
-    ops:{occ:Math.round(occupied(prop)/total*100),arr:prop._arrToday||0,dep:prop._depToday||0,clean:prop.rooms.filter(r=>r.status==='clean').length,dirty:prop.rooms.filter(r=>r.status==='dirty').length},
-    svc:{complaints:prop._compToday||0,queuePeak:prop.queuePeak||0,cancellations:prop.cancellations||0},
-    gx:{ratingChg:+(((prop.rating||0)-prevRating).toFixed(2)),rating:prop.rating||0,sat:prop._satN?Math.round(prop._satSum/prop._satN):'—',reviews:prop.reviews.filter(r=>r.day===G.day-1).length},
-    comp:{marketShare:marketShare(prop),news:compNews}};
-  prop._prevRating=prop.rating;prop.queuePeak=0;
-  if(!prop.reportHist)prop.reportHist=[];prop.reportHist.unshift(prop.lastReport);if(prop.reportHist.length>40)prop.reportHist.pop();
-}
+/* [flattened v18] dead ancestor of buildDailyReport() removed — the last declaration wins by hoisting */
 function updateChain(){
   const ps=G.properties;
   G.chain.rep=ps.reduce((s,p)=>s+p.reputation,0)/ps.length;
@@ -1976,59 +1164,13 @@ function bookingConfidenceDrift(prop){
 }
 
 /* ---------------- RENDER DISPATCH (override: new tabs) ---------------- */
-function renderTab(){
-  const m=$('#main'),p=P();
-  const T={overview:tabOverview,rooms:tabRooms,guests:tabGuests,pricing:tabPricing,policies:tabPolicies,
-    staff:tabStaff,facilities:tabFacilities,reviews:tabReviews,market:tabMarket,finance:tabFinance,
-    analytics:tabAnalytics,reports:tabReports,log:tabLog,expand:tabExpand,hq:tabHQ};
-  if(!T[G.tab]||(G.tab==='hq'&&G.properties.length<2))G.tab='overview';
-  m.innerHTML=T[G.tab](p);
-  wireTab();updateBadges();
-}
+/* [flattened v18] dead ancestor of renderTab() removed — the last declaration wins by hoisting */
 
 /* ---------------- TAB: POLICIES ---------------- */
 function polSel(label,key,opts,p){return `<label class="fl">${label}</label><select onchange="setPolicyR('${key}',this.value)">${opts.map(o=>`<option value="${o[0]}" ${p.policies[key]===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`;}
 function polNum(label,key,p){return `<label class="fl">${label}</label><input type="number" value="${p.policies[key]}" onchange="setPolicy('${key}',+this.value)">`;}
 function polTog(label,key,p){return `<div class="toggle"><span>${label}</span><div class="sw ${p.policies[key]?'on':''}" onclick="togglePolicy('${key}',this)"><i></i></div></div>`;}
-function tabPolicies(p){
-  const P0=p.policies;
-  return `<div class="page-head"><div><h2>Hotel Policies</h2><div class="desc">Every policy changes guest behaviour, revenue and risk</div></div></div>
-  <div class="cards cols-2">
-    <div class="card"><h3>Check-in / Check-out</h3>
-      ${polTog('Allow early check-in (standard 14:00)','earlyCI',p)}
-      ${P0.earlyCI?polNum('Early check-in fee (₹, 0 = complimentary)','earlyFee',p):''}
-      ${polTog('Allow late checkout (standard 11:00)','lateCO',p)}
-      ${P0.lateCO?polNum('Late checkout fee (₹, 0 = complimentary)','lateFee',p):''}
-      ${polTog('Allow complimentary upgrades','freeUpg',p)}
-    </div>
-    <div class="card"><h3>Bookings & Stay</h3>
-      ${polNum('Minimum stay (nights)','minStay',p)}
-      ${polNum('Maximum stay (nights)','maxStay',p)}
-      ${polNum('Overbooking tolerance (rooms)','overbook',p)}
-      <div class="muted sm" style="margin-top:6px">Overbooking lifts revenue but risks walkouts if no clean room is ready.</div>
-    </div>
-    <div class="card"><h3>Cancellation & Payment</h3>
-      ${polSel('Cancellation policy','cancelType',[['partial','Partial refund (50%)'],['flexible','Flexible — free cancellation'],['partial','Partial refund'],['nonref','Non-refundable']],p)}
-      ${polSel('Payment terms','payment',[['none','No deposit'],['partial','Partial deposit (30%)'],['full','Full advance']],p)}
-      <div class="muted sm" style="margin-top:6px">Stricter terms protect cash on cancellations but lower conversion slightly. Booking confidence <b>${Math.round(p.bookingConfidence)}/100</b>.</div>
-    </div>
-    <div class="card"><h3>Parking & EV</h3>
-      ${polSel('Parking policy','parking',[['complimentary','Complimentary'],['paid','Paid'],['reserve','Reservation only']],p)}
-      ${polNum('EV charging price (₹/unit)','evPrice',p)}
-      <div class="muted sm" style="margin-top:6px">Spaces ${p.parking.occupied}/${p.parking.spaces} · EV ${p.parking.evOccupied}/${p.parking.ev}. Expand from the Expansion tab.</div>
-    </div>
-    <div class="card"><h3>Food, Laundry & Room Service</h3>
-      ${polSel('Breakfast','breakfast',[['included','Included in rate'],['buffet','Paid buffet'],['alacarte','À la carte'],['optional','Optional add-on'],['unavailable','Not offered']],p)}
-      ${polSel('Laundry','laundry',[['free','Complimentary'],['paid','Paid'],['unavailable','Unavailable']],p)}
-      ${polTog('24-hour room service surcharge','roomsvc24',p)}
-    </div>
-    <div class="card"><h3>Service Generosity</h3>
-      <label class="fl">Complaint-handling budget — ${Math.round(P0.generosity*100)}%</label>
-      <input type="range" min="0" max="100" value="${P0.generosity*100}" oninput="setPolicy('generosity',+this.value/100)">
-      <div class="muted sm" style="margin-top:6px">Higher generosity recovers satisfaction and reviews faster but raises cost.</div>
-    </div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabPolicies() removed — the last declaration wins by hoisting */
 window.setPolicy=(k,v)=>{P().policies[k]=v;};
 window.setPolicyR=(k,v)=>{P().policies[k]=v;logEvent(P(),'decision','Policy '+k+' → '+v);toast('Policy updated.');renderTab();};
 window.togglePolicy=(k,el)=>{P().policies[k]=!P().policies[k];logEvent(P(),'decision','Policy '+k+' '+(P().policies[k]?'on':'off'));renderTab();};
@@ -2040,55 +1182,15 @@ function spark(vals,color){
   const pts=vals.map((v,i)=>`${(i/(vals.length-1)*w).toFixed(1)},${(h-(v-mn)/rg*h).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:46px;margin-top:8px"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6"/></svg>`;
 }
-function tabAnalytics(p){
-  const range=G.anRange||30,data=p.analytics.slice(-range),last=data[data.length-1]||{};
-  const series=[['Occupancy','occ','#6fc6df',v=>Math.round(v)+'%'],['ADR','adr','#d8a24a',v=>cr0(v)],
-    ['RevPAR','revpar','#eebd6a',v=>cr0(v)],['Revenue','rev','#46c06a',v=>cr(v)],['Profit','profit','#7cc99a',v=>cr(v)],
-    ['Expenses','exp','#ef6a6a',v=>cr(v)],['Satisfaction','sat','#b27ad6',v=>Math.round(v)+'%'],
-    ['Reputation','rep','#d8a24a',v=>Math.round(v)],['Google Rating','rating','#eebd6a',v=>(v||0).toFixed(2)],
-    ['Complaints','complaints','#ef6a6a',v=>Math.round(v)]];
-  return `<div class="page-head"><div><h2>Analytics</h2><div class="desc">Performance trends over time</div></div>
-    <div class="wrapf">${[7,30,90,365].map(r=>`<button class="tag ${range===r?'on':''}" onclick="setRange(${r})">${r===365?'1Y':r+'d'}</button>`).join('')}</div></div>
-  ${data.length<2?'<div class="notice">Run a few days to accumulate analytics. Press Play ▶.</div>':''}
-  <div class="cards cols-3">
-    ${series.map(s=>`<div class="card"><h3>${s[0]}</h3><div class="stat" style="font-size:20px">${data.length?s[3](last[s[1]]||0):'—'}</div>${spark(data.map(d=>d[s[1]]||0),s[2])}</div>`).join('')}
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabAnalytics() removed — the last declaration wins by hoisting */
 window.setRange=r=>{G.anRange=r;renderTab();};
 
 /* ---------------- TAB: REPORTS ---------------- */
-function tabReports(p){
-  const r=p.lastReport;
-  if(!r)return `<div class="page-head"><div><h2>Daily Report</h2><div class="desc">Executive summary at the close of each day</div></div></div><div class="notice">First report generates after Day 1 closes. Press Play ▶.</div>`;
-  return `<div class="page-head"><div><h2>Daily Management Report</h2><div class="desc">Close of Day ${r.day} · ${p.name}</div></div></div>
-  <div class="cards cols-2">
-    <div class="card"><h3>Financial</h3>${row('Revenue',cr(r.fin.rev))}${row('Expenses',cr(r.fin.exp))}${row('Channel commission',cr(r.fin.comm))}<div class="row"><span class="b">Net profit</span><span class="b ${r.fin.profit>=0?'up':'down'}">${cr(r.fin.profit)}</span></div></div>
-    <div class="card"><h3>Operations</h3>${row('Occupancy',r.ops.occ+'%')}${row('Arrivals',r.ops.arr)}${row('Departures',r.ops.dep)}${row('Rooms clean / dirty',r.ops.clean+' / '+r.ops.dirty)}</div>
-    <div class="card"><h3>Service</h3>${row('Complaints',r.svc.complaints)}${row('Peak front-desk queue',r.svc.queuePeak)}${row('Cancellations (cum.)',r.svc.cancellations)}</div>
-    <div class="card"><h3>Guest Experience</h3>${row('Rating change',(r.gx.ratingChg>=0?'+':'')+r.gx.ratingChg+'★')}${row('Current rating',(r.gx.rating||0).toFixed(2)+'★')}${row('Avg checkout satisfaction',r.gx.sat+(typeof r.gx.sat==='number'?'%':''))}${row('New reviews',r.gx.reviews)}</div>
-    <div class="card"><h3>Competition</h3>${row('Estimated market share',Math.round(r.comp.marketShare)+'%')}${r.comp.news.length?r.comp.news.map(n=>`<div class="row"><span class="lab">${n}</span></div>`).join(''):'<div class="muted sm" style="margin-top:6px">No visible competitor moves.</div>'}</div>
-    <div class="card"><h3>Recent Days</h3>${(p.reportHist||[]).slice(0,8).map(h=>`<div class="row"><span class="lab">Day ${h.day}</span><span class="val ${h.fin.profit>=0?'up':'down'}">${cr(h.fin.profit)} · ${h.ops.occ}%</span></div>`).join('')}</div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabReports() removed — the last declaration wins by hoisting */
 
 /* ---------------- TAB: LOG ---------------- */
-function logColor(c){return {booking:'#4fa9c9',service:'#e6b450',review:'#d8a24a',competition:'#ef6a6a',guest:'#46c06a',decision:'#b27ad6'}[c]||'#8a98b2';}
-function tabLog(p){
-  const f=G.logFilter||'all';
-  const cats=['all','booking','service','review','competition','guest','decision'];
-  const ev=G.eventLog.filter(e=>f==='all'||e.cat===f);
-  return `<div class="page-head"><div><h2>Event & Decision Log</h2><div class="desc">Permanent timeline of operations and management decisions</div></div></div>
-  <div class="wrapf" style="margin-bottom:12px">${cats.map(c=>`<button class="tag ${f===c?'on':''}" onclick="setLogFilter('${c}')">${c[0].toUpperCase()+c.slice(1)}</button>`).join('')}</div>
-  <div class="split">
-    <div class="card"><h3>Timeline</h3><div style="max-height:540px;overflow:auto">
-      ${f==='decision'?(G.decisionLog.length?G.decisionLog.map(d=>`<div class="review"><div class="rh"><span class="who">${d.txt}</span><span class="muted sm">Day ${d.d}</span></div><div class="txt">${d.cost?cr(d.cost)+' · ':''}${d.reason}</div><div class="meta">Short-term: ${d.shortI} · Long-term: ${d.longI}</div></div>`).join(''):'<div class="muted sm">No decisions logged yet.</div>')
-      :(ev.length?ev.slice(0,140).map(e=>`<div class="fitem"><span class="dot" style="background:${logColor(e.cat)}"></span><span class="txt">${e.txt}</span><span class="ft">D${e.d} ${String(e.h).padStart(2,'0')}h</span></div>`).join(''):'<div class="muted sm">Nothing logged in this category yet.</div>')}
-    </div></div>
-    <div class="card"><h3>Decision History</h3><div style="max-height:540px;overflow:auto">
-      ${G.decisionLog.length?G.decisionLog.slice(0,40).map(d=>`<div class="row"><span class="lab">D${d.d} · ${d.txt}</span><span class="val">${d.cost?cr(d.cost):'—'}</span></div>`).join(''):'<div class="muted sm">Research, campaigns, big builds and event choices appear here.</div>'}
-    </div></div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of logColor() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of tabLog() removed — the last declaration wins by hoisting */
 window.setLogFilter=c=>{G.logFilter=c;renderTab();};
 
 /* ---------------- TAB: MARKET (override: fog of war) ---------------- */
@@ -2160,71 +1262,10 @@ function tabReviews(p){
 window.setReviewFilter=f=>{P()._revFilter=f;renderTab();};
 
 /* ---------------- TAB: FINANCE (override: channel revenue) ---------------- */
-function tabFinance(p){
-  const an=p.analytics.slice(-30).map(d=>({day:d.day,rev:d.rev,exp:d.exp}));
-  const src=an.length?an:G.finHist.slice(-30);
-  const totRev=src.reduce((s,d)=>s+d.rev,0),totExp=src.reduce((s,d)=>s+d.exp,0);
-  let payroll=0;for(const role in p.staff)p.staff[role].forEach(s=>payroll+=s.sal);
-  const utilities=p.rooms.length*250*30,maintC=p.rooms.reduce((s,r)=>s+ROOMTYPES[r.type].dmaint,0)*30,facC=p.facilities.reduce((s,f)=>s+FACILITIES[f].daily,0)*30;
-  const max=Math.max(1,...src.map(d=>Math.max(d.rev,d.exp)));
-  const chTot=Object.values(p.channelRev).reduce((s,v)=>s+v,0)||1;
-  return `<div class="page-head"><div><h2>Finance</h2><div class="desc">Cash, P&L, channel mix and cost structure</div></div></div>
-  <div class="cards cols-4" style="margin-bottom:12px">
-    ${ovCard('Cash on hand',cr(G.cash),'',barH(clamp(G.cash/10000000*100,0,100),'#46c06a'))}
-    ${ovCard('Rev (30d)',cr(totRev),'',' ')}
-    ${ovCard('Exp (30d)',cr(totExp),'',' ')}
-    ${ovCard('Net (30d)',(totRev-totExp>=0?'+':'')+cr(totRev-totExp),'profit',' ')}
-  </div>
-  <div class="split">
-    <div class="card"><h3>Revenue vs Expenses (${src.length} days)</h3>
-      <div style="display:flex;align-items:flex-end;gap:3px;height:180px;margin-top:8px">
-        ${src.map(d=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px" title="D${d.day}: +${cr0(d.rev)} / -${cr0(d.exp)}"><div style="height:${d.rev/max*150}px;background:#46c06a;border-radius:2px 2px 0 0;min-height:1px"></div><div style="height:${d.exp/max*150}px;background:#ef6a6a55;border-radius:0 0 2px 2px;min-height:1px"></div></div>`).join('')||'<div class="muted sm">Run a few days to see trends.</div>'}
-      </div>
-      <div class="flex" style="gap:14px;margin-top:8px"><span class="sm"><span style="color:#46c06a">■</span> Revenue</span><span class="sm"><span style="color:#ef6a6a">■</span> Expenses</span></div>
-    </div>
-    <div class="card"><h3>Revenue by Booking Channel</h3>
-      ${CH_ORDER.filter(k=>p.channelRev[k]).length?CH_ORDER.filter(k=>p.channelRev[k]).map(k=>`<div class="row"><span class="lab">${CHANNELS[k].ic} ${CHANNELS[k].name}${CHANNELS[k].comm?' <span class="muted sm">('+Math.round(CHANNELS[k].comm*100)+'% comm)</span>':''}</span><span class="val">${cr(p.channelRev[k])} · ${Math.round(p.channelRev[k]/chTot*100)}%</span></div>`).join(''):'<div class="muted sm">Channel revenue appears after guests check out.</div>'}
-      <div class="row" style="border-top:1px solid var(--line2);margin-top:4px"><span class="b">Commission paid today</span><span class="b">${cr(p.commToday||0)}</span></div>
-    </div>
-  </div>
-  <div class="card" style="margin-top:12px"><h3>Monthly Cost Structure</h3>
-    ${row('Payroll',cr(payroll))}${row('Utilities (est)',cr(utilities))}${row('Maintenance (est)',cr(maintC))}${row('Facilities running',cr(facC))}
-    <div class="row" style="border-top:1px solid var(--line2);margin-top:4px"><span class="b">Total monthly burn</span><span class="b">${cr(payroll+utilities+maintC+facC)}</span></div>
-    <div style="margin-top:12px">${row('Lifetime revenue',cr(p.lifetimeRev))}${row('Booking confidence',Math.round(p.bookingConfidence)+'/100')}${row('Cancellations',p.cancellations||0)}</div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabFinance() removed — the last declaration wins by hoisting */
 
 /* ---------------- TAB: EXPANSION (override: add parking) ---------------- */
-function tabExpand(p){
-  const floorCost=2500000+p.floors*800000;
-  const canRoom=p.rooms.filter(r=>r.floor<=p.floors).length<p.floors*p.capPerFloor;
-  return `<div class="page-head"><div><h2>Expansion</h2><div class="desc">Grow from one property into a national chain</div></div></div>
-  <div class="cards cols-2" style="margin-bottom:14px">
-    <div class="card"><h3>Build New Rooms</h3>
-      <div class="muted sm" style="margin-bottom:8px">Floor capacity: ${p.rooms.filter(r=>r.floor<=p.floors).length}/${p.floors*p.capPerFloor}. ${canRoom?'':'<span class="gold">Add a floor to build more.</span>'}</div>
-      ${RT_ORDER.map(rt=>{const t=ROOMTYPES[rt];return `<div class="shopitem"><div class="si-ic">▦</div><div class="si-b"><div class="si-t">${t.name} Room</div><div class="si-d">Build ${cr(t.build)} · ref ${cr0(marketRate(p,rt))} · expectation ${t.exp}</div></div>
-
-        <button class="btn primary" style="padding:7px 11px" ${canRoom?'':'disabled'} onclick="buildRoom('${rt}')">Build</button></div>`;}).join('')}
-    </div>
-    <div class="card"><h3>Property Growth</h3>
-      <div class="shopitem"><div class="si-ic">🏗️</div><div class="si-b"><div class="si-t">Add a Floor</div><div class="si-d">+${p.capPerFloor} room capacity · ${cr(floorCost)}</div></div><button class="btn primary" style="padding:7px 13px" onclick="addFloor()">Build Floor</button></div>
-      <div class="shopitem"><div class="si-ic">🅿️</div><div class="si-b"><div class="si-t">Parking Bays (+10)</div><div class="si-d">Now ${p.parking.spaces} spaces · ${cr(400000)}</div></div><button class="btn primary" style="padding:7px 13px" onclick="addParking()">Expand</button></div>
-      <div class="shopitem"><div class="si-ic">🔌</div><div class="si-b"><div class="si-t">EV Charging Bays (+4)</div><div class="si-d">Now ${p.parking.ev} bays · ${cr(300000)}</div></div><button class="btn primary" style="padding:7px 13px" onclick="addEV()">Expand</button></div>
-      <div class="shopitem"><div class="si-ic">🏨</div><div class="si-b"><div class="si-t">Open a New Hotel</div><div class="si-d">New city/locality property · from ${cr(15000000)}</div></div><button class="btn primary" style="padding:7px 13px" onclick="openNewHotel()">Expand</button></div>
-      <div class="notice" style="margin-top:10px">Portfolio: <b>${G.properties.length}</b> ${G.properties.length>1?'hotels':'hotel'}.${G.properties.length>1?' Manage the chain from Headquarters.':''}</div>
-      ${G.properties.length>1?`<div class="wrapf">${G.properties.map((pp,i)=>`<button class="tag ${i===G.active?'on':''}" onclick="switchProp(${i})">${pp.name}</button>`).join('')}</div>`:''}
-    </div>
-  </div>
-  <div class="card"><h3>Milestones</h3>
-    ${milestone('Reach 4.0★ rating',p.rating>=4)}
-    ${milestone('Own 15+ rooms',p.rooms.length>=15)}
-    ${milestone('Reputation 70+',p.reputation>=70)}
-    ${milestone('Build 5 facilities',p.facilities.length>=5)}
-    ${milestone('Enrol 10 loyalty members',(G.chain&&G.chain.loyaltyMembers>=10))}
-    ${milestone('Open a second hotel',G.properties.length>=2)}
-    ${milestone('Build a 3-city chain',new Set(G.properties.map(x=>x.city.name)).size>=3)}
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabExpand() removed — the last declaration wins by hoisting */
 window.addParking=()=>{const p=P();if(G.cash<400000){toast('Not enough cash.','neg');return;}G.cash-=400000;p.expToday+=400000;p.parking.spaces+=10;logDecision('Parking expansion',400000,'+10 spaces','More vehicle capacity','Fewer parking complaints');toast('Added 10 parking spaces.','pos');renderAll();};
 window.addEV=()=>{const p=P();if(G.cash<300000){toast('Not enough cash.','neg');return;}G.cash-=300000;p.expToday+=300000;p.parking.ev+=4;logDecision('EV bay expansion',300000,'+4 EV bays','EV-ready','Appeals to premium guests');toast('Added 4 EV charging bays.','pos');renderAll();};
 
@@ -2272,35 +1313,7 @@ window.pushPolicies=()=>{const src=P().policies;G.properties.forEach(pp=>{if(pp!
   logDecision('Chain policy alignment',0,'Standardise operations','Consistent experience','Brand coherence');toast('Policies pushed to all hotels.','pos');};
 
 /* ---------------- ROOM DETAIL (override: components + renovation) ---------------- */
-function roomDetail(id){
-  const p=P(),r=p.rooms.find(x=>x.id===id);if(!r)return;
-  const g=r.guest,box=$('#mbox');
-  const byCat={Bedroom:[],Bathroom:[],General:[]};
-  COMP_ORDER.forEach(k=>byCat[COMPONENTS[k].cat].push(k));
-  const compHTML=Object.keys(byCat).map(cat=>`<div class="b sm" style="margin:10px 0 4px;color:var(--gold2)">${cat}</div><div class="wrapf">${byCat[cat].map(k=>{const c=COMPONENTS[k],owned=r.comp&&r.comp[k];return `<button class="tag ${owned?'on':''}" ${owned?'disabled':''} onclick="buyComponent(${r.id},'${k}')">${owned?'✓ ':''}${c.name}${owned?'':' · '+cr0(c.cost)}</button>`;}).join('')}</div>`).join('');
-  const busy=r.status==='occupied'||r.status==='renovation';
-  box.innerHTML=`<div class="mhead"><div class="mic" style="background:#1c2740">▦</div><div><h3>Room ${r.id}</h3><div class="ms">${ROOMTYPES[r.type].name} · ${r.q.name} furnishing · Floor ${r.floor}</div></div></div>
-    <div class="mbody" style="max-height:72vh;overflow:auto">
-      ${row('Status','<span class="pill '+(r.status==='clean'?'green':r.status==='occupied'?'blue':r.status==='dirty'?'gold':r.status==='renovation'?'gold':'red')+'">'+(r.status==='renovation'?'renovating':r.status)+'</span>')}
-      ${row('Nightly rate',cr0(p.prices[r.type]))}
-      ${row('Room quality',Math.round(roomQ(r))+'/100')}
-      ${row('Condition',Math.round(r.cond)+'%')}
-      ${g?`<div style="margin-top:10px" class="notice"><b>${g.name}</b> · ${GUEST_TYPES[g.type].name}${g.loyalty?' · <span class="pill gold">'+g.loyalty+'</span>':''}<br>Satisfaction <b>${Math.round(g.sat)}%</b> · Nights ${g.nights} · Rate ${cr0(g.price)} · via ${CHANNELS[g.channel]?CHANNELS[g.channel].name:'—'}<br>Checks out Day ${g.depDay}</div>`:''}
-      <div class="b sm" style="margin:14px 0 2px">Renovation Planner</div>
-      <div class="wrapf">
-        <button class="btn" ${busy?'disabled':''} onclick="renovateRoom(${r.id},'cosmetic')">Cosmetic · ${cr(120000)}</button>
-        <button class="btn" ${busy?'disabled':''} onclick="renovateRoom(${r.id},'moderate')">Moderate · ${cr(320000)}</button>
-        <button class="btn" ${busy?'disabled':''} onclick="renovateRoom(${r.id},'luxury')">Luxury · ${cr(650000)}</button>
-      </div>
-      <div class="muted sm" style="margin-top:4px">Room is offline during renovation. Restores condition, lifts quality and rate appeal.</div>
-      <div class="b sm" style="margin:14px 0 2px">Furnishing Tier</div>
-      <div class="wrapf">${r.status==='clean'?`<button class="btn" onclick="upgradeRoomQ(${r.id})">Upgrade Furnishing</button>`:'<span class="muted sm">Free the room to change furnishing.</span>'}</div>
-      <div class="b sm" style="margin:14px 0 2px">Room Customisation — Components</div>
-      ${compHTML}
-    </div>`;
-  $('#modal').style.display='flex';
-  $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').style.display='none';};
-}
+/* [flattened v18] dead ancestor of roomDetail() removed — the last declaration wins by hoisting */
 window.roomDetail=roomDetail;
 window.buyComponent=(id,k)=>{const p=P(),r=p.rooms.find(x=>x.id===id),c=COMPONENTS[k];
   if(r.comp&&r.comp[k])return;if(G.cash<c.cost){toast('Not enough cash.','neg');return;}
@@ -2325,19 +1338,7 @@ window.buyFac=f=>{const p=P(),fc=FACILITIES[f];let cost=fc.build;if(G.facDiscoun
   logEvent(p,'decision',fc.name+' built.');toast(fc.name+' built.','pos');renderAll();};
 
 /* ---------------- EVENT MODAL (override: log decisions) ---------------- */
-function showEvent(ev,prop){
-  const wasPaused=G.paused;G.autoResume=!wasPaused;setPause(true);
-  const box=$('#mbox');
-  box.innerHTML=`<div class="mhead"><div class="mic" style="background:${ev.cl}22;color:${ev.cl}">${ev.ic}</div><div><h3>${ev.title}</h3><div class="ms">${ev.sub}</div></div></div>
-    <div class="mbody"><div class="desc">${ev.desc}</div>${ev.ch.map((c,i)=>`<button class="choice" data-i="${i}"><div class="ct">${c.t}</div><div class="cc">${c.c}</div></button>`).join('')}</div>`;
-  $('#modal').style.display='flex';
-  $$('.choice',box).forEach(b=>b.onclick=()=>{
-    const ci=+b.dataset.i;ev.ch[ci].f(prop);
-    logEvent(prop,'service',ev.title+' — '+ev.ch[ci].t);
-    logDecision(ev.title,0,ev.ch[ci].t,ev.ch[ci].c,'Event outcome');
-    $('#modal').style.display='none';if(G.autoResume)setPause(false);renderAll();
-  });
-}
+/* [flattened v18] dead ancestor of showEvent() removed — the last declaration wins by hoisting */
 
 /* ---------------- OPEN NEW HOTEL (override: augment new prop) ---------------- */
 function openNewHotel(){
@@ -2427,7 +1428,7 @@ function newGame(setup){
     city,loc,floors:1,capPerFloor:10,
     rooms:[],staff:{},facilities:[],prices:{},
     rating:0,reviews:[],reputation:38,repTrend:0,
-    policies:{earlyCI:false,lateCO:false,freeUpg:false,freeCancel:true,minStay:1,generosity:.5},
+    policies:{earlyCI:false,lateCO:false,freeUpg:false,minStay:1,generosity:.5},
     parking:{spaces:0,ev:0,occupied:0,evOccupied:0},
     incidents:0,lifetimeGuests:0,lifetimeRev:0,
     revToday:0,revYest:0,expToday:0,expYest:0
@@ -2444,32 +1445,10 @@ function newGame(setup){
 }
 
 /* ---------------- STATE AUGMENTATION (override: + new fields) ---------------- */
-function augmentProp(prop){
-  prop.policies=Object.assign({earlyFee:500,lateFee:600,cancelType:'partial',maxStay:30,overbook:0,
-    payment:'partial',parking:'complimentary',evPrice:12,breakfast:'optional',laundry:'paid',roomsvc24:false,
-    checkinTime:13,checkoutTime:11},prop.policies);
-  if(!prop.parking)prop.parking={spaces:Math.max(4,Math.round(prop.rooms.length*.8)),ev:1,occupied:0,evOccupied:0};
-  if(prop.parking.reserved==null)prop.parking.reserved=0;
-  if(prop.parking.valet==null)prop.parking.valet=0;
-  if(!prop.channelRev)prop.channelRev={};
-  if(!prop.channelStats)prop.channelStats={};
-  if(prop.bookingConfidence==null)prop.bookingConfidence=70;
-  if(!prop.analytics)prop.analytics=[];
-  if(!prop.reportHist)prop.reportHist=[];
-  if(prop.cancellations==null)prop.cancellations=0;
-  if(prop.commToday==null)prop.commToday=0;
-  if(prop.queuePeak==null)prop.queuePeak=0;
-  if(!prop.maintBacklog)prop.maintBacklog=[];
-  if(!prop.hk)prop.hk={priority:'balanced',inspection:false};
-  if(!prop.fnbRev)prop.fnbRev={breakfast:0,lunch:0,dinner:0};
-  if(prop.foodComplaints==null)prop.foodComplaints=0;
-  if(prop.directBoost==null)prop.directBoost=0;
-  prop.rooms.forEach(r=>{if(!r.comp)r.comp={};if(r.renoT==null)r.renoT=0;});
-  ensureIntel(prop);
-}
+/* [flattened v18] dead ancestor of augmentProp() removed — the last declaration wins by hoisting */
 
 /* logDecision override: + affected systems */
-function logDecision(txt,cost,reason,shortI,longI,systems){if(!G.decisionLog)G.decisionLog=[];G.decisionLog.unshift({d:G.day,txt,cost,reason,shortI,longI,systems:systems||[]});if(G.decisionLog.length>240)G.decisionLog.pop();}
+/* [flattened v18] dead ancestor of logDecision() removed — the last declaration wins by hoisting */
 
 /* ---------------- CHECK-IN PROBABILITY CURVE ---------------- */
 function checkinWeights(prop){
@@ -2484,116 +1463,14 @@ function checkinWeights(prop){
 function sampleHour(prop){const w=checkinWeights(prop);let tot=0;for(let h=0;h<24;h++)tot+=w[h];let r=Math.random()*tot;for(let h=0;h<24;h++){r-=w[h];if(r<=0)return clamp(h,6,23);}return 13;}
 
 /* pickChannel override: + direct-booking marketing boost */
-function pickChannel(prop,weekend){
-  const w={};
-  CH_ORDER.forEach(k=>{const C=CHANNELS[k];let v=C.vol;
-    if(C.weekday)v*=weekend?.4:1.5;
-    if(k==='ota')v*=1+prop.city.tour*.3;
-    if(k==='direct')v*=1+prop.reputation/100*.5+(prop.directBoost||0);
-    if(k==='walkin')v*=1+prop.loc.transW*.6;
-    w[k]=v;});
-  let tot=0;for(const k in w)tot+=w[k];
-  let r=Math.random()*tot;for(const k in w){r-=w[k];if(r<=0)return k;}return 'direct';
-}
+/* [flattened v18] dead ancestor of pickChannel() removed — the last declaration wins by hoisting */
 
 /* scheduleDay override: curve arrivals, configurable checkout, same-room returns, channel stats */
-function scheduleDay(){
-  const prop=P();
-  buildReturnPool();
-  G.seasonNow=seasonFactor(G.day,prop.city,prop.loc);
-  prop.channelStats=prop.channelStats||{};
-  const total=prop.rooms.length||1;
-  let demandIdx=prop.city.dem*prop.loc.dem*G.seasonNow*repFactor(prop)*compFactor(prop)*G.D.demM;
-  demandIdx*=(1+facBoost(prop,'dem'));
-  demandIdx*=(1+(G.chain?G.chain.brand:0)/100*.5);
-  const weekend=(G.dow>=5);
-  demandIdx*=weekend?(1+prop.city.tour*.25):(1+prop.city.biz*.12);
-  let attempts=Math.round(total*1.6*clamp(demandIdx,.2,2.3)*rnd(.8,1.2));
-  attempts=clamp(attempts,prop.rooms.length?1:0,total*3);
-  const arrivals=[],chCount={};const overbook=prop.policies.overbook||0;let booked=0;
-  for(let i=0;i<attempts;i++){
-    const g=genGuest(prop);
-    g.nights=clamp(ri(GUEST_TYPES[g.type].nights[0],GUEST_TYPES[g.type].nights[1]),prop.policies.minStay||1,prop.policies.maxStay||30);
-    let cand=prop.rooms.filter(r=>r.status==='clean'&&priceOK(prop,r,g)&&!arrivals.find(a=>a.roomId===r.id));
-    if(!cand.length){if(overbook>0&&booked<total+overbook){cand=prop.rooms.filter(r=>!arrivals.find(a=>a.roomId===r.id)&&priceOK(prop,r,g));}if(!cand.length)continue;}
-    if(g.returning&&g.favRT){const same=cand.filter(r=>r.type===g.favRT);if(same.length)cand=same;}
-    cand.sort((a,b)=>scoreFor(g,b)-scoreFor(g,a));
-    const room=cand[0];
-    let willing=bookWillingness(prop,room,g);
-    if(prop.policies.cancelType==='nonref')willing*=.9;
-    if(prop.policies.payment==='full')willing*=.92;
-    if(prop.policies.cancelType==='flexible')willing*=1.04;
-    if(g.loyalty)willing*=1.08;
-    const st=prop.channelStats[g.channel]=prop.channelStats[g.channel]||{bookings:0,cancels:0,satSum:0,satN:0,revenue:0,repeat:0};
-    if(Math.random()<willing){
-      g.roomId=room.id;
-      g.arrHour=sampleHour(prop);
-      g.depDay=G.day+g.nights;g.depHour=clamp((prop.policies.checkoutTime||11)+ri(-1,1),6,14);
-      g.price=prop.prices[room.type];
-      if(g.loyalty){const L=LOYALTY.find(x=>x.name===g.loyalty);if(L)g.price=Math.round(g.price*(1-L.disc));}
-      const depFrac=prop.policies.payment==='full'?1:prop.policies.payment==='partial'?.3:0;
-      g.deposit=Math.round(g.price*g.nights*depFrac);g.bookingAmt=g.price*g.nights;
-      const cancelP=CHANNELS[g.channel].cancel*(prop.policies.cancelType==='nonref'?.5:prop.policies.cancelType==='flexible'?1.15:1);
-      if(Math.random()<cancelP){
-        prop.cancellations=(prop.cancellations||0)+1;st.cancels++;
-        const keepFr=prop.policies.cancelType==='flexible'?0:prop.policies.cancelType==='partial'?.5:1;
-        if(keepFr>0&&g.deposit>0){const keep=Math.round(g.deposit*keepFr);G.cash+=keep;prop.revToday+=keep;logEvent(prop,'finance',g.name+' cancelled — deposit '+cr0(keep)+' retained.');}
-        else logEvent(prop,'booking',g.name+' cancelled (refundable).');
-        continue;
-      }
-      st.bookings++;if(g.returning)st.repeat++;
-      g.checkedIn=false;arrivals.push(g);booked++;chCount[g.channel]=(chCount[g.channel]||0)+1;
-    }
-  }
-  G.pendingArrivals=arrivals;prop.expectedToday=arrivals.length;prop.chCountToday=chCount;
-  ensureIntel(prop);
-}
+/* [flattened v18] dead ancestor of scheduleDay() removed — the last declaration wins by hoisting */
 
 /* ---------------- SATISFACTION (override: F&B, returns, maintenance, channel) ---------------- */
-function fnbQuality(prop){const s=prop.staff.fnb||[];if(!s.length)return 42;return clamp(s.reduce((a,x)=>a+x.skill*(x.morale/100),0)/s.length,30,98);}
-function finalizeStay(prop,room,g){
-  const gt=GUEST_TYPES[g.type];let sat=g.sat;
-  const q=roomQ(room);
-  let exp=ROOMTYPES[room.type].exp*gt.clean*G.D.exp*(g.expM||1);
-  if(g.loyalty)exp+=(g.prior||0)*.6;
-  sat+=(q-exp)*.5;
-  const mkt=marketRate(prop,room.type);
-  sat-=clamp((g.price/mkt-1),-.4,1.2)*22*g.sens*.6;
-  let hkv=clamp(cleanCapacity(prop)/Math.max(1,prop.rooms.length)*100,30,100);
-  if(prop.hk&&prop.hk.inspection)hkv=clamp(hkv+8,30,100);
-  sat+=(hkv-65)*.18*g.clean;
-  sat+=(avgSkill(prop,'frontdesk')-65)*.16;
-  const wants=gt.prefer.filter(f=>prop.facilities.includes(f)).length;
-  sat+=wants*3+facBoost(prop,'sat')*.15;
-  let compVal=0;for(const k in (room.comp||{}))if(room.comp[k]&&COMPONENTS[k]&&COMPONENTS[k].val.includes(g.type))compVal+=2.4;
-  sat+=Math.min(compVal,16);
-  let noise=prop.loc.noise-(room.comp&&room.comp.soundproof?.3:0);
-  sat-=clamp(noise-g.quiet,0,1)*14;
-  if(prop.maintBacklog&&prop.maintBacklog.some(is=>is.roomId===room.id))sat-=rnd(3,8);
-  if(prop.facilities.includes('restaurant')||prop.facilities.includes('breakfast')){
-    const fq=fnbQuality(prop);sat+=(fq-60)*.1;
-    if(fq<50&&Math.random()<.4){prop.foodComplaints=(prop.foodComplaints||0)+1;sat-=rnd(1,4);}
-  }
-  if(g.type==='longstay'&&prop.facilities.includes('laundry')&&prop.policies.laundry!=='unavailable')sat+=3;
-  if(g.returning){const e=G.guestDB[g.name+'|'+g.type];if(e&&g.sat<e.avgSat-8){sat-=3;g.declined=true;}else if(e&&g.sat>e.avgSat+8){sat+=2;g.improved=true;}}
-  g.sat=clamp(sat,0,100);
-  if(g.sat<45)g.complaints=(g.complaints||0)+1;
-  let extra=0;
-  prop.facilities.forEach(f=>{if(FACILITIES[f].rev&&Math.random()<.5)extra+=rnd(300,1500)*(gt.budgetF);});
-  if(prop.facilities.includes('restaurant')||prop.facilities.includes('breakfast')){
-    const b=rnd(120,420)*g.nights,l=prop.facilities.includes('restaurant')?rnd(0,500)*g.nights:0,dn=prop.facilities.includes('restaurant')?rnd(150,700)*g.nights:0;
-    prop.fnbRev.breakfast+=b;prop.fnbRev.lunch+=l;prop.fnbRev.dinner+=dn;extra+=b+l+dn;
-  }
-  if(prop.policies.laundry==='paid'&&prop.facilities.includes('laundry')&&Math.random()<.4)extra+=rnd(200,700);
-  if(prop.policies.roomsvc24&&prop.facilities.includes('roomsvc')&&Math.random()<.3)extra+=rnd(250,900);
-  g.extraRev=Math.round(extra);
-  g.aspects=buildAspects(prop,room,g,hkv);
-  const st=prop.channelStats[g.channel];
-  if(st){st.satSum=(st.satSum||0)+g.sat;st.satN=(st.satN||0)+1;st.revenue=(st.revenue||0)+(g.price*g.nights*(1-(CHANNELS[g.channel].comm||0)));}
-  const reviewChance=g.reviewT*(.4+Math.abs(g.sat-65)/65)*G.D.harsh*.9;
-  if(Math.random()<clamp(reviewChance,.05,.95))leaveReview(prop,g,room);
-  feed((g.sat>75?'😊':g.sat>50?'😐':'😞')+' '+g.name+' checked out — satisfaction '+Math.round(g.sat)+'%.',g.sat>70?'pos':g.sat>45?'info':'neg');
-}
+/* [flattened v18] dead ancestor of fnbQuality() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of finalizeStay() removed — the last declaration wins by hoisting */
 
 /* ---------------- MAINTENANCE BACKLOG ---------------- */
 const MAINT_ISSUES=[{t:'Leaky faucet',base:1200},{t:'AC not cooling',base:2500},{t:'Flickering lights',base:900},{t:'Clogged drain',base:1500},{t:'Door lock fault',base:1800},{t:'Wi-Fi dead spot',base:1100},{t:'Cracked tile',base:1400},{t:'Water heater issue',base:2200},{t:'Pest sighting',base:2600},{t:'TV not working',base:1000}];
@@ -2612,21 +1489,7 @@ window.fixIssue=id=>{const p=P();const i=p.maintBacklog.findIndex(x=>x.id===id);
 window.setHK=(k,v)=>{P().hk[k]=v;logEvent(P(),'decision','Housekeeping '+k+' → '+v);renderTab();};
 
 /* ---------------- ANALYTICS (override: + new series) ---------------- */
-function captureAnalytics(prop){
-  const total=prop.rooms.length||1;
-  const occR=occupied(prop)/total*100;
-  const sold=prop.rooms.filter(r=>r.status==='occupied'&&r.guest);
-  const adrV=sold.length?sold.reduce((s,r)=>s+r.guest.price,0)/sold.length:avgPrice(prop);
-  const sat=prop._satN?prop._satSum/prop._satN:(prop.analytics.length?prop.analytics[prop.analytics.length-1].sat:70);
-  const staffN=Object.values(prop.staff).reduce((s,a)=>s+a.length,0)||1;
-  const chTot=Object.values(prop.channelRev).reduce((s,v)=>s+v,0)||1;
-  prop.analytics.push({day:G.day-1,occ:occR,adr:adrV,revpar:adrV*occR/100,rev:prop.revYest,exp:prop.expYest,
-    profit:prop.revYest-prop.expYest,cashflow:prop.revYest-prop.expYest,sat,rep:prop.reputation,rating:prop.rating||0,
-    complaints:prop._compToday||0,arrivals:prop._arrToday||0,
-    staffProd:occupied(prop)/staffN,maintCost:prop._maintCostToday||0,
-    directMix:(prop.channelRev.direct||0)/chTot*100,facUtil:Math.min(100,prop.facilities.length*7)});
-  if(prop.analytics.length>500)prop.analytics.shift();
-}
+/* [flattened v18] dead ancestor of captureAnalytics() removed — the last declaration wins by hoisting */
 
 /* ---------------- DAILY REPORT (override: full sections + highlights) ---------------- */
 function buildDailyReport(prop){
@@ -2659,50 +1522,13 @@ function buildDailyReport(prop){
 }
 
 /* ---------------- DAY ROLLOVER (override: + maintenance, channel decay) ---------------- */
-function dayRollover(){
-  const prop=P();
-  prop.revYest=prop.revToday;prop.expYest=prop.expToday;
-  G.finHist.push({day:G.day-1,rev:prop.revToday,exp:prop.expToday,cash:G.cash});
-  if(G.finHist.length>120)G.finHist.shift();
-  if(prop.reviews.length){const recent=prop.reviews.slice(-12);const avgR=recent.reduce((s,r)=>s+r.stars,0)/recent.length;const target=avgR*20;prop.reputation+=(target-prop.reputation)*.12-prop.incidents*.3;prop.reputation=clamp(prop.reputation,0,100);}
-  prop.incidents=Math.max(0,prop.incidents-1);
-  competitorAI(prop);
-  for(const role in prop.staff)prop.staff[role].forEach(s=>{const load=workload(prop);s.morale=clamp(s.morale+(load>1.1?-1.5:.6)+rnd(-.5,.5),20,100);});
-  prop.rooms.forEach(r=>{if(r.status==='renovation'){r.renoT--;if(r.renoT<=0){r.status='clean';r.cond=100;if(r._renoGain>=26){const qi=QUALITY.findIndex(q=>q.name===r.q.name);if(qi<QUALITY.length-1)r.q=QUALITY[qi+1];}logEvent(prop,'maintenance','Room '+r.id+' reopened after renovation.');feed('✨ Room '+r.id+' reopened after renovation.','pos');}}});
-  const cashBefore=G.cash;
-  prop.rooms.forEach(r=>{const used=r.status==='occupied'||r.cond<70;if(Math.random()<(used?.05:.015)+(r.cond<55?.04:0))spawnMaintIssue(prop,r);});
-  if(prop.rooms.length&&Math.random()<.08)spawnMaintIssue(prop,null);
-  processMaintenance(prop);
-  prop._maintCostToday=Math.max(0,cashBefore-G.cash);
-  if(prop.directBoost)prop.directBoost=Math.max(0,prop.directBoost-.02);
-  captureAnalytics(prop);buildDailyReport(prop);updateChain();bookingConfidenceDrift(prop);
-  prop.revToday=0;prop.expToday=0;
-  prop._arrToday=0;prop._depToday=0;prop._compToday=0;prop._satSum=0;prop._satN=0;prop.commToday=0;
-  scheduleDay();
-  feed('— Day '+G.day+' begins. '+prop.expectedToday+' bookings expected. Season index '+G.seasonNow.toFixed(2)+'. —','gold');
-  if(G.cash<-500000)gameOver();
-}
+/* [flattened v18] dead ancestor of dayRollover() removed — the last declaration wins by hoisting */
 
 /* triggerEvent override: no events on an empty/idle plot */
 function triggerEvent(prop){if(!prop.rooms.length||occupied(prop)===0)return;const elig=EVENTS.filter(e=>e.cond(prop));if(!elig.length)return;showEvent(pick(elig),prop);}
 
 /* ---------------- MANDATORY EVENT MODAL (override) ---------------- */
-function showEvent(ev,prop){
-  const wasPaused=G.paused;G.autoResume=!wasPaused;setPause(true);
-  const box=$('#mbox');
-  box.innerHTML=`<div class="mhead"><div class="mic" style="background:${ev.cl}22;color:${ev.cl}">${ev.ic}</div><div><h3>${ev.title}</h3><div class="ms">${ev.sub} · <span class="gold">decision required</span></div></div></div>
-    <div class="mbody"><div class="desc">${ev.desc}</div>${ev.ch.map((c,i)=>`<button class="choice" data-i="${i}"><div class="ct">${c.t}</div><div class="cc">${c.c}</div></button>`).join('')}</div>`;
-  $('#modal').style.display='flex';
-  $('#modal').onclick=null; // mandatory — backdrop will not dismiss
-  $$('.choice',box).forEach(b=>b.onclick=()=>{
-    const ci=+b.dataset.i;ev.ch[ci].f(prop);
-    logEvent(prop,'service',ev.title+' — '+ev.ch[ci].t);
-    logDecision(ev.title,0,ev.ch[ci].t,ev.ch[ci].c,'Event outcome',['reputation','satisfaction']);
-    $('#modal').style.display='none';
-    $('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').style.display='none';};
-    if(G.autoResume)setPause(false);renderAll();
-  });
-}
+/* [flattened v18] dead ancestor of showEvent() removed — the last declaration wins by hoisting */
 
 /* ---------------- CLICKABLE KPIs (override) ---------------- */
 function kpi(k,v,sub,tab){return `<div class="kpi" ${tab?`onclick="go('${tab}')" style="cursor:pointer"`:''}><div class="k">${k}</div><div class="v">${v} ${sub?'<small>'+sub+'</small>':''}</div></div>`;}
@@ -2722,15 +1548,7 @@ function renderTopbar(){
 }
 
 /* ---------------- RENDER DISPATCH (override: + operations) ---------------- */
-function renderTab(){
-  const m=$('#main'),p=P();
-  const T={overview:tabOverview,rooms:tabRooms,guests:tabGuests,pricing:tabPricing,policies:tabPolicies,
-    staff:tabStaff,facilities:tabFacilities,reviews:tabReviews,market:tabMarket,finance:tabFinance,
-    analytics:tabAnalytics,reports:tabReports,log:tabLog,expand:tabExpand,hq:tabHQ,operations:tabOperations};
-  if(!T[G.tab]||(G.tab==='hq'&&G.properties.length<2))G.tab='overview';
-  m.innerHTML=T[G.tab](p);
-  wireTab();updateBadges();
-}
+/* [flattened v18] dead ancestor of renderTab() removed — the last declaration wins by hoisting */
 
 /* ---------------- TAB: POLICIES (override: times + facility locks) ---------------- */
 function lockNote(name){return `<div class="muted sm" style="margin-top:4px">🔒 Purchase the <b>${name}</b> facility to unlock these settings.</div>`;}
@@ -2764,7 +1582,7 @@ function tabPolicies(p){
       <div class="muted sm" style="margin-top:4px">Stricter terms protect cash but lower conversion slightly. Booking confidence <b>${Math.round(p.bookingConfidence)}/100</b>.</div>
     </div>
     <div class="card"><h3>Parking & EV</h3>
-      ${p.parking.spaces>0?polSel('Parking policy','parking',[['complimentary','Complimentary'],['paid','Paid'],['reserve','Reservation only']],p):'<label class="fl">Parking policy</label><select disabled style="opacity:.5"><option>Build parking first</option></select>'+lockNote('Parking')}
+      ${p.parking.spaces>0?polSel('Parking policy','parking',[['complimentary','Complimentary'],['paid','Paid']],p):'<label class="fl">Parking policy</label><select disabled style="opacity:.5"><option>Build parking first</option></select>'+lockNote('Parking')}
       ${p.parking.ev>0?polNum('EV charging price (₹/unit)','evPrice',p):lockNote('EV Charging')}
       <div class="muted sm" style="margin-top:4px">Spaces ${p.parking.occupied}/${p.parking.spaces} · EV ${p.parking.evOccupied}/${p.parking.ev}.</div>
     </div>
@@ -2786,23 +1604,7 @@ function tabPolicies(p){
 }
 
 /* ---------------- TAB: ANALYTICS (override: + new series, range labels) ---------------- */
-function tabAnalytics(p){
-  const range=G.anRange||30,data=p.analytics.slice(-range),last=data[data.length-1]||{};
-  const series=[['Occupancy','occ',v=>Math.round(v)+'%','#6fc6df'],['ADR','adr',v=>cr0(v),'#d8a24a'],
-    ['RevPAR','revpar',v=>cr0(v),'#eebd6a'],['Revenue','rev',v=>cr(v),'#46c06a'],['Profit','profit',v=>cr(v),'#7cc99a'],
-    ['Cash Flow','cashflow',v=>cr(v),'#5fb88a'],['Satisfaction','sat',v=>Math.round(v)+'%','#b27ad6'],
-    ['Reputation','rep',v=>Math.round(v),'#d8a24a'],['Google Rating','rating',v=>(v||0).toFixed(2),'#eebd6a'],
-    ['Complaint Freq.','complaints',v=>Math.round(v),'#ef6a6a'],['Staff Productivity','staffProd',v=>(v||0).toFixed(2),'#6fc6df'],
-    ['Maintenance Cost','maintCost',v=>cr(v),'#e6b450'],['Direct Booking %','directMix',v=>Math.round(v)+'%','#46c06a'],
-    ['Facility Utilisation','facUtil',v=>Math.round(v)+'%','#b27ad6']];
-  const ranges=[[7,'Week'],[30,'Month'],[90,'Quarter'],[365,'Year']];
-  return `<div class="page-head"><div><h2>Analytics</h2><div class="desc">Performance trends across every operational dimension</div></div>
-    <div class="wrapf">${ranges.map(r=>`<button class="tag ${range===r[0]?'on':''}" onclick="setRange(${r[0]})">${r[1]}</button>`).join('')}</div></div>
-  ${data.length<2?'<div class="notice">Run a few days to accumulate analytics. Press Play ▶.</div>':''}
-  <div class="cards cols-3">
-    ${series.map(s=>`<div class="card"><h3>${s[0]}</h3><div class="stat" style="font-size:20px">${data.length?s[2](last[s[1]]||0):'—'}</div>${spark(data.map(d=>d[s[1]]||0),s[3])}</div>`).join('')}
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabAnalytics() removed — the last declaration wins by hoisting */
 
 /* ---------------- TAB: REPORTS (override: + staff/maint/policies/growth/highlights) ---------------- */
 function tabReports(p){
@@ -2854,88 +1656,11 @@ function tabLog(p){
 window.setDecSearch=v=>{G.decSearch=v;const a=document.activeElement;G.logFilter=G.logFilter;renderTab();if(a&&a.tagName==='INPUT'){const inp=document.querySelector('#main input[type=text]');if(inp){inp.focus();inp.value=v;inp.setSelectionRange(v.length,v.length);}}};
 
 /* ---------------- TAB: FINANCE (override: + channel performance + marketing) ---------------- */
-function tabFinance(p){
-  const an=p.analytics.slice(-30).map(d=>({day:d.day,rev:d.rev,exp:d.exp}));
-  const src=an.length?an:G.finHist.slice(-30);
-  const totRev=src.reduce((s,d)=>s+d.rev,0),totExp=src.reduce((s,d)=>s+d.exp,0);
-  let payroll=0;for(const role in p.staff)p.staff[role].forEach(s=>payroll+=s.sal);
-  const utilities=p.rooms.length*250*30,maintC=p.rooms.reduce((s,r)=>s+ROOMTYPES[r.type].dmaint,0)*30,facC=p.facilities.reduce((s,f)=>s+FACILITIES[f].daily,0)*30;
-  const max=Math.max(1,...src.map(d=>Math.max(d.rev,d.exp)));
-  const chTot=Object.values(p.channelRev).reduce((s,v)=>s+v,0)||1;
-  return `<div class="page-head"><div><h2>Finance</h2><div class="desc">Cash, P&L, booking-channel performance and cost structure</div></div></div>
-  <div class="cards cols-4" style="margin-bottom:12px">
-    ${ovCard('Cash on hand',cr(G.cash),'',barH(clamp(G.cash/10000000*100,0,100),'#46c06a'))}
-    ${ovCard('Rev (30d)',cr(totRev),'',' ')}
-    ${ovCard('Exp (30d)',cr(totExp),'',' ')}
-    ${ovCard('Net (30d)',(totRev-totExp>=0?'+':'')+cr(totRev-totExp),'profit',' ')}
-  </div>
-  <div class="split">
-    <div class="card"><h3>Revenue vs Expenses (${src.length} days)</h3>
-      <div style="display:flex;align-items:flex-end;gap:3px;height:180px;margin-top:8px">
-        ${src.map(d=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px" title="D${d.day}: +${cr0(d.rev)} / -${cr0(d.exp)}"><div style="height:${d.rev/max*150}px;background:#46c06a;border-radius:2px 2px 0 0;min-height:1px"></div><div style="height:${d.exp/max*150}px;background:#ef6a6a55;border-radius:0 0 2px 2px;min-height:1px"></div></div>`).join('')||'<div class="muted sm">Run a few days to see trends.</div>'}
-      </div>
-      <div class="flex" style="gap:14px;margin-top:8px"><span class="sm"><span style="color:#46c06a">■</span> Revenue</span><span class="sm"><span style="color:#ef6a6a">■</span> Expenses</span></div>
-    </div>
-    <div class="card"><h3>Direct Booking Marketing</h3>
-      <div class="muted sm" style="margin-bottom:8px">Commission-free direct bookings are your most profitable channel. Invest to shift mix away from OTAs.</div>
-      ${row('Direct share (30d)',Math.round((p.channelRev.direct||0)/chTot*100)+'%')}
-      ${row('Current marketing boost','+'+Math.round((p.directBoost||0)*100)+'%')}
-      <button class="btn primary" style="margin-top:8px;width:100%" onclick="marketDirect()">Run Direct Campaign · ${cr(600000)}</button>
-    </div>
-  </div>
-  <div class="tbl-wrap" style="margin-top:12px"><table><thead><tr><th>Channel</th><th>Bookings</th><th>Cancel %</th><th>Avg Sat</th><th>Repeat %</th><th>Net Revenue</th><th>Comm</th></tr></thead><tbody>
-    ${CH_ORDER.map(k=>{const st=p.channelStats[k];if(!st||!st.bookings)return '';const cr_=st.bookings?Math.round(st.cancels/(st.bookings+st.cancels)*100):0;const sat=st.satN?Math.round(st.satSum/st.satN):'—';const rep=st.bookings?Math.round(st.repeat/st.bookings*100):0;return `<tr><td class="b">${CHANNELS[k].ic} ${CHANNELS[k].name}</td><td>${st.bookings}</td><td>${cr_}%</td><td>${sat}${sat==='—'?'':'%'}</td><td>${rep}%</td><td>${cr(p.channelRev[k]||0)}</td><td>${Math.round(CHANNELS[k].comm*100)}%</td></tr>`;}).join('')||'<tr><td colspan="7" class="muted">Channel performance appears after guests check out.</td></tr>'}
-  </tbody></table></div>
-  <div class="card" style="margin-top:12px"><h3>Monthly Cost Structure</h3>
-    ${row('Payroll',cr(payroll))}${row('Utilities (est)',cr(utilities))}${row('Maintenance (est)',cr(maintC))}${row('Facilities running',cr(facC))}
-    <div class="row" style="border-top:1px solid var(--line2);margin-top:4px"><span class="b">Total monthly burn</span><span class="b">${cr(payroll+utilities+maintC+facC)}</span></div>
-    <div style="margin-top:12px">${row('Lifetime revenue',cr(p.lifetimeRev))}${row('Booking confidence',Math.round(p.bookingConfidence)+'/100')}${row('Cancellations',p.cancellations||0)}</div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabFinance() removed — the last declaration wins by hoisting */
 window.marketDirect=()=>{const p=P();const c=600000;if(G.cash<c){toast('Not enough cash.','neg');return;}G.cash-=c;p.expToday+=c;p.directBoost=Math.min(1.2,(p.directBoost||0)+.3);logDecision('Direct-booking marketing',c,'Grow commission-free direct channel','Direct share rising','Lower OTA dependency',['revenue','channels']);logEvent(p,'finance','Direct-booking marketing campaign launched.');toast('Direct-booking marketing launched.','pos');renderAll();};
 
 /* ---------------- TAB: OPERATIONS (new) ---------------- */
-function tabOperations(p){
-  const open=p.maintBacklog.slice().sort((a,b)=>b.sev-a.sev);
-  const fq=fnbQuality(p);
-  return `<div class="page-head"><div><h2>Operations</h2><div class="desc">Maintenance, housekeeping, food & beverage and parking</div></div></div>
-  <div class="cards cols-2">
-    <div class="card"><h3>Maintenance Backlog (${open.length}${open.filter(i=>i.sev>=3).length?' · '+open.filter(i=>i.sev>=3).length+' critical':''})</h3>
-      ${open.length?'<div style="max-height:280px;overflow:auto">'+open.map(is=>`<div class="row"><span class="lab"><span class="pill ${is.sev>=3?'red':is.sev===2?'gold':'gray'}">S${is.sev}</span> ${is.t}${is.roomId?' · Rm '+is.roomId:' · common'}</span><span class="val">${cr0(is.cost)} <button class="btn" style="padding:3px 8px;font-size:11px" onclick="fixIssue(${is.id})">Fix</button></span></div>`).join('')+'</div>':'<div class="muted sm">No open issues. Faults appear over time and escalate every few days if ignored — eventually taking rooms offline.</div>'}
-      <div class="muted sm" style="margin-top:8px">Maintenance staff auto-resolve the most severe first. Hire more maintenance staff to clear backlog faster.</div>
-    </div>
-    <div class="card"><h3>Housekeeping</h3>
-      ${row('Cleaning capacity',cleanCapacity(p).toFixed(1)+' rooms/hr')}
-      ${row('Dirty rooms',p.rooms.filter(r=>r.status==='dirty').length)}
-      ${row('Housekeeping staff',(p.staff.housekeeping||[]).length)}
-      <label class="fl">Cleaning priority</label>
-      <select onchange="setHK('priority',this.value)">${[['balanced','Balanced'],['checkouts','Checkouts first (faster turnaround)'],['occupied','Occupied first (in-stay quality)']].map(o=>`<option value="${o[0]}" ${p.hk.priority===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>
-      <div class="toggle" style="margin-top:8px"><span>Supervisor inspections (+cleanliness, slightly slower)</span><div class="sw ${p.hk.inspection?'on':''}" onclick="setHK('inspection',!${p.hk.inspection})"><i></i></div></div>
-    </div>
-    <div class="card"><h3>Food & Beverage</h3>
-      ${p.facilities.includes('restaurant')||p.facilities.includes('breakfast')?`
-        ${row('Kitchen quality',Math.round(fq)+'/100 '+(fq<50?'<span class="pill red">low</span>':fq>75?'<span class="pill green">strong</span>':'<span class="pill gold">ok</span>'))}
-        ${row('F&B staff',(p.staff.fnb||[]).length)}
-        ${row('Food complaints',p.foodComplaints||0)}
-        ${row('Revenue · breakfast',cr(p.fnbRev.breakfast))}
-        ${row('Revenue · lunch',cr(p.fnbRev.lunch))}
-        ${row('Revenue · dinner',cr(p.fnbRev.dinner))}
-        <div class="muted sm" style="margin-top:6px">Hire F&B staff (Staff tab) to raise kitchen quality and cut complaints.</div>`
-      :'<div class="muted sm">Build <b>Breakfast Service</b> or a <b>Restaurant</b> (Facilities) to open F&B operations.</div>'}
-    </div>
-    <div class="card"><h3>Parking & Valet</h3>
-      ${row('Standard spaces',p.parking.occupied+'/'+p.parking.spaces)}
-      ${row('EV bays',p.parking.evOccupied+'/'+p.parking.ev)}
-      ${row('Parking policy',p.parking.spaces>0?p.policies.parking:'no parking built')}
-      <div class="muted sm" style="margin-top:6px">Expand parking & EV from Expansion. Shortages frustrate premium and business guests and cost reviews.</div>
-    </div>
-    <div class="card"><h3>Room Service & Laundry</h3>
-      ${row('Room service',p.facilities.includes('roomsvc')?(p.policies.roomsvc24?'24h (surcharge)':'standard hours'):'🔒 not built')}
-      ${row('Laundry',p.facilities.includes('laundry')?p.policies.laundry:'🔒 not built')}
-      <div class="muted sm" style="margin-top:6px">Long-stay guests value laundry highly. Room service lifts in-stay satisfaction and ancillary revenue.</div>
-    </div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabOperations() removed — the last declaration wins by hoisting */
 
 /* ---------------- LOG CATEGORY OVERRIDES (staff / expansion / facilities) ---------------- */
 window.hireStaff=(role,tier)=>{const p=P();const s=mkStaff(role,tier);if(G.cash<s.sal){toast('Need at least one month salary in cash.','neg');return;}if(!p.staff[role])p.staff[role]=[];p.staff[role].push(s);logEvent(p,'staff','Hired '+s.name+' as '+ROLES[role].name+'.');logDecision('Hire '+ROLES[role].name,s.sal,'Add capacity & skill','Service capacity up','Higher payroll',['staff','costs']);toast('Hired '+s.name+'.');renderAll();};
@@ -3188,84 +1913,10 @@ function genGuest(prop){
 }
 
 /* ---------------- DAY SCHEDULING (override: awareness, weather, marketing bookings) ---------------- */
-function scheduleDay(){
-  const prop=P();
-  buildReturnPool();
-  G.seasonNow=seasonFactor(G.day,prop.city,prop.loc);
-  prop.channelStats=prop.channelStats||{};
-  const total=prop.rooms.length||1;
-  let demandIdx=prop.city.dem*prop.loc.dem*G.seasonNow*repFactor(prop)*compFactor(prop)*G.D.demM;
-  demandIdx*=(1+facBoost(prop,'dem'));
-  demandIdx*=(1+(G.chain?G.chain.brand:0)/100*.5);
-  demandIdx*=(1+(prop.awareness||0)/100*.3);
-  demandIdx*=weatherDemand();
-  const weekend=(G.dow>=5);
-  demandIdx*=weekend?(1+prop.city.tour*.25):(1+prop.city.biz*.12);
-  let attempts=Math.round(total*1.6*clamp(demandIdx,.2,2.3)*rnd(.8,1.2));
-  attempts=clamp(attempts,prop.rooms.length?1:0,total*3);
-  const arrivals=[],chCount={};const overbook=prop.policies.overbook||0;let booked=0;
-  for(let i=0;i<attempts;i++){
-    const g=genGuest(prop);
-    g.nights=clamp(ri(GUEST_TYPES[g.type].nights[0],GUEST_TYPES[g.type].nights[1]),prop.policies.minStay||1,prop.policies.maxStay||30);
-    let cand=prop.rooms.filter(r=>r.status==='clean'&&priceOK(prop,r,g)&&!arrivals.find(a=>a.roomId===r.id));
-    if(!cand.length){if(overbook>0&&booked<total+overbook){cand=prop.rooms.filter(r=>!arrivals.find(a=>a.roomId===r.id)&&priceOK(prop,r,g));}if(!cand.length)continue;}
-    if(g.returning&&g.favRT){const same=cand.filter(r=>r.type===g.favRT);if(same.length)cand=same;}
-    cand.sort((a,b)=>scoreFor(g,b)-scoreFor(g,a));
-    const room=cand[0];
-    let willing=bookWillingness(prop,room,g);
-    if(prop.policies.cancelType==='nonref')willing*=.9;
-    if(prop.policies.payment==='full')willing*=.92;
-    if(prop.policies.cancelType==='flexible')willing*=1.04;
-    if(g.loyalty)willing*=1.08;
-    const st=prop.channelStats[g.channel]=prop.channelStats[g.channel]||{bookings:0,cancels:0,satSum:0,satN:0,revenue:0,repeat:0};
-    if(Math.random()<willing){
-      g.roomId=room.id;g.arrHour=sampleHour(prop);
-      g.depDay=G.day+g.nights;g.depHour=clamp((prop.policies.checkoutTime||11)+ri(-1,1),6,14);
-      g.price=prop.prices[room.type];
-      if(g.loyalty){const L=LOYALTY.find(x=>x.name===g.loyalty);if(L)g.price=Math.round(g.price*(1-L.disc));}
-      const depFrac=prop.policies.payment==='full'?1:prop.policies.payment==='partial'?.3:0;
-      g.deposit=Math.round(g.price*g.nights*depFrac);g.bookingAmt=g.price*g.nights;
-      const cancelP=CHANNELS[g.channel].cancel*(prop.policies.cancelType==='nonref'?.5:prop.policies.cancelType==='flexible'?1.15:1);
-      if(Math.random()<cancelP){
-        prop.cancellations=(prop.cancellations||0)+1;st.cancels++;
-        const keepFr=prop.policies.cancelType==='flexible'?0:prop.policies.cancelType==='partial'?.5:1;
-        if(keepFr>0&&g.deposit>0){const keep=Math.round(g.deposit*keepFr);G.cash+=keep;prop.revToday+=keep;logEvent(prop,'finance',g.name+' cancelled — deposit '+cr0(keep)+' retained.');}
-        else logEvent(prop,'booking',g.name+' cancelled (refundable).');
-        continue;
-      }
-      st.bookings++;if(g.returning)st.repeat++;
-      // attribute booking to active marketing campaign of same channel/segment
-      (prop.marketing.campaigns||[]).forEach(cm=>{const M=MKT[cm.type];if(M&&((M.ch&&M.ch===g.channel)||(M.seg&&M.seg===g.type)))cm.bookings=(cm.bookings||0)+1;});
-      g.checkedIn=false;arrivals.push(g);booked++;chCount[g.channel]=(chCount[g.channel]||0)+1;
-    }
-  }
-  G.pendingArrivals=arrivals;prop.expectedToday=arrivals.length;prop.chCountToday=chCount;
-  ensureIntel(prop);
-}
+/* [flattened v18] dead ancestor of scheduleDay() removed — the last declaration wins by hoisting */
 
 /* ---------------- LIVE GUEST ROUTINES ---------------- */
-function guestRoutine(prop,room,g){
-  const h=G.hour,has=f=>prop.facilities.includes(f),weekend=(G.dow>=5),rainy=(G.weather==='Rainy');
-  if(g.out){ if(h>=18&&Math.random()<.4){g.out=false;g.act='returned';} return; }
-  if(Math.random()>.5)return; // not every guest acts every hour
-  const spend=v=>{const a=Math.round(v);g.spendIn+=a;prop.revToday+=a;G.cash+=a;G.totalRevenue+=a;prop.lifetimeRev+=a;};
-  // breakfast
-  if(h>=7&&h<=10&&!g.hadBreakfast&&(has('breakfast')||has('restaurant'))){g.hadBreakfast=true;g.act='breakfast';if(prop.policies.breakfast!=='included')spend(rnd(120,360));routineFeed(prop,g,'is having breakfast');return;}
-  // leave hotel for sightseeing/meetings (daytime)
-  if(h>=9&&h<=16){
-    const biz=(g.type==='business'||g.type==='corporate');
-    if((biz&&!weekend&&Math.random()<.5)||(['tourist','family','wedding'].includes(g.type)&&!rainy&&Math.random()<.5)){g.out=true;g.act=biz?'at a meeting':'out sightseeing';routineFeed(prop,g,biz?'left for a meeting':'left to explore '+prop.city.name);return;}
-  }
-  // lunch / dinner
-  if(h>=12&&h<=14&&has('restaurant')&&Math.random()<.4){g.act='lunch';spend(rnd(200,520));return;}
-  if(h>=19&&h<=22&&has('restaurant')&&Math.random()<.5){g.act='dinner';spend(rnd(300,800));routineFeed(prop,g,'is dining in the restaurant');return;}
-  // amenities
-  if(has('gym')&&['business','premium','corporate','vip'].includes(g.type)&&Math.random()<.2){g.act='gym';g.sat=clamp(g.sat+.5,0,100);return;}
-  if(has('spa')&&Math.random()<.12){g.act='spa';spend(rnd(800,2500));g.sat=clamp(g.sat+1,0,100);routineFeed(prop,g,'booked the spa');return;}
-  if(has('pool')&&(rainy?false:Math.random()<.15)){g.act='pool';g.sat=clamp(g.sat+.5,0,100);return;}
-  if(has('roomsvc')&&Math.random()<.18){g.act='room service';spend(rnd(250,900));return;}
-  if(has('laundry')&&(g.type==='longstay'||g.type==='business')&&Math.random()<.12){g.act='laundry';if(prop.policies.laundry==='paid')spend(rnd(200,600));return;}
-}
+/* [flattened v18] dead ancestor of guestRoutine() removed — the last declaration wins by hoisting */
 function routineFeed(prop,g,txt){ if(prop!==P())return; if(G._rfeed==null)G._rfeed=0; if(G._rfeed>=3)return; G._rfeed++; feed('• '+g.name+' '+txt+'.','info'); }
 
 /* ---------------- SIM TICK (override: queue fatigue, housekeeping priority, routines) ---------------- */
@@ -3332,50 +1983,7 @@ function tickHour(){
 
 /* ---------------- SATISFACTION (override: inventory shortages, dining wait) ---------------- */
 function fnbQuality(prop){const s=prop.staff.fnb||[];let q=s.length?clamp(s.reduce((a,x)=>a+x.skill*(x.morale/100),0)/s.length,30,98):42;if(prop.invShort&&(prop.invShort.foodstock||prop.invShort.beverages))q-=22;return clamp(q,10,98);}
-function finalizeStay(prop,room,g){
-  const gt=GUEST_TYPES[g.type];let sat=g.sat;
-  const q=roomQ(room);
-  let exp=ROOMTYPES[room.type].exp*gt.clean*G.D.exp*(g.expM||1);
-  if(g.loyalty)exp+=(g.prior||0)*.6;
-  sat+=(q-exp)*.5;
-  const mkt=marketRate(prop,room.type);
-  sat-=clamp((g.price/mkt-1),-.4,1.2)*22*g.sens*.6;
-  let hkv=clamp(cleanCapacity(prop)/Math.max(1,prop.rooms.length)*100,30,100);
-  if(prop.hk&&prop.hk.inspection)hkv=clamp(hkv+8,30,100);
-  if(prop.invShort&&(prop.invShort.amenities||prop.invShort.linen||prop.invShort.cleaning))hkv=clamp(hkv-18,10,100);
-  sat+=(hkv-65)*.18*g.clean;
-  sat+=(avgSkill(prop,'frontdesk')-65)*.16;
-  const wants=gt.prefer.filter(f=>prop.facilities.includes(f)).length;
-  sat+=wants*3+facBoost(prop,'sat')*.15;
-  let compVal=0;for(const k in (room.comp||{}))if(room.comp[k]&&COMPONENTS[k]&&COMPONENTS[k].val.includes(g.type))compVal+=2.4;
-  sat+=Math.min(compVal,16);
-  let noise=prop.loc.noise-(room.comp&&room.comp.soundproof?.3:0);
-  sat-=clamp(noise-g.quiet,0,1)*14;
-  if(prop.maintBacklog&&prop.maintBacklog.some(is=>is.roomId===room.id))sat-=rnd(3,8);
-  if(prop.facilities.includes('restaurant')||prop.facilities.includes('breakfast')){
-    const fq=fnbQuality(prop);sat+=(fq-60)*.1;
-    if(fq<50&&Math.random()<.45){prop.foodComplaints=(prop.foodComplaints||0)+1;sat-=rnd(1,4);}
-  }
-  if(g.type==='longstay'&&prop.facilities.includes('laundry')&&prop.policies.laundry!=='unavailable'){sat+= (prop.invShort&&prop.invShort.detergent)?-2:3;}
-  if(g.returning){const e=G.guestDB[g.name+'|'+g.type];if(e&&g.sat<e.avgSat-8){sat-=3;g.declined=true;}else if(e&&g.sat>e.avgSat+8){sat+=2;g.improved=true;}}
-  g.sat=clamp(sat,0,100);
-  if(g.sat<45)g.complaints=(g.complaints||0)+1;
-  let extra=0;
-  prop.facilities.forEach(f=>{if(FACILITIES[f].rev&&Math.random()<.5)extra+=rnd(300,1500)*(gt.budgetF);});
-  if((prop.facilities.includes('restaurant')||prop.facilities.includes('breakfast'))&&!(prop.invShort&&(prop.invShort.foodstock||prop.invShort.beverages))){
-    const b=rnd(120,420)*g.nights,l=prop.facilities.includes('restaurant')?rnd(0,500)*g.nights:0,dn=prop.facilities.includes('restaurant')?rnd(150,700)*g.nights:0;
-    prop.fnbRev.breakfast+=b;prop.fnbRev.lunch+=l;prop.fnbRev.dinner+=dn;extra+=b+l+dn;
-  }
-  if(prop.policies.laundry==='paid'&&prop.facilities.includes('laundry')&&Math.random()<.4)extra+=rnd(200,700);
-  if(prop.policies.roomsvc24&&prop.facilities.includes('roomsvc')&&Math.random()<.3)extra+=rnd(250,900);
-  g.extraRev=Math.round(extra);
-  g.aspects=buildAspects(prop,room,g,hkv);
-  const st=prop.channelStats[g.channel];
-  if(st){st.satSum=(st.satSum||0)+g.sat;st.satN=(st.satN||0)+1;st.revenue=(st.revenue||0)+(g.price*g.nights*(1-(CHANNELS[g.channel].comm||0)));}
-  const reviewChance=g.reviewT*(.4+Math.abs(g.sat-65)/65)*G.D.harsh*.9;
-  if(Math.random()<clamp(reviewChance,.05,.95))leaveReview(prop,g,room);
-  feed((g.sat>75?'😊':g.sat>50?'😐':'😞')+' '+g.name+' checked out — satisfaction '+Math.round(g.sat)+'%.',g.sat>70?'pos':g.sat>45?'info':'neg');
-}
+/* [flattened v18] dead ancestor of finalizeStay() removed — the last declaration wins by hoisting */
 
 /* ---------------- INVENTORY CONSUMPTION & PROCUREMENT ---------------- */
 function consumeInventory(prop){
@@ -3530,13 +2138,11 @@ function competitorAI(prop){
   prop.comps.forEach(co=>{
     co.cash+=rnd(-.04,.05);
     const gap=(prop.rating||3)-co.rating;let act=null;
-    if(Math.random()<.2){const roll=Math.random();
-      if(gap>.35&&roll<.4&&co.cash>.5){co.rating=clamp(co.rating+rnd(.04,.12),2.4,4.9);co.cash-=.14;act='renovated rooms';}
-      else if(roll<.56){co.priceIdx=clamp(co.priceIdx+(gap>0?-.05:.04),.55,2);act=gap>0?'cut prices':'raised rates';}
-      else if(roll<.68){co.strength=clamp((co.strength||1)+.05,.6,1.7);co.cash-=.07;act='hired staff';}
-      else if(roll<.78){co.promo=ri(2,5);co.priceIdx=clamp(co.priceIdx-.08,.55,2);act='launched a promo';}
-      else if(roll<.86){co.rating=clamp(co.rating+.04,2.4,4.9);co.cash-=.06;act='advertised heavily';}
-      else if(roll<.93&&co.cash>1.1){co.rating=clamp(co.rating+.05,2.4,4.9);co.facN=(co.facN||3)+1;co.cash-=.22;act='added a facility';}
+    // (Wave 5) daily brain handles tactical price drift only — strategic plays
+    // (renovations, campaigns, facilities, acquisitions) belong to the weekly
+    // compBrain strategist, which used to double up with this loop.
+    if(Math.random()<.12){const roll=Math.random();
+      if(roll<.6){co.priceIdx=clamp(co.priceIdx+(gap>0?-.05:.04),.55,2);act=gap>0?'cut prices':'raised rates';}
       else if(co.cash<.35){co.rating=clamp(co.rating-rnd(.04,.1),2.2,4.9);act='cut back amid losses';}
     }
     if(co.promo){co.promo--;if(co.promo<=0)co.priceIdx=clamp(co.priceIdx+.08,.55,2);}
@@ -3544,38 +2150,13 @@ function competitorAI(prop){
     if(act){co.lastAct=act;co.lastActDay=G.day;if(knows(co,'rating')||knows(co,'price'))feed('🏨 '+co.name+' '+act+'.','warn');}
   });
   // market entry / exit (rare)
-  if(Math.random()<.02&&prop.comps.length<7){const nm=pick(['Skyline','Greenview','Citygate','Pinnacle','Crestwood','Parkside'])+' '+pick(['Hotel','Suites','Residency']);prop.comps.push({name:nm,seg:pick(['Budget','Midscale','Upscale']),rating:rnd(3.4,4.2),priceIdx:rnd(.8,1.2),occ:rnd(.4,.7),facN:ri(2,4),cash:rnd(.8,1.2),strength:1,viz:{}});ensureIntel(prop);logEvent(prop,'competition','New competitor entered the market: '+nm+'.');feed('🏨 New rival opened nearby: '+nm+'.','warn');}
+  if(Math.random()<.02&&prop.comps.length<10){const nm=pick(['Skyline','Greenview','Citygate','Pinnacle','Crestwood','Parkside'])+' '+pick(['Hotel','Suites','Residency']);prop.comps.push({name:nm,seg:pick(['Budget','Midscale','Upscale']),rating:rnd(3.4,4.2),priceIdx:rnd(.8,1.2),occ:rnd(.4,.7),facN:ri(2,4),cash:rnd(.8,1.2),strength:1,viz:{}});ensureIntel(prop);logEvent(prop,'competition','New competitor entered the market: '+nm+'.');feed('🏨 New rival opened nearby: '+nm+'.','warn');}
   else if(Math.random()<.012&&prop.comps.length>2){const weak=prop.comps.slice().sort((a,b)=>(a.rating+a.cash)-(b.rating+b.cash))[0];if(weak&&weak.cash<.4){prop.comps=prop.comps.filter(c=>c!==weak);logEvent(prop,'competition',weak.name+' shut down after sustained losses.');feed('🏨 Rival '+weak.name+' closed down.','pos');}}
 }
 
 /* ---------------- AUTOMATION RULES ---------------- */
-function autoResolveEvent(prop,ev){
-  const r=G.autoRules[ev.id];if(!r)return false;
-  let idx=r.choice;
-  if(r.cond==='occLow'){const occN=occupied(prop)/Math.max(1,prop.rooms.length)*100;idx=(occN<(r.val||50))?r.choice:(ev.ch.length-1);}
-  idx=clamp(idx,0,ev.ch.length-1);
-  ev.ch[idx].f(prop);
-  G.autoLog.unshift({d:G.day,h:G.hour,event:ev.title,choice:ev.ch[idx].t});if(G.autoLog.length>120)G.autoLog.pop();
-  logEvent(prop,'service','[Auto] '+ev.title+' — '+ev.ch[idx].t);
-  return true;
-}
-function showEvent(ev,prop){
-  if(autoResolveEvent(prop,ev)){renderAll();return;}
-  const wasPaused=G.paused;G.autoResume=!wasPaused;setPause(true);
-  const box=$('#mbox');
-  box.innerHTML=`<div class="mhead"><div class="mic" style="background:${ev.cl}22;color:${ev.cl}">${ev.ic}</div><div><h3>${ev.title}</h3><div class="ms">${ev.sub} · <span class="gold">decision required</span></div></div></div>
-    <div class="mbody"><div class="desc">${ev.desc}</div>${ev.ch.map((c,i)=>`<button class="choice" data-i="${i}"><div class="ct">${c.t}</div><div class="cc">${c.c}</div></button>`).join('')}
-    <div class="muted sm" style="margin-top:10px;border-top:1px solid var(--line2);padding-top:8px">Automate this event in future:</div>
-    <div class="wrapf">${ev.ch.map((c,i)=>`<button class="tag" onclick="autoRuleFromEvent('${ev.id}',${i})">Always: ${c.t.length>22?c.t.slice(0,20)+'…':c.t}</button>`).join('')}</div></div>`;
-  $('#modal').style.display='flex';$('#modal').onclick=null;
-  $$('.choice',box).forEach(b=>b.onclick=()=>{
-    const ci=+b.dataset.i;ev.ch[ci].f(prop);
-    logEvent(prop,'service',ev.title+' — '+ev.ch[ci].t);
-    logDecision(ev.title,0,ev.ch[ci].t,ev.ch[ci].c,'Event outcome',['reputation','satisfaction']);
-    $('#modal').style.display='none';$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').style.display='none';};
-    if(G.autoResume)setPause(false);renderAll();
-  });
-}
+/* [flattened v18] dead ancestor of autoResolveEvent() removed — the last declaration wins by hoisting */
+/* [flattened v18] dead ancestor of showEvent() removed — the last declaration wins by hoisting */
 window.autoRuleFromEvent=(id,choice)=>{G.autoRules[id]={choice,cond:'always'};const ev=EVENTS.find(e=>e.id===id);if(ev){ev.ch[choice].f(P());G.autoLog.unshift({d:G.day,h:G.hour,event:ev.title,choice:ev.ch[choice].t});logEvent(P(),'decision','Automation rule set: '+ev.title+' → always '+ev.ch[choice].t);}$('#modal').style.display='none';$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').style.display='none';};if(G.autoResume)setPause(false);toast('Automation rule saved.','pos');renderAll();};
 window.setAutoRule=(id,choice,cond,val)=>{if(choice===null||choice==='null'){delete G.autoRules[id];}else{G.autoRules[id]={choice:+choice,cond:cond||'always',val:+val||50};}logEvent(P(),'decision','Automation updated for '+(EVENTS.find(e=>e.id===id)||{}).title);renderTab();};
 
@@ -3674,15 +2255,7 @@ function tabExpand(p){
       ${G.properties.length>1?`<div class="wrapf">${G.properties.map((pp,i)=>`<button class="tag ${i===G.active?'on':''}" onclick="switchProp(${i})">${pp.name}</button>`).join('')}</div>`:''}
     </div>
   </div>
-  <div class="card"><h3>Milestones</h3>
-    ${milestone('Reach 4.0★ rating',p.rating>=4)}
-    ${milestone('Own 15+ rooms',p.rooms.length>=15)}
-    ${milestone('Reputation 70+',p.reputation>=70)}
-    ${milestone('Build 5 facilities',p.facilities.length>=5)}
-    ${milestone('Hire a Procurement Manager',(p.staff.procurement||[]).length>0)}
-    ${milestone('Direct bookings dominant',(p.chCountToday&&(p.chCountToday.direct||0)>=Object.values(p.chCountToday||{}).reduce((s,v)=>s+v,0)/2)&&Object.keys(p.chCountToday||{}).length>0)}
-    ${milestone('Open a second hotel',G.properties.length>=2)}
-  </div>`;
+  <div class="notice">🎯 Career objectives now live on the <a onclick="go('goals')" style="cursor:pointer;color:var(--gold)">Goals</a> page — one authoritative progression track.</div>`;
 }
 
 /* ---------------- TAB: FINANCE (override: + financing) ---------------- */
@@ -3705,12 +2278,6 @@ function tabFinance(p){
     ${ovCard('30d Forecast',cr(forecast),'after EMIs',' ')}
   </div>
   <div class="split">
-    <div class="card"><h3>Revenue vs Expenses (${src.length} days)</h3>
-      <div style="display:flex;align-items:flex-end;gap:3px;height:170px;margin-top:8px">
-        ${src.map(d=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px" title="D${d.day}: +${cr0(d.rev)} / -${cr0(d.exp)}"><div style="height:${d.rev/max*140}px;background:#46c06a;border-radius:2px 2px 0 0;min-height:1px"></div><div style="height:${d.exp/max*140}px;background:#ef6a6a55;border-radius:0 0 2px 2px;min-height:1px"></div></div>`).join('')||'<div class="muted sm">Run a few days to see trends.</div>'}
-      </div>
-      <div class="flex" style="gap:14px;margin-top:8px"><span class="sm"><span style="color:#46c06a">■</span> Revenue</span><span class="sm"><span style="color:#ef6a6a">■</span> Expenses</span></div>
-    </div>
     <div class="card"><h3>Financing</h3>
       <div class="muted sm" style="margin-bottom:6px">Credit rating <b>${creditRating()}</b> · borrowing capacity <b>${cr(maxLoan())}</b></div>
       <div class="wrapf" style="margin-bottom:8px">
@@ -3738,26 +2305,7 @@ function tabFinance(p){
 }
 
 /* ---------------- TAB: ANALYTICS (override: + booking-mix card) ---------------- */
-function tabAnalytics(p){
-  const range=G.anRange||30,data=p.analytics.slice(-range),last=data[data.length-1]||{};
-  const series=[['Occupancy','occ',v=>Math.round(v)+'%','#6fc6df'],['ADR','adr',v=>cr0(v),'#d8a24a'],
-    ['RevPAR','revpar',v=>cr0(v),'#eebd6a'],['Revenue','rev',v=>cr(v),'#46c06a'],['Profit','profit',v=>cr(v),'#7cc99a'],
-    ['Cash Flow','cashflow',v=>cr(v),'#5fb88a'],['Satisfaction','sat',v=>Math.round(v)+'%','#b27ad6'],
-    ['Reputation','rep',v=>Math.round(v),'#d8a24a'],['Google Rating','rating',v=>(v||0).toFixed(2),'#eebd6a'],
-    ['Complaint Freq.','complaints',v=>Math.round(v),'#ef6a6a'],['Staff Productivity','staffProd',v=>(v||0).toFixed(2),'#6fc6df'],
-    ['Maintenance Cost','maintCost',v=>cr(v),'#e6b450'],['Direct Booking %','directMix',v=>Math.round(v)+'%','#46c06a'],
-    ['OTA Booking %','otaMix',v=>Math.round(v)+'%','#ef6a6a'],['Facility Utilisation','facUtil',v=>Math.round(v)+'%','#b27ad6']];
-  const ranges=[[7,'Week'],[30,'Month'],[90,'Quarter'],[365,'Year']];
-  return `<div class="page-head"><div><h2>Analytics</h2><div class="desc">Performance across every operational dimension, including booking-mix evolution</div></div>
-    <div class="wrapf">${ranges.map(r=>`<button class="tag ${range===r[0]?'on':''}" onclick="setRange(${r[0]})">${r[1]}</button>`).join('')}</div></div>
-  ${data.length<2?'<div class="notice">Run a few days to accumulate analytics. Press Play ▶.</div>':''}
-  <div class="card" style="margin-bottom:12px"><h3>Booking Mix Evolution — Direct (green) vs OTA (red)</h3>
-    ${data.length>1?`<div style="position:relative">${spark(data.map(d=>d.directMix||0),'#46c06a')}<div style="margin-top:-46px">${spark(data.map(d=>d.otaMix||0),'#ef6a6a')}</div></div><div class="muted sm">As reputation, reviews and marketing grow, direct bookings should rise and OTA dependence (and commission) should fall.</div>`:'<div class="muted sm">Collecting data…</div>'}
-  </div>
-  <div class="cards cols-3">
-    ${series.map(s=>`<div class="card"><h3>${s[0]}</h3><div class="stat" style="font-size:20px">${data.length?s[2](last[s[1]]||0):'—'}</div>${spark(data.map(d=>d[s[1]]||0),s[3])}</div>`).join('')}
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabAnalytics() removed — the last declaration wins by hoisting */
 
 /* ---------------- TAB: OPERATIONS (override: + inventory & front desk detail) ---------------- */
 function tabOperations(p){
@@ -4039,21 +2587,7 @@ function finalizeStay(prop,room,g){
 }
 
 /* ---------------- GUEST ROUTINES (dept-tagged spend, override) ---------------- */
-function guestRoutine(prop,room,g){
-  const h=G.hour,has=f=>prop.facilities.includes(f),weekend=(G.dow>=5),rainy=(G.weather==='Rainy');
-  if(g.out){ if(h>=18&&Math.random()<.4){g.out=false;g.act='returned';} return; }
-  if(Math.random()>.5)return;
-  const spend=(v,cat)=>{const a=Math.round(v);g.spendIn+=a;prop.revToday+=a;G.cash+=a;G.totalRevenue+=a;prop.lifetimeRev+=a;prop._deptDay=prop._deptDay||{fnb:0,other:0};if(cat==='fnb')prop._deptDay.fnb+=a;else prop._deptDay.other+=a;};
-  if(h>=7&&h<=10&&!g.hadBreakfast&&(has('breakfast')||has('restaurant'))){g.hadBreakfast=true;g.act='breakfast';if(prop.policies.breakfast!=='included')spend(rnd(120,360),'fnb');routineFeed(prop,g,'is having breakfast');return;}
-  if(h>=9&&h<=16){const biz=(g.type==='business'||g.type==='corporate');if((biz&&!weekend&&Math.random()<.5)||(['tourist','family','wedding'].includes(g.type)&&!rainy&&Math.random()<.5)){g.out=true;g.act=biz?'at a meeting':'out sightseeing';routineFeed(prop,g,biz?'left for a meeting':'left to explore '+prop.city.name);return;}}
-  if(h>=12&&h<=14&&has('restaurant')&&Math.random()<.4){g.act='lunch';spend(rnd(200,520),'fnb');return;}
-  if(h>=19&&h<=22&&has('restaurant')&&Math.random()<.5){g.act='dinner';spend(rnd(300,800),'fnb');routineFeed(prop,g,'is dining in the restaurant');return;}
-  if(has('gym')&&['business','premium','corporate','vip'].includes(g.type)&&Math.random()<.2){g.act='gym';g.sat=clamp(g.sat+.5,0,100);return;}
-  if(has('spa')&&Math.random()<.12){g.act='spa';spend(rnd(800,2500),'other');g.sat=clamp(g.sat+1,0,100);routineFeed(prop,g,'booked the spa');return;}
-  if(has('pool')&&(rainy?false:Math.random()<.15)){g.act='pool';g.sat=clamp(g.sat+.5,0,100);return;}
-  if(has('roomsvc')&&Math.random()<.18){g.act='room service';spend(rnd(250,900),'other');return;}
-  if(has('laundry')&&(g.type==='longstay'||g.type==='business')&&Math.random()<.12){g.act='laundry';if(prop.policies.laundry==='paid')spend(rnd(200,600),'other');return;}
-}
+/* [flattened v18] dead ancestor of guestRoutine() removed — the last declaration wins by hoisting */
 
 /* ---------------- WRAP: augmentInit / augmentProp (macro + new fields) ---------------- */
 const _v5AugInit=augmentInit;
@@ -4197,23 +2731,7 @@ if(typeof NAME_POOLS!=='undefined'){
 }
 
 /* ---------------- GUEST FACILITY-USAGE TRACKING (override guestRoutine) ---------------- */
-function guestRoutine(prop,room,g){
-  const h=G.hour,has=f=>prop.facilities.includes(f),weekend=(G.dow>=5),rainy=(G.weather==='Rainy');
-  g.used=g.used||{};
-  if(g.out){ if(h>=18&&Math.random()<.4){g.out=false;g.act='returned';} return; }
-  if(Math.random()>.5)return;
-  const spend=(v,cat)=>{const a=Math.round(v);g.spendIn+=a;prop.revToday+=a;G.cash+=a;G.totalRevenue+=a;prop.lifetimeRev+=a;prop._deptDay=prop._deptDay||{fnb:0,other:0};if(cat==='fnb')prop._deptDay.fnb+=a;else prop._deptDay.other+=a;};
-  const mark=k=>{g.used[k]=1;};
-  if(h>=7&&h<=10&&!g.hadBreakfast&&(has('breakfast')||has('restaurant'))){g.hadBreakfast=true;g.act='breakfast';mark('breakfast');if(prop.policies.breakfast!=='included')spend(rnd(120,360),'fnb');routineFeed(prop,g,'is having breakfast');return;}
-  if(h>=9&&h<=16){const biz=(g.type==='business'||g.type==='corporate');if((biz&&!weekend&&Math.random()<.5)||(['tourist','family','wedding'].includes(g.type)&&!rainy&&Math.random()<.5)){g.out=true;g.act=biz?'at a meeting':'out sightseeing';routineFeed(prop,g,biz?'left for a meeting':'left to explore '+prop.city.name);return;}}
-  if(h>=12&&h<=14&&has('restaurant')&&Math.random()<.4){g.act='lunch';mark('restaurant');spend(rnd(200,520),'fnb');return;}
-  if(h>=19&&h<=22&&has('restaurant')&&Math.random()<.5){g.act='dinner';mark('restaurant');spend(rnd(300,800),'fnb');routineFeed(prop,g,'is dining in the restaurant');return;}
-  if(has('gym')&&['business','premium','corporate','vip'].includes(g.type)&&Math.random()<.2){g.act='gym';mark('gym');g.sat=clamp(g.sat+.5,0,100);return;}
-  if(has('spa')&&Math.random()<.12){g.act='spa';mark('spa');spend(rnd(800,2500),'other');g.sat=clamp(g.sat+1,0,100);routineFeed(prop,g,'booked the spa');return;}
-  if(has('pool')&&(rainy?false:Math.random()<.15)){g.act='pool';mark('pool');g.sat=clamp(g.sat+.5,0,100);return;}
-  if(has('roomsvc')&&Math.random()<.18){g.act='room service';mark('roomsvc');spend(rnd(250,900),'other');return;}
-  if(has('laundry')&&(g.type==='longstay'||g.type==='business')&&Math.random()<.12){g.act='laundry';mark('laundry');if(prop.policies.laundry==='paid')spend(rnd(200,600),'other');return;}
-}
+/* [flattened v18] dead ancestor of guestRoutine() removed — the last declaration wins by hoisting */
 
 /* ---------------- REVIEW POOLS (sentiment-pure per band) ---------------- */
 const REV_TITLES={
@@ -4499,24 +3017,7 @@ function reviewText(stars,g,room,prop){
 }
 
 /* ---------------- FACILITIES TAB (parking & EV removed — now Expansion-only) ---------------- */
-function tabFacilities(p){
-  const owned=p.facilities, HIDE={parking:1,evcharge:1};
-  return `<div class="page-head"><div><h2>Facilities & Amenities</h2><div class="desc">Add facilities to lift demand, satisfaction, rate ceiling & reputation</div></div></div>
-  <div class="card" style="margin-bottom:14px"><h3>Installed (${owned.filter(f=>!HIDE[f]).length})</h3>
-    ${owned.filter(f=>!HIDE[f]).length?'<div class="wrapf">'+owned.filter(f=>!HIDE[f]).map(f=>`<span class="tag on">${FACILITIES[f].ic} ${FACILITIES[f].name}</span>`).join('')+'</div>':'<div class="muted sm">No facilities yet — start with breakfast or Wi-Fi for quick wins.</div>'}
-    <div class="muted sm" style="margin-top:8px">🅿️ Parking and 🔌 EV charging are managed in the <b>Expansion</b> tab.</div>
-  </div>
-  <div class="cards cols-2">
-    ${Object.keys(FACILITIES).filter(f=>!owned.includes(f)&&!HIDE[f]).map(f=>{const fc=FACILITIES[f];return `<div class="shopitem">
-      <div class="si-ic">${fc.ic}</div>
-      <div class="si-b"><div class="si-t">${fc.name}</div>
-        <div class="si-d">Build ${cr(fc.build)} · Daily ${cr0(fc.daily)}${fc.staff?' · +'+fc.staff+' staff':''}</div>
-        <div class="si-d">+${Math.round(fc.dem*100)}% demand · +${fc.sat} satisfaction · +${Math.round(fc.rate*100)}% rate ceiling · +${fc.rep} rep</div>
-      </div>
-      <button class="btn primary" style="padding:7px 13px" onclick="buyFac('${f}')">Build</button>
-    </div>`}).join('')}
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabFacilities() removed — the last declaration wins by hoisting */
 
 /* ---------------- AUTOSAVE (every in-game day) ---------------- */
 const _v6Roll=dayRollover;
@@ -5018,15 +3519,8 @@ tabOverview=function(p){
   const strip=`<div class="cards cols-2" style="margin-bottom:12px">${ovCard('Hotelier Score',(G._score||computeScore()),'tap Goals for objectives',' ')}${ovCard('Objectives',objDoneCount()+' / '+OBJECTIVES.length,'career goals met',' ')}</div>`;
   return ac+strip+_v8Ov(p);};
 
-/* ---------------- OPERATIONS: room-status board (wrap) ---------------- */
-const _v8Ops=tabOperations;
-tabOperations=function(p){
-  const SC={clean:'#27ae60',occupied:'#2563eb',dirty:'#f59e0b',maintenance:'#dc2626',renovation:'#7c3aed',inspection:'#a3e635',cleaning:'#0ea5b7'};
-  const board=`<div class="card" style="margin-bottom:12px"><h3>Room Status Board</h3>
-    <div style="display:flex;flex-wrap:wrap;gap:5px;margin:6px 0">${p.rooms.map(r=>`<div title="Room ${r.id} · ${ROOMTYPES[r.type]?ROOMTYPES[r.type].name:r.type} · ${r.status}${r.guest?' · '+r.guest.name:''}" style="width:32px;height:32px;border-radius:6px;background:${(SC[r.status]||'#666')}22;border:1px solid ${SC[r.status]||'#666'};display:flex;align-items:center;justify-content:center;font-size:10px;color:${SC[r.status]||'#999'}">${r.id}</div>`).join('')||'<div class="muted sm">No rooms yet — build them in Expansion.</div>'}</div>
-    <div class="wrapf" style="font-size:11px">${Object.entries(SC).map(([k,c])=>`<span class="muted"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${c};margin-right:3px;vertical-align:middle"></span>${k}</span>`).join('')}</div>
-  </div>`;
-  return board+_v8Ops(p);};
+/* [flattened v18] v8 Room Status Board removed — the v12 Room Lifecycle board on
+   the same tab is the single authoritative room-state display. */
 
 /* ---------------- MARKET: 7-day outlook + booking pace (wrap) ---------------- */
 function projDemand(p,off){const day=G.day+off;
@@ -5047,20 +3541,7 @@ tabMarket=function(p){
   return _v8Mkt(p)+card;};
 
 /* ---------------- GOALS PAGE ---------------- */
-function tabGoals(p){
-  return `<div class="page-head"><div><h2>🎯 Goals & Progress</h2><div class="desc">Your career objectives, score and achievements</div></div>
-    <button class="btn" onclick="showSummary()">📊 View Summary</button></div>
-  <div class="cards cols-2" style="margin-bottom:12px">
-    ${ovCard('Hotelier Score',(G._score||computeScore()),'grows with net worth, reviews, GOPPAR & scale',' ')}
-    ${ovCard('Objectives Met',objDoneCount()+' / '+OBJECTIVES.length,'complete all to win Hotel of the Year',' ')}
-  </div>
-  <div class="card" style="margin-bottom:12px"><h3>Objectives</h3>
-    ${OBJECTIVES.map(o=>{const cur=o.cur(p),done=cur>=o.goal,pct=clamp(cur/o.goal*100,0,100);const f=o.fmt||(v=>Math.round(v));return `<div class="row"><span class="lab">${done?'✅':'⬜'} ${o.label}</span><span class="val" style="min-width:150px">${barInline(pct,done?'#46c06a':'#d8a24a')} ${f(cur)} / ${f(o.goal)}</span></div>`;}).join('')}
-  </div>
-  <div class="card"><h3>Achievements (${(G.achievements||[]).length}/${ACHIEVEMENTS.length})</h3>
-    <div class="wrapf">${ACHIEVEMENTS.map(a=>{const got=(G.achievements||[]).indexOf(a.id)>=0;return `<span class="tag ${got?'on':''}" style="${got?'':'opacity:.5'}">${got?'🏆':'🔒'} ${a.label}</span>`;}).join('')}</div>
-  </div>`;
-}
+/* [flattened v18] dead ancestor of tabGoals() removed — the last declaration wins by hoisting */
 
 /* ---------------- NOTIFICATIONS PAGE ---------------- */
 function tabNotifications(p){
@@ -6718,7 +5199,8 @@ function computeIdentity(p){
   if(p.identity&&p.identity.conf>.3)d*=(1+p.identity.conf*.05);   // a clear identity markets itself
   if(p.repDim){const avg=(p.repDim.online+p.repDim.local)/2;d*=(1+(avg-60)/900);}
 }catch(e){}return clamp(d,0,3.2);};}
-{const _v12Ov=tabOverview;tabOverview=function(p){let html=_v12Ov(p);try{
+/* (Wave 5) reputation-by-audience belongs with Reviews, not the Overview */
+{const _v12Ov=tabReviews;tabReviews=function(p){let html=_v12Ov(p);try{
   ensureV12(p);
   html+=`<div class="cards cols-2" style="margin-top:12px">
    <div class="card"><h3>Reputation by Audience ${tip('repdim')}</h3>
@@ -8180,27 +6662,44 @@ window.hqAudit=()=>{if(G.cash<200000){toast('Audit costs '+cr(200000)+'.','neg')
   logDecision('Brand-standards audit',200000,'Inspect & correct the weakest property','+2 reputation at '+weak.name,'Consistent chain standards',['reputation']);
   toast('Audit complete — '+weak.name+' lifted.','pos');renderTab();};
 function runChainBackground(){
-  if(!G.hq||!G.hq.regional)return;
-  const fee=Math.round(55000/30*G.D.costM);G.cash-=fee;P().expToday+=fee; // regional manager salary
-  G.properties.forEach((pp,i)=>{
+  const ps=G.properties||[];if(ps.length<2)return;
+  const managed=!!(G.hq&&G.hq.regional);
+  if(managed){const fee=Math.round(55000/30*G.D.costM);G.cash-=fee;P().expToday+=fee;} // regional manager salary
+  ps.forEach((pp,i)=>{
     if(i===G.active)return;
     try{
       ensureV17(pp);
-      const occE=clamp(.32+(pp.rating||3.5)/12+pp.reputation/350+((G.seasonNow||1)-1)*.3+rnd(-.05,.05),.15,.92);
+      // (Wave 4) costs are real whether or not anyone manages the hotel — payroll doesn't pause
+      let payroll=0;for(const r in pp.staff)pp.staff[r].forEach(s=>payroll+=s.sal);
+      const baseCost=Math.round((payroll/30+pp.rooms.length*140+pp.facilities.reduce((s,f)=>s+FACILITIES[f].daily*.6,0))*G.D.costM);
+      if(!managed){
+        G.cash-=baseCost;pp.expYest=baseCost;pp.revYest=0;
+        pp.reputation=clamp(pp.reputation-.15,0,100); // an unmanaged hotel drifts downhill
+        if(Math.random()<.05)feed('🏚️ '+pp.name+' is unmanaged — payroll accrues, no guests. Appoint a regional manager (HQ).','warn');
+        return;
+      }
+      // (Wave 4) occupancy driven by that property's own market, pricing, staffing and upkeep
+      const seas=seasonFactor(G.day,pp.city,pp.loc);
+      const priceR=avgPrice(pp)/Math.max(1,pp.city.baseRate*pp.city.spend*pp.loc.rate);
+      const priceF=clamp(1.25-(priceR-1)*.9*pp.city.sens,.4,1.3);
+      const hk=(pp.staff.housekeeping||[]).length,fd=(pp.staff.frontdesk||[]).length;
+      const staffF=clamp(Math.min(hk/(pp.rooms.length/10+.5),fd)*.5+.5,.35,1);
+      const condF=clamp(pp.rooms.reduce((s,r)=>s+(r.cond||90),0)/Math.max(1,pp.rooms.length)/100,.5,1);
+      const occE=clamp(.15+pp.city.dem*pp.loc.dem*seas*.3*(.6+(pp.rating||3.5)/8)*(.6+pp.reputation/200)*priceF*staffF*condF*G.D.demM+rnd(-.04,.04),.08,.95);
       const occN=Math.round(pp.rooms.length*occE);
       const adr=avgPrice(pp)*.97;
       const rev=Math.round(occN*adr*1.15);
-      let payroll=0;for(const r in pp.staff)pp.staff[r].forEach(s=>payroll+=s.sal);
-      const exp=Math.round((payroll/30+pp.rooms.length*230+pp.facilities.reduce((s,f)=>s+FACILITIES[f].daily,0))*G.D.costM);
+      const exp=baseCost+Math.round(occN*160*G.D.costM);
       G.cash+=rev-exp;pp.lifetimeRev+=rev;pp.revYest=rev;pp.expYest=exp;pp.lifetimeGuests+=occN;
       pp.reputation=clamp(pp.reputation+(((pp.rating||3.8)*20)-pp.reputation)*.03,0,100);
-      if(Math.random()<.25&&pp.rating){const st=clamp(Math.round(pp.rating+rnd(-.8,.8)),1,5);
-        pp.reviews.push({stars:st,txt:'(remote property review)',title:'Stayed at '+pp.name,who:regionalName(pp),type:'tourist',day:G.day});
+      if(Math.random()<.25&&occN>0){
+        const st=clamp(Math.round((pp.rating||3.8)+(condF-.9)*2+rnd(-.7,.7)),1,5);
+        pp.reviews.push({stars:st,txt:'(remote property stay)',title:'Stayed at '+pp.name,who:regionalName(pp),type:'tourist',day:G.day});
         if(pp.reviews.length>240)pp.reviews.shift();
         pp.rating=pp.reviews.reduce((a,r)=>a+r.stars,0)/pp.reviews.length;}
-      pp.rooms.forEach(r=>{r.cond=clamp((r.cond||100)-.08,20,100);});
+      pp.rooms.forEach(r=>{if(Math.random()<occE)r.cond=clamp((r.cond||100)-.15,20,100);});
       pp.analytics=pp.analytics||[];
-      pp.analytics.push({day:G.day-1,occ:occE*100,adr,revpar:adr*occE,rev,exp,profit:rev-exp,sat:68,rep:pp.reputation,rating:pp.rating||0,complaints:0,arrivals:occN});
+      pp.analytics.push({day:G.day-1,occ:occE*100,adr,revpar:adr*occE,rev,exp,profit:rev-exp,sat:66+Math.round(condF*8),rep:pp.reputation,rating:pp.rating||0,complaints:0,arrivals:occN});
       if(pp.analytics.length>500)pp.analytics.shift();
     }catch(e){}
   });
@@ -8441,6 +6940,74 @@ function tabKPIs(p){
   mk('utilities','🔌','Utilities','procurement');
   mk('kpis','📐','KPIs','analytics');
 }catch(e){}})();
+
+
+/* =======================================================================
+   AATITHYA v18 — Audit Waves 4 & 5 (with the in-place flattening above):
+   dead policies now do something, and the Finance page gets sections.
+   ======================================================================= */
+
+/* ---------- early check-in / late checkout / complimentary upgrades ----------
+   These toggles and fees existed in the UI with zero gameplay effect (audit §5). */
+{const _v18CI=checkInGuest;checkInGuest=function(prop,a,waiting){const r=_v18CI(prop,a,waiting);try{
+  if(a&&a.checkedIn===true){
+    const pol=prop.policies,ciT=pol.checkinTime||13;
+    if(a.arrHour<ciT){
+      if(pol.earlyCI){const fee=Math.max(0,+pol.earlyFee||0);
+        if(fee>0){G.cash+=fee;prop.revToday+=fee;a.sat+=1;}else a.sat+=2; // free early check-in delights
+      } else a.sat-=2; // made to wait for standard check-in time
+    }
+    if(pol.freeUpg&&!a.upgraded&&Math.random()<.06&&typeof hasUpgradeRoom==='function'&&hasUpgradeRoom(prop)){a.sat+=4;a.upgraded=true;}
+  }
+}catch(e){}return r;};}
+{const _v18FS=finalizeStay;finalizeStay=function(prop,room,g){_v18FS(prop,room,g);try{
+  const pol=prop.policies;
+  if(g&&g.depHour>(pol.checkoutTime||11)&&pol.lateCO){
+    const fee=Math.max(0,+pol.lateFee||0);
+    if(fee>0){G.cash+=fee;prop.revToday+=fee;g.sat=clamp(g.sat+1,0,100);}
+  }
+}catch(e){}};}
+
+/* ---------- Finance sections — the longest page in the game gets chapters ---------- */
+function v18Blocks(h){ // split rendered HTML into top-level <div> blocks (depth-scanned)
+  const out=[];let i=0,n=h.length;
+  while(i<n){
+    const s=h.indexOf('<div',i);
+    if(s<0){if(i<n)out.push({t:h.slice(i)});break;}
+    if(s>i)out.push({t:h.slice(i,s)});
+    let d=0,j=s;
+    while(j<n){
+      if(h.startsWith('<div',j)){d++;j+=4;continue;}
+      if(h.startsWith('</div>',j)){d--;j+=6;if(d===0)break;continue;}
+      j++;
+    }
+    out.push({t:h.slice(s,j),block:1});
+    i=j;
+  }
+  return out;
+}
+const FIN_SECS={
+ 'P&L':['Revenue vs Expenses','What changed','Monthly Cost Structure','Profit &amp; Loss','USALI','Deposits','Financial Trends'],
+ 'Channels':['<th>Channel</th>','Booking Channel'],
+ 'Financing':['<h3>Financing</h3>','Capital Actions','Investor Relations','Capital Markets','Balance Sheet'],
+ 'Departments':['Departmental Profitability']};
+window.finSec=s=>{G.finSec=s;renderTab();};
+{const _v18Fin=tabFinance;tabFinance=function(p){let h=_v18Fin(p);try{
+  const sec=G.finSec||'all';
+  const blocks=v18Blocks(h);
+  const groupsOf=t=>{const g=[];for(const k in FIN_SECS)if(FIN_SECS[k].some(n=>t.indexOf(n)>=0))g.push(k);return g;};
+  const chips=`<div class="wrapf" style="margin-bottom:12px">${['all','P&L','Channels','Financing','Departments'].map(s=>`<button class="tag ${sec===s?'on':''}" onclick="finSec('${s}')">${s==='all'?'Everything':s}</button>`).join('')}</div>`;
+  let out='',injected=false;
+  blocks.forEach(b=>{
+    if(!b.block){out+=b.t;return;}
+    const g=groupsOf(b.t);
+    const always=!g.length; // page head, KPI strip, ungrouped blocks
+    if(!injected&&b.t.indexOf('page-head')>=0){out+=b.t+chips;injected=true;return;}
+    if(sec==='all'||always||g.indexOf(sec)>=0)out+=b.t;
+  });
+  if(!injected)out=chips+out;
+  h=out;
+}catch(e){}return h;};}
 
 renderWiz();
 </script>

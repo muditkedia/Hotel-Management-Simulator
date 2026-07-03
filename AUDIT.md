@@ -104,7 +104,7 @@ Ordered by impact. "FIXED" marks items corrected in the Wave-1 commit accompanyi
 | **B13** | **Autosave captures mid-rollover state** — FIXED (Wave 2) | v6 wrap (l. 4523) | The autosave sits deep in the wrap chain, so v9–v13 post-rollover steps (assets, F&B recompute, OTB, agency costs, overtime deduction) run *after* the save. Loading an autosave replays a day that half-happened. |
 | **B14** | **`G.guestDB` grows without bound** — FIXED (pruned) | `writeGuestDB` | Every guest ever is retained; long games bloat the save and the return-pool scan. |
 | **B15** | **`chain.loyaltyMembers` counts every guest** — FIXED (Wave 2) | `writeGuestDB` (l. 1797) | Incremented on *first* stay, so HQ's "Loyalty Members" KPI and the old milestone count all unique guests; the Loyalty tab computes real members differently. Two contradictory definitions on screen. |
-| **B16** | **`refreshLive` tab list stale** | l. 948 | Live re-render only covers `overview/rooms/guests/finance`; Operations, Reservations, Roster, Analytics show stale data during play until re-clicked. |
+| **B16** | **`refreshLive` tab list stale** — FIXED (Wave 5) | l. 948 | Live re-render only covers `overview/rooms/guests/finance`; Operations, Reservations, Roster, Analytics show stale data during play until re-clicked. |
 | **B17** | **Check-in time defaults disagree** | `augmentProp` (13) vs `checkinWeights`/reports (14) | Cosmetic off-by-one in the arrival curve and report display. |
 | **B18** | **Mobile FAB speed button is dead** — FIXED | v12 (l. 6883) | Calls `cycleSpeed&&cycleSpeed()` — never defined; the ⏩ button is a no-op. `cycleSpeed` implemented in v14. |
 
@@ -190,12 +190,12 @@ Gaps, in priority order:
 **Wave 3 — one booking engine (done in this branch, `v16` layer):**
 5. Reservations ARE the arrivals: advance bookings collect real deposits at booking, materialise into actual guests on their day (rooms held, usual-room requests honoured), no-shows and cancellations settle per cancellation policy, and walk-in demand fills only what the book leaves over. The old scalar OTB demand boost is retired — booked rooms are supply, not a demand multiplier.
 
-**Wave 4 — the chain is real (delivered early inside Phase 10, `v17`):**
-6. With an HQ Regional Operations Manager hired, non-active properties run a coarse daily simulation (occupancy from rating/reputation/season → revenue/costs/reviews/wear/analytics). Without one, they are explicitly dormant — now a mechanic instead of a bug.
+**Wave 4 — the chain is real (done in this branch):**
+6. Non-active properties now always accrue their real costs (payroll, base utilities, facilities) — no more free hotels — and drift downhill in reputation while unmanaged. With an HQ Regional Operations Manager, they run a daily simulation driven by their **own** market (city/locality demand, season), pricing vs their market, housekeeping/front-desk staffing adequacy, and room condition — producing revenue, reviews, wear and analytics. Hiring the regional manager is now a real decision, not free money.
 
-**Wave 5 — consolidation & flattening:**
-7. Collapse each overridden function to its final form; delete dead layers (~2,000 lines); merge the three competitor AIs, the three room-status boards, milestones→goals, training systems; remove dead policies or implement them (early/late fees are cheap wins: charge them in `checkInGuest`/checkout).
-8. Split Finance into sub-tabs; move reputation-by-audience to Reviews; single chart style.
+**Wave 5 — consolidation & flattening (done in this branch):**
+7. **Flattened**: 75 dead ancestor function declarations (1,571 lines) removed with a parser-verified, behavior-neutral pass (only top-level declarations shadowed by a later declaration of the same name — hoisting guarantees the last wins). Competitor AI consolidated: the daily loop keeps tactical price drift and entry/exit only; strategic plays (renovations, campaigns, facilities, acquisitions) belong solely to the weekly `compBrain` strategist, and the entry cap now agrees with the density floor. Room-status boards merged (v12 lifecycle board is the one display); Expansion milestones folded into the Goals page; `freeCancel` seed and the no-op `reserve` parking option removed. **Dead policies implemented**: early check-in and late checkout now charge their fees (or delight when complimentary), guests made to wait for standard check-in lose satisfaction, and the complimentary-upgrades toggle grants real upgrades.
+8. Finance split into sections (Everything / P&L / Channels / Financing / Departments) via a depth-scanned block filter; reputation-by-audience moved from Overview to Reviews; the old v1 bar chart removed in favour of the interactive chart engine; `refreshLive` now covers the newer live tabs (closes B16).
 
 **Wave 6 — realism polish:** inventory tied to cleans, event-state coherence (generator asset, price-surge revert, VIP as real guest), rate-parity effect, weather↔operations links, security↔reviews link.
 
