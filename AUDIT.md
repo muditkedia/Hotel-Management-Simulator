@@ -217,3 +217,17 @@ Implemented as extensions of existing systems (no parallel mechanics):
 9. **KPI cockpit** — 20 professional hospitality KPIs (ADR, RevPAR, TRevPAR, GOPPAR, ALOS, GAC, repeat rate, direct ratio, food/labour cost %, HK/maintenance/utility unit costs, complaint rate, GSI, NPS, check-in wait, turnaround, response time), each clickable for definition, target, 30-day trend and improvement levers — computed live from simulation data.
 
 Verified headless: 51 reservation guests materialised over 14 days; deposit liability exact to the rupee including future reservations; RMS log populated with reasons; utilities/systems/security accruing; background chain revenue flowing; IPO reaches listing; 26 tabs + KPI drill-down render with zero errors.
+
+
+---
+
+## 11. Visual identity (`v19`, this branch)
+
+The frame moved off the generic dark-navy/gold dashboard look onto a subject-grounded identity — **"Night Audit / Day Ledger"**:
+
+- **Dark (Night Audit)**: ink-green ground with aged-brass accent, Palatino-family serif for display type (page titles, stats, brand, clock), double-rule section headings, squared 3–4px corners, and an iconless editorial sidebar (section labels + brass rule for the active entry) instead of the emoji app-drawer.
+- **Light (Day Ledger)**: a fully designed warm-paper theme — ivory grounds, deep green-black ink, brass, with every component re-themed at the token level (pills, toggles, inputs, notices, reviews, charts tooltips, modal, wizard, bottom-nav, FAB) rather than the previous washed-out inversion.
+- Token-level implementation: the v19 stylesheet is appended last in the cascade and redefines the CSS custom properties, so hundreds of existing templates restyle automatically; hardcoded navy leftovers (bar tracks, hover rows, pills, switches, icon chips) get spot overrides.
+- Landing screen redesigned as a framed register plate (single-theme by intent); fixed a real mobile bug found during review — the setup wizard used flex-centering with `overflow:auto`, clipping its top on phones (`.wiz{margin:auto}`).
+
+Verified with themed screenshots (landing, wizard, dark overview/finance, light overview/pricing, mobile) and the full regression suite: zero console errors, all 27 tabs render, economy invariants unchanged.

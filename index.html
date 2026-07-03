@@ -7009,6 +7009,155 @@ window.finSec=s=>{G.finSec=s;renderTab();};
   h=out;
 }catch(e){}return h;};}
 
+
+/* =======================================================================
+   AATITHYA v19 — Visual identity: "Night Audit / Day Ledger".
+   The frame moves from generic dark-navy dashboard to a hotel-ledger
+   aesthetic: ink-green ground with aged brass, Palatino-family serif for
+   display type, double-rule section headings, an iconless editorial nav,
+   squared corners, and a fully designed warm-paper light theme (not an
+   inversion). Token-level: the existing templates restyle automatically.
+   ======================================================================= */
+(function(){try{
+const css=`
+/* ---------------- tokens: NIGHT AUDIT (dark) ---------------- */
+:root{
+  --bg:#0f1411;--bg2:#121813;--panel:#151c16;--panel2:#1b241c;--line:#273329;--line2:#364639;
+  --ink:#eae7da;--mut:#9aa793;--mut2:#6c7a67;
+  --gold:#c99a4b;--gold2:#e2b76c;--pos:#5aa877;--neg:#d4695f;--warn:#cfa348;--info:#5b9aa8;--vip:#a887c9;
+  --r:4px;--sh:0 12px 32px rgba(0,0,0,.5);
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua","URW Palladio L",P052,Georgia,serif;
+}
+body{background:radial-gradient(1100px 640px at 82% -12%,#1a281d66,transparent),#0f1411;color:var(--ink)}
+#topbar{background:linear-gradient(180deg,#151d16,#101610);border-bottom:1px solid var(--line)}
+#side{background:#121813;border-right:1px solid var(--line)}
+::-webkit-scrollbar-thumb{background:#2d3b30;border:2px solid var(--bg2)}
+#setup{background:linear-gradient(165deg,#0d120e,#141d15);align-items:flex-start}
+.wiz{margin:auto} /* centers when it fits, scrolls from the top when it doesn't (tall-content flex-centering clips otherwise) */
+
+/* ---------------- type: the register speaks serif ---------------- */
+h2,.stat,.brandmark h1,.tb-logo b,.clock .t{font-family:var(--serif)}
+.page-head{border-bottom:3px double var(--line2);padding-bottom:12px;margin-bottom:16px}
+.page-head h2{font-size:21px;font-weight:500;letter-spacing:.01em;font-family:var(--serif)}
+.page-head h2:after{display:none}
+.card h3{font-size:10px;letter-spacing:.16em;font-weight:700;color:var(--mut)}
+.stat{font-weight:500;letter-spacing:0}
+.kpi .k{letter-spacing:.16em;font-size:9.5px}
+th{font-size:10px;letter-spacing:.12em}
+.side-lab{padding:14px 14px 4px;font-size:9.5px;letter-spacing:.22em;color:var(--mut2);font-weight:700}
+
+/* ---------------- structure: squared, ruled, quiet ---------------- */
+.card{border-radius:4px}
+.btn{border-radius:3px;box-shadow:none}
+.btn:hover{transform:none;border-color:var(--gold);color:var(--gold2)}
+.btn.primary{background:var(--gold);color:#241a08;border:1px solid #a67c34}
+.btn.primary:hover{filter:brightness(1.06);color:#241a08}
+.tag{border-radius:3px}
+.tag.on{background:#2a2415;border-color:var(--gold);color:var(--gold2)}
+.pill{border-radius:3px;letter-spacing:.05em}
+.pill.green{background:#1b2f21;color:var(--pos)}.pill.red{background:#34211d;color:var(--neg)}
+.pill.gold{background:#322913;color:var(--gold2)}.pill.blue{background:#16303a;color:#7bbccb}
+.pill.gray{background:#222b23;color:var(--mut)}.pill.vip{background:#2a2138;color:var(--vip)}
+.mini,.shopitem,.roomcell,.review,.notice,.toast,.pick{border-radius:3px}
+.mbox{border-radius:5px}
+.si-ic{background:var(--panel2)!important;border-radius:3px}
+.bar,.mtr{background:#0b100d}
+tr:hover td{background:var(--panel2)}
+.sw{background:#2d3b30}
+.sp{border-radius:3px}
+.sp.on{background:var(--gold);border-color:var(--gold);color:#241a08}
+.logo{background:var(--gold);color:#241a08;border-radius:4px;box-shadow:none;font-family:var(--serif)}
+.feed .dot{border-radius:1px;margin-top:6px;width:6px;height:6px}
+input[type=range]{accent-color:var(--gold)}
+
+/* ---------------- nav: an index, not an app drawer ---------------- */
+#side .nav .ic{display:none}
+#side .nav{border-radius:0;margin:0 6px 1px;padding:6px 12px;font-size:12.5px;transition:color .1s,background .1s}
+#side .nav:hover{background:var(--panel2);transform:none;color:var(--ink)}
+#side .nav.on{background:transparent;border-color:transparent;box-shadow:inset 2px 0 0 var(--gold);color:var(--gold2)}
+#side .nav .badge{border-radius:3px}
+.nav.on{background:transparent}
+
+/* ---------------- tokens: DAY LEDGER (light) ---------------- */
+body.light{
+  --bg:#efe9da;--bg2:#e7e0cd;--panel:#faf7ec;--panel2:#f1ecdb;--line:#dcd3b8;--line2:#c6ba95;
+  --ink:#2b2d20;--mut:#6e7259;--mut2:#98977d;
+  --gold:#8f6a1a;--gold2:#75570f;--pos:#2e7d4f;--neg:#b6473c;--warn:#8f6a1a;--info:#28667a;--vip:#6e46a8;
+  --sh:0 10px 26px rgba(96,84,38,.16);
+}
+body.light{background:radial-gradient(1100px 640px at 82% -12%,#fdf9ec99,transparent),#efe9da!important;color:var(--ink)}
+body.light #topbar{background:#f6f2e3;border-bottom:1px solid var(--line2)}
+body.light #side{background:#f3eee0;border-right:1px solid var(--line)}
+body.light .card,body.light .shopitem,body.light .mini,body.light .wizstep,body.light .pick,body.light .roomcell{background:var(--panel);border-color:var(--line)}
+body.light .bar,body.light .mtr{background:#e3dbc2}
+body.light tr:hover td{background:var(--panel2)}
+body.light th{color:var(--mut2);border-bottom-color:var(--line2)}
+body.light td{border-bottom-color:var(--line)}
+body.light .pill.green{background:#dfeadb;color:#2b7048}
+body.light .pill.red{background:#f2ddd7;color:#a53c31}
+body.light .pill.gold{background:#eee2c2;color:#75570f}
+body.light .pill.blue{background:#dde9ee;color:#28667a}
+body.light .pill.gray{background:#e7e2cf;color:#6e7259}
+body.light .pill.vip{background:#e8dff2;color:#6e46a8}
+body.light .sw{background:#cdc3a2}body.light .sw i{background:#faf7ec}
+body.light .sw.on{background:var(--gold)}body.light .sw.on i{background:#fffdf4}
+body.light input[type=number],body.light input[type=text],body.light select{background:#fffdf4;border-color:var(--line2);color:var(--ink)}
+body.light .notice{background:#f6efd5;border-color:#d9c890;color:#6b5a26}
+body.light .review{background:#f5f1e1;border-color:var(--line)}
+body.light .review .txt{color:#4a4c3a}
+body.light .fitem{border-bottom-color:var(--line)}
+body.light .fitem .txt{color:var(--ink)}
+body.light .toast{background:#fffdf4;border-color:var(--line2)}
+body.light #modal{background:rgba(62,56,30,.42)}
+body.light .mbox,body.light #mbox{background:var(--panel)}
+body.light .choice{background:#f4efde;border-color:var(--line2)}
+body.light .choice:hover{background:#efe8d0;border-color:var(--gold)}
+body.light .stars{color:#a97b16}
+body.light .star-dim{color:#d8cfb3}
+body.light ::-webkit-scrollbar-thumb{background:#cbc1a0;border-color:var(--bg2)}
+body.light .chtip{background:#fffdf4;border-color:var(--gold)}
+body.light #botnav{background:#f6f2e3;border-top:1px solid var(--line2)}
+body.light #botnav .bn.on{background:var(--panel2)}
+body.light #fabx button{background:#fffdf4;border-color:var(--line2)}
+body.light #tutbar{background:#fffdf4!important}
+body.light .logo{background:var(--gold);color:#fffdf4}
+body.light .tag{background:var(--panel2);border-color:var(--line2);color:var(--mut)}
+body.light .tag.on{background:#efe3c1;border-color:var(--gold);color:var(--gold2)}
+body.light .btn{background:var(--panel);border-color:var(--line2);box-shadow:none}
+body.light .btn.primary{background:var(--gold);border-color:#7a5a14;color:#fffdf4}
+body.light .btn.primary:hover{color:#fffdf4}
+body.light #setup{background:linear-gradient(165deg,#ebe4d0,#f6f1e1)}
+body.light .t1{background:#eee0bc;color:#75570f}body.light .t2{background:#d9e7ec;color:#28667a}body.light .t3{background:#dfead9;color:#2b7048}
+body.light .kpi{border-left-color:var(--line)}
+body.light .clockbox{border-left-color:var(--line)}
+body.light .side-foot .btn{background:var(--panel)}
+body.light #kpis .kpi .v small{color:var(--mut)}
+body.light .sp{background:var(--panel);border-color:var(--line2)}
+body.light .sp.on{background:var(--gold);border-color:var(--gold);color:#fffdf4}
+`;
+const st=document.createElement('style');st.id='aatithyaV19';st.textContent=css;
+document.body.appendChild(st); // last in the cascade — wins every earlier skin at equal specificity
+}catch(e){}})();
+
+/* landing plate: a register cover, not a gradient hero */
+(function(){try{
+  const d=document.getElementById('v9landing');if(!d||d.style.display==='none')return;
+  const has=(function(){try{return !!localStorage.getItem('aatithya');}catch(e){return false;}})();
+  d.style.cssText='position:fixed;inset:0;z-index:130;display:flex;align-items:center;justify-content:center;background:#10150f;padding:28px';
+  d.innerHTML=`<div style="max-width:560px;width:100%;border:1px solid #3a4a3c;outline:3px double #2a372c;outline-offset:6px;padding:52px 44px 40px;text-align:center;background:linear-gradient(175deg,#141b14,#0f150f)">
+    <div style="font-size:11px;letter-spacing:.42em;color:#8fa08b;margin-bottom:22px">GRAND REGISTER OF</div>
+    <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;font-size:56px;font-weight:500;letter-spacing:.06em;color:#ecd9ab;line-height:1">AATITHYA</div>
+    <div style="width:64px;height:1px;background:#c99a4b;margin:20px auto"></div>
+    <div style="font-size:13px;color:#b6bfa9;letter-spacing:.04em;margin-bottom:6px">The Indian Hotel Management Simulation</div>
+    <div style="font-size:11.5px;color:#6c7a67;max-width:380px;margin:0 auto 34px;line-height:1.6">Bare land, borrowed capital, and a city full of rivals. Rates, rosters, reputation — every entry in this ledger is yours to write.</div>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button onclick="v9StartNew()" style="padding:12px 32px;border:1px solid #a67c34;border-radius:3px;background:#c99a4b;color:#241a08;font-weight:700;font-size:13px;letter-spacing:.08em;cursor:pointer">OPEN THE REGISTER</button>
+      ${has?`<button onclick="v9Continue()" style="padding:12px 26px;border:1px solid #3a4a3c;border-radius:3px;background:transparent;color:#cfd6c2;font-weight:600;font-size:13px;letter-spacing:.06em;cursor:pointer">CONTINUE SAVED GAME</button>`:''}
+    </div>
+    <div style="font-size:10px;color:#54614f;margin-top:30px;letter-spacing:.14em">OFFLINE · SINGLE FILE · SAVES TO THIS DEVICE</div>
+  </div>`;
+}catch(e){}})();
+
 renderWiz();
 </script>
 </body>
