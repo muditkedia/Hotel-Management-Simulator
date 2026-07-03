@@ -271,3 +271,27 @@ A QA/hotel-consultant pass over every value, formula, timeline and setting, vali
 **Post-calibration probe** (same setup): occupancy ~70–75% at 2.5★ (was ~80%), revenue −15–20%, expense model complete, F&B share realistic, laundry roughly break-even at small scale (as in real small hotels), payroll ~7% and utilities ~4% of revenue. Remaining margins (~55–65%) reflect deliberate model boundaries — an owned, debt-free property with no rent or above-property corporate overhead, on a compressed timescale — and are documented rather than hidden.
 
 Settings verification: severance charges exactly ₹sal/2; the night room-service window produces measurable usage and revenue; every fix regression-tested (deposit ledger still exact to the rupee, 27 tabs clean, zero console errors).
+
+
+---
+
+## 13. Phase 11 — Strategic planning & operational realism (`v21`, this branch)
+
+**Removed / consolidated (Part 1)**
+- Hotel Identity panel removed — positioning still forms silently from the guest mix and steers segment demand, but players read it from operations, not a dashboard label.
+- Reputation display consolidated to three measures: **Guest Satisfaction** (in-house, Overview), **Google Rating** (public, Reviews) and **Brand Reputation** (long-term, topbar/Reviews). The nine-audience card is gone; its segment-expectation mechanics remain internal.
+- The duplicate Operating Policies card was deleted from the Pricing *template* itself (previously only cut at render time); Policies is the single authoritative home, cross-linked.
+
+**Corporate Sales (Part 2.1)** — companies (name/industry/HQ/annual room-nights/preferred category/budget/term/patience) rotate into a pipeline sized by the city's business share. Pitches cost ₹25k and are scored on offered rate vs budget, Google rating, brand reputation, business facilities (conference, business centre, shuttle, restaurant, Wi-Fi), awards, corporate-guest history and front-desk pace. **Won contracts inject real corporate reservations into the v16 booking pipeline** at the negotiated rate; delivered nights and traveller satisfaction are tracked per account and decide renewal; unpitched prospects eventually sign with rivals. Renewals lift brand reputation; terminations dent corporate standing.
+
+**Capital Planning (Part 2.2)** — a dedicated CapEx page that reuses every existing investment handler (renovation waves, floors, parking/EV, all six utility investments, security upgrades, building-system overhauls) plus one new PMS technology upgrade (+12% front-desk capacity). Each row computes capital cost, useful life, estimated annual benefit from live RevPAR/utility meters, and payback — with financing cross-linked to loans/investors.
+
+**Awards & Certifications (Part 2.3)** — eight deterministic recognitions (Travellers' Choice, Best Business, Best Value, Green Certification, Luxury/Food/Cleanliness/Service Excellence), each earned only by meeting its published standard on **two consecutive monthly reviews**, valid 180 days, and lapsing if the standard slips at renewal. Held awards add +2% demand each, weight corporate pitches, boost brand reputation, awareness and listed-company sentiment.
+
+**Workforce overhaul (Part 3)**
+- Roster rebuilt around real hotel shifts (Morning 06–14 / Afternoon 14–22 / Night 22–06, nights spilling into the next day) as an editor over the existing hourly engine — full save compatibility, existing caps and premiums intact. Cells read "on duty / needed."
+- **Auto-roster rewritten**: covers one person on every needed hour first, then fills to full need; spends contracted hours before touching the overtime pool; staffs only the hours that need cover (skeleton-crew pattern — a single 22:00 need no longer buys a whole night shift); reports honestly when coverage is impossible within legal caps ("hire ~N more"). Staff arrays are ordered so the most experienced take the shift first.
+- **Hard staffing gates**: no maintenance crew on shift → repairs wait (the old 0.5 free floor removed); no F&B staff on shift → the restaurant serves no meals in-house or external and guests notice at dinner; front desk, housekeeping, security and procurement gates already existed. Stoppages surface in the Attention Center with the reason.
+- **Workforce analytics**: per-department coverage gaps, weekly hours, overtime, labour ₹/day and labour per occupied room — on the Roster page and in the Daily Report.
+
+Verified end-to-end headless: a pitched contract signs, injects corporate reservations, delivers nights and tracks traveller satisfaction; three awards earn after exactly two monthly reviews and measurably raise demand; auto-roster fully covers morning need within budget; unrostered maintenance stops repairs and an unstaffed kitchen serves zero lunches; all 28 tabs render; the full regression (deposit ledger exact, chain background sim, policies fees) stays green.
