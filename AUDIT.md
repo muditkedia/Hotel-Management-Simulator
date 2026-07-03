@@ -187,14 +187,33 @@ Gaps, in priority order:
 3. Deposit accounting (B7): deposits are collected into cash at booking, held in a visible `depositsHeld` liability, netted off the bill at checkout, refunded on walkouts and forfeited per cancellation policy on no-shows (settled before every `scheduleDay`); the virtual reservation pipeline no longer credits uncollected deposits.
 4. Autosave moved to the true end of rollover (B13); HQ loyalty-member count computed from real membership (B15); insolvency screen keeps the final summary reachable (B11); `roomDetail` shows the true furnishing tier and equipment (B10).
 
-**Wave 3 — one booking engine:**
-5. Reservations become arrivals: `scheduleDay` consumes the reservation book (+ same-day walk-ins) instead of inventing guests; overbooking, no-shows, waitlist, early-bird and corporate rates then all act on real stays.
+**Wave 3 — one booking engine (done in this branch, `v16` layer):**
+5. Reservations ARE the arrivals: advance bookings collect real deposits at booking, materialise into actual guests on their day (rooms held, usual-room requests honoured), no-shows and cancellations settle per cancellation policy, and walk-in demand fills only what the book leaves over. The old scalar OTB demand boost is retired — booked rooms are supply, not a demand multiplier.
 
-**Wave 4 — the chain is real:**
-6. Background simulation for non-active properties (daily coarse tick: demand → occupancy → revenue/cost → reputation drift, driven by that property's staffing/pricing/facilities). HQ then reports true numbers.
+**Wave 4 — the chain is real (delivered early inside Phase 10, `v17`):**
+6. With an HQ Regional Operations Manager hired, non-active properties run a coarse daily simulation (occupancy from rating/reputation/season → revenue/costs/reviews/wear/analytics). Without one, they are explicitly dormant — now a mechanic instead of a bug.
 
 **Wave 5 — consolidation & flattening:**
 7. Collapse each overridden function to its final form; delete dead layers (~2,000 lines); merge the three competitor AIs, the three room-status boards, milestones→goals, training systems; remove dead policies or implement them (early/late fees are cheap wins: charge them in `checkInGuest`/checkout).
 8. Split Finance into sub-tabs; move reputation-by-audience to Reviews; single chart style.
 
 **Wave 6 — realism polish:** inventory tied to cleans, event-state coherence (generator asset, price-surge revert, VIP as real guest), rate-parity effect, weather↔operations links, security↔reviews link.
+
+
+---
+
+## 10. Phase 10 — Enterprise layer (`v17`, this branch)
+
+Implemented as extensions of existing systems (no parallel mechanics):
+
+1. **Revenue Management System** — three control modes (Manual / Revenue Manager / AI) on the existing `p.rm`; five named strategies (Aggressive Occupancy, Maximum Profit, Balanced, Premium Positioning, Budget Leader) with floors/caps; decisions driven by demand forecast, advance pace, weekends, festivals, competitor price index, rating and reputation — **every rate change is logged with its reasons** on the Pricing tab. Manager mode adds skill-scaled judgement noise; `managerPricing` folded in (one pricing brain). Direct-booking incentive knob added.
+2. **Guest memory** — deepened on the v12 persona system: per-guest preference counters (breakfast/restaurant/laundry/spa/parking), upgrade & discount history, usual-room requests honoured at materialisation (+satisfaction), happy repeaters budget higher, past upgrades raise expectations, Gold/Platinum members weighted in the return pool. Guest Memory card on Front Desk.
+3. **Utilities** — metered model (electricity, water, gas, internet, waste, generator fuel) with per-department consumption replaces the flat util+energy line in `accrueHourlyCost`; six efficiency investments permanently cut specific utilities; failures (power/water/internet) hit operations unless mitigated (generator, water storage). Dedicated Utilities tab with trends.
+4. **Preventive maintenance** — building systems (HVAC, pumps, wiring, elevator, kitchen, laundry machines, generator) with condition, service age, interval and risk score; overdue systems break down into the existing maintenance backlog at ~3× the service cost with system-specific operational fallout; per-asset auto-service.
+5. **Security department** — CCTV/access/fire investments + staffing → guest-confidence score; low-probability incidents (theft, noise, medical, false alarm, vandalism) whose frequency and severity shrink with the score; VIP/premium guests read security posture at check-in.
+6. **HQ** — Regional Operations Manager makes the chain real (see Wave 4); brand-standards audits lift the weakest property; loyalty KPI now computed from real membership.
+7. **IPO & capital markets** — six listing requirements, bank selection (fee/valuation trade-off), 7-day roadshow with sentiment, listing raises 25% float; daily share price from profit trend + sentiment, quarterly results vs expectations, dividends and secondary offerings, under-water-stock pressure.
+8. **AI managers** — managers carry personalities (7 archetypes); the highest-skill manager acts as GM, steering manager-mode pricing strategy, department service models, preventive-maintenance automation and overload hiring — all logged, all overridable by switching to Player control.
+9. **KPI cockpit** — 20 professional hospitality KPIs (ADR, RevPAR, TRevPAR, GOPPAR, ALOS, GAC, repeat rate, direct ratio, food/labour cost %, HK/maintenance/utility unit costs, complaint rate, GSI, NPS, check-in wait, turnaround, response time), each clickable for definition, target, 30-day trend and improvement levers — computed live from simulation data.
+
+Verified headless: 51 reservation guests materialised over 14 days; deposit liability exact to the rupee including future reservations; RMS log populated with reasons; utilities/systems/security accruing; background chain revenue flowing; IPO reaches listing; 26 tabs + KPI drill-down render with zero errors.
