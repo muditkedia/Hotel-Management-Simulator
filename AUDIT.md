@@ -231,3 +231,43 @@ The frame moved off the generic dark-navy/gold dashboard look onto a subject-gro
 - Landing screen redesigned as a framed register plate (single-theme by intent); fixed a real mobile bug found during review — the setup wizard used flex-centering with `overflow:auto`, clipping its top on phones (`.wiz{margin:auto}`).
 
 Verified with themed screenshots (landing, wizard, dark overview/finance, light overview/pricing, mobile) and the full regression suite: zero console errors, all 27 tabs render, economy invariants unchanged.
+
+
+---
+
+## 12. Validation audit — realism, logic & balance (`v20` + calibration, this branch)
+
+A QA/hotel-consultant pass over every value, formula, timeline and setting, validated empirically with 60-day economic probes (16-room Mumbai midscale, full staff, restaurant/breakfast/laundry/wifi).
+
+**Formula bugs fixed**
+- **Facility running costs were charged twice** — once in the hourly opex line and again as departmental fixed cost in `runDepartments`. Dept-run facilities now carry their fixed cost only in their department P&L.
+- **Guests ate 3–5 restaurant meals a day** — only breakfast had a once-per-day flag; lunch and dinner re-rolled every hour. Both now capped at one per day, cutting F&B revenue ~30% to a realistic 15–25% share of total revenue.
+- **Two contradictory asset valuations** — `assetValue()` (loan capacity, credit rating) used ₹9L/room while `chainAssets()` (IPO) used ₹13.5L/room. Unified on the chainAssets basis.
+- **Finance "Monthly Cost Structure" showed a stale flat utilities estimate** (rooms×250) instead of the metered utilities model. Now reads the meter.
+- ALOS KPI zeroed out every 30th day (window reset artifact) — now falls back to the previous window.
+
+**Missing cost realism added**
+- **Fixed overheads line** (insurance, property tax, licences, AMCs, G&A, reserves): ₹550/room/day — a real hotel P&L line that was entirely absent and a major driver of the game's inflated 65% margins.
+- Internet was ₹20k+/month for a 20-room hotel — halved to market rates.
+- **Dismissal now costs half a month's severance** and dents team morale; instant free firing removed.
+
+**Demand realism (the biggest imbalance)**
+- The probe showed **79% occupancy at ₹10.6k ADR on a 2.56★ rating** — a rating the demand model ignored entirely, and the advance-reservation pipeline filled the book regardless. A **rating gate** now applies to both walk-in demand and OTA advance bookings (`0.45 + rating/5 × 0.62`, clamped 0.5–1.12; unrated new hotels get 0.85 intro visibility) — a 2.5★ property books meaningfully less, a 4.5★+ property earns a premium. `repFactor` spread widened (0.45–1.40) so weak reputation genuinely hurts.
+- Restaurant walk-in covers now follow the hotel's rating strongly (a no-name 2.5★ draws few outside diners).
+- Review propensity cut from ~30% of guests to ~15–20%, matching real post-stay OTA review rates.
+
+**Dead settings wired or removed**
+- `roomsvc24` (dead since Wave 2): now opens a 23:00–05:00 room-service window at a 15% surcharge.
+- `bookingConfidence` (displayed, never read): now a ±10% demand factor.
+- `rm.parity` (OTA rate parity, never read): breaking parity now costs ~12% of OTA bookings (ranking demotion) while direct guests gain goodwill.
+- `cbMeters` (imperceptible contrast filter): now swaps the semantic palette to a colour-blind-safe blue/orange pair in both themes.
+- Duplicate laundry pricing control removed from Policies (the department page owns it); `policies.laundry` had no remaining sim effect.
+
+**Timelines corrected**
+- Room construction 3–5 → 4–7 days; new floor 8–12 → 12–18 days (copy updated); hiring notice period 1–3 → 2–5 days (including GM auto-hires). Standard check-in default aligned to 14:00 (the arrival-curve anchor); arrivals may now land at 1–5 am, which airport/transit hotels really see.
+- IPO valuation multiple raised from 4× to 8× annual profit (hotel-sector EV/EBITDA norms).
+- KPI "Food Cost %" renamed to "F&B Dept Cost Ratio" with an honest definition (true food cost alone runs 28–35%).
+
+**Post-calibration probe** (same setup): occupancy ~70–75% at 2.5★ (was ~80%), revenue −15–20%, expense model complete, F&B share realistic, laundry roughly break-even at small scale (as in real small hotels), payroll ~7% and utilities ~4% of revenue. Remaining margins (~55–65%) reflect deliberate model boundaries — an owned, debt-free property with no rent or above-property corporate overhead, on a compressed timescale — and are documented rather than hidden.
+
+Settings verification: severance charges exactly ₹sal/2; the night room-service window produces measurable usage and revenue; every fix regression-tested (deposit ledger still exact to the rupee, 27 tabs clean, zero console errors).
