@@ -106,7 +106,7 @@ Ordered by impact. "FIXED" marks items corrected in the Wave-1 commit accompanyi
 | **B15** | **`chain.loyaltyMembers` counts every guest** | `writeGuestDB` (l. 1797) | Incremented on *first* stay, so HQ's "Loyalty Members" KPI and the old milestone count all unique guests; the Loyalty tab computes real members differently. Two contradictory definitions on screen. |
 | **B16** | **`refreshLive` tab list stale** | l. 948 | Live re-render only covers `overview/rooms/guests/finance`; Operations, Reservations, Roster, Analytics show stale data during play until re-clicked. |
 | **B17** | **Check-in time defaults disagree** | `augmentProp` (13) vs `checkinWeights`/reports (14) | Cosmetic off-by-one in the arrival curve and report display. |
-| **B18** | **Mobile FAB speed button is dead** | v12 (l. 6883) | Calls `cycleSpeed&&cycleSpeed()` — never defined; the ⏩ button is a no-op. |
+| **B18** | **Mobile FAB speed button is dead** — FIXED | v12 (l. 6883) | Calls `cycleSpeed&&cycleSpeed()` — never defined; the ⏩ button is a no-op. `cycleSpeed` implemented in v14. |
 
 ---
 
@@ -134,7 +134,7 @@ Ordered by impact. "FIXED" marks items corrected in the Wave-1 commit accompanyi
 - `policies.parking === 'reserve'` — behaves identically to complimentary in `assignParking`.
 - `policies.freeCancel` — legacy field superseded by `cancelType`, still seeded in `newGame`.
 - Settings → `cbMeters` (colour-blind meters) only tweaks contrast of two classes; doesn't recolor bars.
-- Mobile FAB ⏩ (B18), bottom-nav More (B6, fixed).
+- Mobile FAB ⏩ (B18, fixed), bottom-nav More (B6, fixed).
 - `AGENCY` tier for `shuttle`/`traveldesk` renders on department pages, but `deptCapacity` for those keys ignores the agency multiplier except through the generic default branch — capacity effect is negligible.
 
 ---
