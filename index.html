@@ -7873,6 +7873,16 @@ renderWiz=function(){
     .page-head .desc{font-size:11.5px;line-height:1.45}
     .page-head .wrapf{width:100%}
     .page-head .btn{flex:1 1 auto;text-align:center}
+    /* topbar KPIs: v9m made the whole topbar one nowrap scroll row, hiding the
+       info chips off-screen. Wrap the bar instead: row 1 = brand + clock/speed,
+       row 2 = full-width chip strip, swipeable, visible on every tab. */
+    #topbar{flex-wrap:wrap!important;overflow-x:visible!important;overflow-y:visible!important;height:auto!important;padding:8px 10px 6px!important;gap:6px 8px!important}
+    #topbar .tb-logo{flex:1 1 auto;min-width:0}
+    #topbar .tb-logo .tb-prop{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+    #topbar .clockbox{flex:0 0 auto;margin-left:auto}
+    #kpis{flex:1 1 100%;width:100%;order:10;display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;gap:8px;padding:2px 0 4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    #kpis::-webkit-scrollbar{display:none}
+    #kpis .kpi{flex:0 0 auto;min-width:92px;white-space:nowrap}
   }`;
   const st=document.createElement('style');st.id='v23Mobile';st.textContent=css;(document.head||document.body).appendChild(st);
 }catch(e){}})();
