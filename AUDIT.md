@@ -390,3 +390,15 @@ Previously these inputs displayed the raw internal (India-base) number while sur
 10. **Events demand an answer** — the shared modal's leftover backdrop-dismiss handler let events be clicked away; event modals now disarm it, so one of the offered actions must be chosen (game pauses while open, as before).
 
 **Verified.** Dedicated fix-pass suite (all 20 assertions green), save→reload→load exact-match, 3-country/29-tab sweep zero issues, smoke4 economy invariants (deposit ledger consistent under the new no-deposit default) and smoke5 Phase-11 suite green.
+
+---
+
+## 18. CCTV Art II + finance verification pass (`v26`, this branch)
+
+**Camera visuals rebuilt to the reference.** New articulated silhouette figure library (walking, luggage-pulling, conversing pairs, seated diners with chairs, staff at reception laptops, waiter with tray, housekeeper pushing a towel cart, vacuuming, pool attendant with skimmer net, swimmers) with glossy-floor reflections and contact shadows. Set dressing per scene: glazed window walls with layered city skylines and palms, pendant lamps, monstera planters, a proper reception counter with laptops, dining tables with seated pairs, umbrellas/loungers/rippled pool water, corridor doors with housekeeping carts, basement parking with pillars, bay markings and car silhouettes. Figures are placed statically per hourly frame (seeded by day+hour+camera) with one slow drifting walker per feed — a CCTV still, not a video. All people counts remain driven by the same live simulation state.
+
+**Finance & numbers audit (dedicated instrumented probes).** Verified exact: cash continuity (Δcash ≡ Σ(rev−exp) + Δdeposit-liability + intraday residuals — drift 0 over 10 days); per-day analytics identity (profit = rev − exp, every row); finHist ↔ analytics agreement; Today P&L chip vs internal counters; Net/day chip; loan mechanics (annuity EMI formula, principal amortization, 1% processing fee disclosed and expensed, cash credited net of fee); investor raises correctly gated by `invUnlocked`; deposits ledger equals outstanding booked deposits plus in-house guests' deposits (they release at checkout by design); utilities total = component sum; department P&L finite; money tabs free of NaN/Infinity. A source-grouped mutation trace (every write to cash/revToday/expToday/depositsHeld attributed to its code line) confirmed every flow pairs correctly.
+
+**One real defect found and fixed:** guest walkouts (`checkedIn='lost'` — unmanned desk or no clean room) kept the guest's deposit in the `depositsHeld` liability forever, never refunding or releasing it. All three walkout sites now refund the deposit in full (the failure is the hotel's) and release the liability.
+
+**Verified:** 3-country / 29-tab sweep zero issues; smoke4 economy invariants; smoke5 Phase-11 suite; v25 20-assertion logic suite; save→hard-reload→load exact match.

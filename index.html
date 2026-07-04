@@ -3111,6 +3111,7 @@ function checkInGuest(prop,a,waiting){
     const alt=prop.rooms.find(r=>r.status==='clean');
     if(alt){room=alt;a.roomId=alt.id;a.sat-=6;feed('⚠️ Room not ready — '+a.name+' moved to Room '+alt.id+'.','warn');}
     else{a.checkedIn='lost';prop.incidents++;a.sat=20;prop._compToday=(prop._compToday||0)+1;
+      if(a.depositPaid&&a.deposit>0){G.cash-=a.deposit;prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-a.deposit);a.depositPaid=false;}
       feed('❌ No clean room for '+a.name+' — walked out.','neg');prop.reputation=clamp(prop.reputation-1.2,0,100);
       logEvent(prop,'service','Walkout: no clean room for '+a.name+'.');return;}
   }
@@ -4288,6 +4289,7 @@ checkInGuest=function(prop,a,waiting){
     a.fdWait=(a.fdWait||0)+1;a.sat-=3;
     if(!a._noFd){a._noFd=1;feed('🛎️ No one at the desk — '+a.name+' is waiting in the lobby.','warn');}
     if(a.fdWait>=3){a.checkedIn='lost';prop.incidents=(prop.incidents||0)+1;prop._compToday=(prop._compToday||0)+1;
+      if(a.depositPaid&&a.deposit>0){G.cash-=a.deposit;prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-a.deposit);a.depositPaid=false;}
       prop.reputation=clamp(prop.reputation-1.4,0,100);
       feed('❌ '+a.name+' left — nobody staffed the front desk.','neg');
       logEvent(prop,'service','Walkout: front desk unmanned for '+a.name+'.');}
@@ -4298,6 +4300,7 @@ checkInGuest=function(prop,a,waiting){
     const alt=prop.rooms.find(r=>r.status==='clean');
     if(alt){room=alt;a.roomId=alt.id;a.sat-=6;feed('⚠️ Room not ready — '+a.name+' moved to Room '+alt.id+'.','warn');}
     else{a.checkedIn='lost';prop.incidents++;a.sat=20;prop._compToday=(prop._compToday||0)+1;
+      if(a.depositPaid&&a.deposit>0){G.cash-=a.deposit;prop.depositsHeld=Math.max(0,(prop.depositsHeld||0)-a.deposit);a.depositPaid=false;}
       feed('❌ No clean room for '+a.name+' — walked out.','neg');prop.reputation=clamp(prop.reputation-1.2,0,100);
       logEvent(prop,'service','Walkout: no clean room for '+a.name+'.');return;}
   }
@@ -8300,7 +8303,9 @@ body:not(.light) .camfeed{background:var(--panel);border-color:var(--line)}
 .camoff{border:1px dashed var(--line2,#d4d4ca);background:var(--panel2,#f3f3ee);height:180px;display:flex;align-items:center;justify-content:center;color:var(--mut2,#8e8e85);font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:1.5px}
 .camWalk{animation:camwalk var(--dur,60s) linear infinite}
 @keyframes camwalk{from{transform:translateX(0)}to{transform:translateX(900px)}}
-body.reduce-motion .camWalk,body.reduce-motion .camlive i{animation:none}
+.camDrift{animation:camdrift var(--dd,8s) ease-in-out infinite alternate}
+@keyframes camdrift{from{transform:translateX(0)}to{transform:translateX(26px)}}
+body.reduce-motion .camWalk,body.reduce-motion .camDrift,body.reduce-motion .camlive i{animation:none}
 @media(max-width:900px){.camgrid{grid-template-columns:1fr}.caminfo{gap:12px}}
 `;
 const st=document.createElement('style');st.id='v24Cams';st.textContent=css;(document.head||document.body).appendChild(st);
@@ -8522,6 +8527,325 @@ function rosterTopUp(p,role){try{
 }catch(e){}}
 {const _v25BF=window.buyFac;window.buyFac=f=>{_v25BF(f);try{const p=P();ensureV10(p);rosterTopUp(p,'fnb');rosterTopUp(p,'security');}catch(e){}};}
 {const _v25HS=window.hireStaff;window.hireStaff=(role,tier)=>{_v25HS(role,tier);try{const p=P();ensureV10(p);if(['fnb','security','maintenance','frontdesk','housekeeping'].includes(role))rosterTopUp(p,role);}catch(e){}};}
+
+/* =======================================================================
+   v26 — CCTV ART II: reference-grade silhouette scenes.
+   A complete rebuild of the camera scene engine: articulated pictogram
+   figures (walk/pull-luggage/sit/desk/waiter/push-cart/vacuum/swim/net),
+   glossy-floor reflections, layered window skylines with palms, pendant
+   lamps, proper reception/restaurant/pool/corridor set dressing.
+   Same simulation-state → people-count formulas as before; only the art
+   changed. camScene is replaced wholesale (the v25 wrap is superseded).
+   ======================================================================= */
+(function(){try{
+const INK='#17171a', MID='#c9c7bc', MID2='#dbd9cf', LITE='#eceadf', GLASS='#f7f6f1', LINE='#dedcd2';
+
+/* ---- articulated figure: strokes with round caps ---- */
+function fig(x,y,s,pose,o){
+  o=o||{};
+  const L=(a,b,c,d,w)=>`<path d="M${a},${b} L${c},${d}" stroke="${INK}" stroke-width="${w}" stroke-linecap="round" fill="none"/>`;
+  const H=(hx,hy)=>`<circle cx="${hx}" cy="${hy}" r="5.4" fill="${INK}"/>`;
+  let g='',ref=true;
+  if(pose==='stand'){g=H(0,-62)+L(0,-54,0,-29,11)+L(-1,-49,-7,-32,4)+L(1,-49,7,-32,4)+L(-2,-30,-4,-2,5)+L(2,-30,4,-2,5);}
+  else if(pose==='pair'){g=H(-9,-60)+L(-9,-52,-9,-28,10.5)+L(-9,-48,-2,-36,4)+L(-10,-29,-12,-2,5)+L(-8,-29,-6,-2,5)
+    +H(11,-62)+L(11,-54,11,-29,10.5)+L(11,-50,4,-37,4)+L(10,-30,8,-2,5)+L(12,-30,14,-2,5);}
+  else if(pose==='walk'){g=H(1,-62)+L(0,-54,0,-29,11)+L(0,-49,-9,-35,4)+L(0,-49,8,-33,4)+L(-1,-30,-10,-2,5)+L(1,-30,8,-3,5);}
+  else if(pose==='roll'){g=H(0,-62)+L(0,-54,0,-29,11)+L(0,-49,-8,-34,4)+L(0,-48,13,-31,4)+L(-1,-30,-9,-2,5)+L(1,-30,7,-3,5)
+    +`<g transform="translate(17,0)">${bag(0,0,1)}</g>`;}
+  else if(pose==='sit'){g=`<rect x="-14" y="-30" width="4.5" height="28" rx="2" fill="${INK}" opacity=".8"/><rect x="-14" y="-16" width="17" height="4" rx="2" fill="${INK}" opacity=".8"/>`+H(0,-47)+L(0,-40,0,-21,11)+L(0,-22,12,-20,9)+L(12,-19,12,-2,5)+L(0,-36,9,-25,4);ref=false;}
+  else if(pose==='desk'){g=H(0,-58)+L(0,-50,0,-28,11)+L(-1,-45,-10,-36,4)+L(1,-45,10,-36,4);ref=false;}
+  else if(pose==='tray'){g=H(0,-62)+L(0,-54,0,-29,11)+L(0,-50,-6,-33,4)+L(1,-50,11,-60,4)
+    +`<path d="M5,-64 L19,-64" stroke="${INK}" stroke-width="3" stroke-linecap="round"/><path d="M9,-64 L9,-61 L15,-61 L15,-64" stroke="${INK}" stroke-width="2" fill="none"/>`
+    +L(-2,-30,-4,-2,5)+L(2,-30,4,-2,5);}
+  else if(pose==='push'){g=H(4,-58)+`<path d="M0,-50 Q3,-40 7,-28" stroke="${INK}" stroke-width="11" stroke-linecap="round" fill="none"/>`
+    +L(3,-45,17,-35,4)+L(4,-44,18,-33,4)+L(4,-29,-2,-2,5)+L(8,-28,12,-3,5);}
+  else if(pose==='vac'){g=H(7,-52)+`<path d="M2,-45 Q6,-35 10,-25" stroke="${INK}" stroke-width="11" stroke-linecap="round" fill="none"/>`
+    +L(7,-40,22,-26,4)+`<path d="M22,-26 L34,-3" stroke="${INK}" stroke-width="3.2" stroke-linecap="round"/><path d="M30,-3 L38,-3" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>`
+    +L(6,-26,0,-2,5)+L(9,-25,13,-2,5)+`<ellipse cx="-10" cy="-5" rx="8" ry="5" fill="${INK}"/><path d="M-4,-8 L6,-30" stroke="${INK}" stroke-width="2"/>`;}
+  else if(pose==='net'){g=H(0,-62)+L(0,-54,0,-29,11)+L(0,-49,-6,-33,4)+L(1,-49,12,-42,4)
+    +`<path d="M12,-42 L34,-6" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/><path d="M34,-6 L42,-2 L38,4 L31,-1 Z" fill="${INK}"/>`
+    +L(-2,-30,-4,-2,5)+L(2,-30,4,-2,5);}
+  else if(pose==='swim'){g=`<circle cx="0" cy="-7" r="5" fill="${INK}"/><path d="M-13,-3 Q0,2 13,-3" stroke="${INK}" stroke-width="5" stroke-linecap="round" fill="none"/><path d="M-9,-9 Q-13,-13 -17,-12" stroke="${INK}" stroke-width="3.4" stroke-linecap="round" fill="none"/>`;ref=false;}
+  else {g=H(0,-62)+L(0,-54,0,-29,11)+L(-1,-49,-7,-32,4)+L(1,-49,7,-32,4)+L(-2,-30,-4,-2,5)+L(2,-30,4,-2,5);}
+  let inner=(o.flip?`<g transform="scale(-1,1)">${g}</g>`:g);
+  let out=`<ellipse cx="0" cy="1.5" rx="13" ry="2.6" fill="#000" opacity=".10"/>`;
+  if(ref&&!o.norefl)out+=`<g transform="scale(1,-0.55) translate(0,-6)" opacity=".08">${inner}</g>`;
+  out+=inner;
+  const grp=`<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${s})">${out}</g>`;
+  return o.walkDur?`<g class="camWalk" style="--dur:${o.walkDur}s">${grp}</g>`:grp;
+}
+function bag(x,y,s){return `<g transform="translate(${x},${y}) scale(${s||1})"><rect x="-6" y="-19" width="12" height="18" rx="2" fill="${INK}"/><path d="M-3,-19 L-3,-27 L3,-27 L3,-19" stroke="${INK}" stroke-width="2.2" fill="none"/><circle cx="-4" cy="0" r="1.8" fill="${INK}"/><circle cx="4" cy="0" r="1.8" fill="${INK}"/></g>`;}
+function plantBig(x,y,s){const leaf=(a,l)=>`<g transform="rotate(${a})"><path d="M0,-4 Q-6,${-l*.45} 0,${-l} Q6,${-l*.45} 0,-4 Z" fill="${INK}"/><path d="M0,-6 L0,${-l+4}" stroke="#f3f2ec" stroke-width="1" opacity=".7"/></g>`;
+  return `<g transform="translate(${x},${y}) scale(${s||1})"><path d="M-11,0 L11,0 L8,-16 L-8,-16 Z" fill="${MID}"/><g transform="translate(0,-14)">${leaf(-52,34)}${leaf(-27,44)}${leaf(-3,52)}${leaf(21,46)}${leaf(46,36)}</g></g>`;}
+function palm(x,y,s,c){c=c||MID;const fr=(a)=>`<path d="M0,-46 Q${28*Math.cos(a*Math.PI/180)},${-46-20*Math.sin(a*Math.PI/180)} ${52*Math.cos(a*Math.PI/180)},${-40-26*Math.sin(a*Math.PI/180)}" stroke="${c}" stroke-width="4.5" stroke-linecap="round" fill="none"/>`;
+  return `<g transform="translate(${x},${y}) scale(${s||1})"><path d="M0,0 Q4,-24 2,-46" stroke="${c}" stroke-width="5" fill="none"/>${[170,140,105,70,40,10].map(fr).join('')}</g>`;}
+function pendant(x,len,kind){return `<line x1="${x}" y1="0" x2="${x}" y2="${len}" stroke="${INK}" stroke-width="1.2"/>`+(kind==='cone'
+  ?`<path d="M${x-9},${len+12} L${x+9},${len+12} L${x+3},${len} L${x-3},${len} Z" fill="${INK}"/><circle cx="${x}" cy="${len+14}" r="2.4" fill="${INK}" opacity=".55"/>`
+  :`<circle cx="${x}" cy="${len+6}" r="6" fill="${INK}"/>`);}
+function sofa(x,y,w,face){return `<g transform="translate(${x},${y}) ${face==='r'?'scale(-1,1)':''}"><rect x="0" y="-26" width="${w}" height="12" rx="5" fill="${MID}"/><rect x="0" y="-15" width="${w}" height="15" rx="4" fill="${MID2}"/><rect x="-6" y="-22" width="9" height="22" rx="4" fill="${MID}"/><rect x="${w-3}" y="-22" width="9" height="22" rx="4" fill="${MID}"/></g>`;}
+function lowTable(x,y,w){return `<rect x="${x}" y="${y-10}" width="${w}" height="5" rx="2" fill="${MID}"/><rect x="${x+6}" y="${y-5}" width="3" height="5" fill="${MID}"/><rect x="${x+w-9}" y="${y-5}" width="3" height="5" fill="${MID}"/>`;}
+function skyline(x0,x1,base){const bs=[[0,38,34],[44,58,26],[86,30,44],[122,66,30],[160,26,60],[196,52,34],[236,40,24],[268,60,40],[316,34,52],[356,54,30],[398,28,42],[432,60,26],[478,44,36],[520,30,50],[556,56,28],[600,40,38]];
+  let s2='';bs.forEach(([dx,w,h])=>{const bx=x0+dx;if(bx+w>x1)return;s2+=`<rect x="${bx}" y="${base-h}" width="${w}" height="${h}" fill="${LITE}"/>`;});
+  s2+=`<path d="M${x0+300},${base} L${x0+306},${base-88} L${x0+312},${base} Z" fill="${LITE}"/>`;return s2;}
+function windowWall(x0,y0,x1,y1){let s2=`<rect x="${x0}" y="${y0}" width="${x1-x0}" height="${y1-y0}" fill="${GLASS}" stroke="${LINE}" stroke-width="1.4"/>`;
+  s2+=skyline(x0+14,x1-10,y1-6);
+  for(let mx=x0+70;mx<x1;mx+=70)s2+=`<line x1="${mx}" y1="${y0}" x2="${mx}" y2="${y1}" stroke="${LINE}" stroke-width="1.3"/>`;
+  s2+=`<line x1="${x0}" y1="${y1}" x2="${x1}" y2="${y1}" stroke="#d3d1c5" stroke-width="1.8"/>`;return s2;}
+function reception(x,y,w){return `<g transform="translate(${x},${y})">
+  <rect x="0" y="-30" width="${w}" height="30" rx="3" fill="#d9d7ca"/>
+  <rect x="-3" y="-34" width="${w+6}" height="6" rx="3" fill="#f5f4ee" stroke="#c9c7bc" stroke-width="1"/>
+  <line x1="0" y1="-14" x2="${w}" y2="-14" stroke="#c3c1b4" stroke-width="1.2"/>
+  <path d="M${w*.22},-34 L${w*.22},-44 L${w*.22+16},-44 L${w*.22+13},-34 Z" fill="${INK}"/>
+  <path d="M${w*.62},-34 L${w*.62},-44 L${w*.62+16},-44 L${w*.62+13},-34 Z" fill="${INK}"/>
+  </g>`;}
+function hkCart(x,y,s){return `<g transform="translate(${x},${y}) scale(${s||1})">
+  <rect x="-18" y="-34" width="36" height="30" rx="2" fill="none" stroke="${INK}" stroke-width="2.6"/>
+  <line x1="-18" y1="-19" x2="18" y2="-19" stroke="${INK}" stroke-width="2"/>
+  <rect x="-15" y="-32" width="13" height="5" rx="2" fill="#fff" stroke="${INK}" stroke-width="1.4"/>
+  <rect x="-15" y="-26" width="13" height="5" rx="2" fill="#fff" stroke="${INK}" stroke-width="1.4"/>
+  <rect x="2" y="-31" width="13" height="10" rx="1.5" fill="${INK}"/>
+  <path d="M18,-34 Q26,-38 26,-30" stroke="${INK}" stroke-width="2.4" fill="none"/>
+  <circle cx="-11" cy="-1" r="3.6" fill="${INK}"/><circle cx="11" cy="-1" r="3.6" fill="${INK}"/></g>`;}
+function umbrella(x,y,s){return `<g transform="translate(${x},${y}) scale(${s||1})"><line x1="0" y1="0" x2="0" y2="-58" stroke="${INK}" stroke-width="2.6"/><path d="M-42,-42 Q0,-74 42,-42 Z" fill="${INK}"/><path d="M0,-70 L-32,-45 M0,-70 L0,-44 M0,-70 L32,-45" stroke="#f3f2ec" stroke-width="1.3" fill="none"/></g>`;}
+function lounger(x,y,f){return `<g transform="translate(${x},${y}) ${f?'scale(-1,1)':''}"><path d="M0,-4 L34,-4 L46,-20 L42,-23 L31,-8 L0,-8 Z" fill="${MID}"/><line x1="5" y1="-4" x2="5" y2="0" stroke="${MID}" stroke-width="3"/><line x1="30" y1="-4" x2="30" y2="0" stroke="${MID}" stroke-width="3"/></g>`;}
+function diningTable(x,y){return `<g transform="translate(${x},${y})"><ellipse cx="0" cy="-24" rx="24" ry="5" fill="#fff" stroke="${LINE}" stroke-width="1.3"/><rect x="-2.5" y="-24" width="5" height="24" fill="${MID}"/><rect x="-14" y="-2" width="28" height="3" rx="1.5" fill="${MID}"/></g>`;}
+function doorway(x,y,w,h,dark){return `<rect x="${x}" y="${y-h}" width="${w}" height="${h}" fill="${dark?'#e2e0d5':GLASS}" stroke="${LINE}" stroke-width="1.4"/><circle cx="${x+w-6}" cy="${y-h/2}" r="1.8" fill="#b9b7ac"/>`;}
+
+/* ---- the scenes: same state→count logic, new art ---- */
+camScene=function(p,key){
+  const h=G.hour,day=G.day,occ=occupied(p),rooms=Math.max(1,p.rooms.length);
+  const R=camRng((day*24+h)*2654435761+camHash(key));
+  const rainy=/rain|storm|monsoon/i.test(G.weather||'');
+  const night=h>=22||h<6, meal=(h>=7&&h<=10)||(h>=12&&h<=15)||(h>=19&&h<=22);
+  const arrDue=(G.pendingArrivals||[]).filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&a.arrHour===h).length;
+  const arrSoon=(G.pendingArrivals||[]).filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&a.arrHour>h&&a.arrHour<=h+2).length;
+  const depNow=p.rooms.filter(r=>r.guest&&r.guest.checkedIn===true&&r.guest.depDay===day&&Math.abs((r.guest.depHour||11)-h)<=1).length;
+  const fd=onDuty(p,'frontdesk'),hk=onDuty(p,'housekeeping'),mt=onDuty(p,'maintenance'),sec=onDuty(p,'security'),fnb=onDuty(p,'fnb');
+  const dirty=p.rooms.filter(r=>r.status==='dirty').length;
+  const FY=376; // floor line
+  const el=[];let info=[],title='',sub='';
+  el.push(`<rect x="0" y="0" width="800" height="${FY}" fill="#f3f2ec"/>`);
+  el.push(`<rect x="0" y="${FY}" width="800" height="${400-FY}" fill="#eceade"/>`);
+  el.push(`<line x1="0" y1="${FY}" x2="800" y2="${FY}" stroke="#d8d6ca" stroke-width="1.6"/>`);
+
+  if(key==='lobby'){
+    title='CAM 01 — GROUND FLOOR LOBBY';
+    el.push(windowWall(120,44,760,252));
+    [140,700].forEach(x=>el.push(palm(x,250,1.05,'#cfccc0')));
+    el.push(pendant(300,96,'ball'));el.push(pendant(385,72,'ball'));el.push(pendant(470,112,'ball'));el.push(pendant(555,84,'ball'));el.push(pendant(640,102,'ball'));
+    el.push(plantBig(58,FY,1.15));
+    el.push(doorway(388,296,52,86)); // entrance behind
+    const deskN=Math.min(fd,3);
+    for(let i=0;i<deskN;i++)el.push(fig(170+i*72,FY-7,1.06,'desk'));
+    el.push(reception(118,FY,220));
+    const q=Math.max(0,arrDue+Math.round(depNow*.6)-deskN*2);
+    const ciQ=Math.min(4,arrDue+q+(arrSoon>0?1:0));
+    for(let i=0;i<ciQ;i++){el.push(fig(190+i*48,FY-2,1.16,i%2?'stand':'roll',{flip:true}));if(i%2)el.push(bag(206+i*48,FY-4,1));}
+    // seating right
+    el.push(sofa(560,FY-2,96));el.push(lowTable(568,FY-2,70));el.push(sofa(700,FY-2,64,'r'));
+    const lounging=clamp(Math.round(occ*(night?.06:h>=17?.28:.18)+(rainy?2:0)),0,5);
+    for(let i=0;i<Math.min(lounging,3);i++)el.push(fig(586+i*30,FY-16,1.05,'sit'));
+    for(let i=0;i<Math.max(0,lounging-3);i++)el.push(fig(500-i*32,FY-4,1.1,'pair'));
+    const walkers=clamp(Math.round(occ*.14)+(arrSoon?1:0),night?0:2,5);
+    for(let i=0;i<walkers;i++){const wx=250+R()*300;
+      el.push(i===0?`<g class="camDrift" style="--dd:${(7+R()*4).toFixed(1)}s">${fig(wx,FY-2,1.14,'roll')}</g>`:fig(wx,FY-2,1.14,i%2?'roll':'walk',{flip:R()<.5}));}
+    if(p.facilities.includes('parking')&&(arrDue>0||R()<.3)){el.push(fig(452,FY-4,1.1,'stand'));el.push(bag(474,FY-6,1.1));}
+    if(hk>0&&dirty>0&&!night){el.push(hkCart(468,FY-2,.92));el.push(fig(494,FY-4,1.08,'push'));}
+    if(sec>0)el.push(fig(64,FY-4,1.1,night?'walk':'stand',night?{walkDur:56}:{}));
+    const vis=deskN+ciQ+lounging+walkers+(sec>0?1:0);
+    info=[['Guests visible',vis],['Check-ins active',arrDue],['Check-outs active',depNow],['Waiting',q]];
+  }
+  else if(key.startsWith('floor:')){
+    const f=+key.split(':')[1];
+    title='CAM F'+f+' — FLOOR '+f+' CORRIDOR';
+    // corridor: doors + ceiling lights
+    for(let i=0;i<5;i++){el.push(doorway(64+i*150,FY,58,168,i%2===0));}
+    for(let i=0;i<4;i++)el.push(`<rect x="${120+i*160}" y="26" width="66" height="6" rx="3" fill="${MID2}"/>`);
+    el.push(plantBig(752,FY,.8));
+    const fRooms=p.rooms.filter(r=>r.floor===f),fOcc=fRooms.filter(r=>r.status==='occupied').length,fDirty=fRooms.filter(r=>r.status==='dirty').length;
+    const gWalk=clamp(Math.round(fOcc*(night?.06:.28)),0,3);
+    for(let i=0;i<gWalk;i++){const wx=100+R()*580;
+      el.push(i===0?`<g class="camDrift" style="--dd:${(8+R()*4).toFixed(1)}s">${fig(wx,FY-2,1.12,'walk')}</g>`:fig(wx,FY-2,1.12,i%2?'walk':'roll',{flip:R()<.5}));}
+    let hkHere=0;
+    if(hk>0&&fDirty>0){hkHere=Math.min(2,hk,fDirty);
+      el.push(hkCart(300,FY-2,1));el.push(fig(330,FY-4,1.12,'push'));
+      if(hkHere>1)el.push(fig(560,FY-4,1.12,'vac'));}
+    const mHere=(mt>0&&(p.maintBacklog||[]).some(m=>{const r=m.roomId&&p.rooms.find(x=>x.id===m.roomId);return r&&r.floor===f;}))?1:0;
+    if(mHere){el.push(fig(660,FY-4,1.1,'stand'));el.push(`<rect x="676" y="${FY-16}" width="10" height="14" rx="1.5" fill="${INK}"/>`);}
+    const sHere=(sec>0&&night)?1:0;if(sHere)el.push(fig(120+R()*500,FY-2,1.12,'walk',{flip:R()<.5}));
+    const waitLift=clamp(Math.round(fOcc*.1),0,2);
+    for(let i=0;i<waitLift;i++)el.push(fig(80+i*26,FY-4,1.08,'stand'));
+    info=[['Rooms occupied',fOcc+'/'+fRooms.length],['Housekeeping',hkHere],['Maintenance',mHere],['Patrol',sHere?'on floor':'—']];
+  }
+  else if(key==='fac:restaurant'||key==='fac:breakfast'){
+    const bk=key==='fac:breakfast';
+    title=bk?'CAM 12 — BREAKFAST HALL':'CAM 11 — RESTAURANT · ALL DAY DINING';
+    el.push(windowWall(90,44,770,236));
+    [130,745].forEach(x=>el.push(palm(x,234,.92,'#d3d1c5')));
+    [180,300,420,540,660].forEach((x,i)=>el.push(pendant(x,60+(i%2)*16,'cone')));
+    el.push(plantBig(48,FY,1));
+    const open=bk?(h>=6&&h<=11):(h>=7&&h<=23);
+    const mult=bk?((h>=7&&h<=10)?1:.25):(meal?1:.3);
+    const covers=open?clamp(Math.round(occ*(bk?.5:.38)*mult+R()*2),0,18):0;
+    let seated=0;
+    const tables=[[170,FY-2],[320,FY-2],[470,FY-2],[620,FY-2],[245,FY-40],[395,FY-40],[545,FY-40]];
+    tables.forEach(([tx,ty],ti)=>{
+      el.push(diningTable(tx,ty));
+      const at=Math.min(Math.max(0,covers-seated),2);
+      if(at>0)el.push(fig(tx-32,ty-2,ty<FY-20?.98:1.06,'sit',{flip:true}));
+      if(at>1)el.push(fig(tx+32,ty-2,ty<FY-20?.98:1.06,'sit'));
+      seated+=at;});
+    const waiters=open?Math.min(fnb,3):0;
+    for(let i=0;i<waiters;i++)el.push(i===0?fig(706,FY-4,1.1,'tray',{flip:true}):fig(240+R()*380,FY-2,1.08,'walk',{flip:R()<.5}));
+    if(open&&covers>seated)for(let i=0;i<Math.min(2,covers-seated);i++)el.push(fig(742-i*26,FY-4,1.06,'stand'));
+    const wait=Math.max(0,covers-seated-2);
+    info=[['Dine-in',seated],['Takeaway',open?Math.round(covers*.2):0],['Waiting',open?wait:0],['Kitchen',open?'open':'closed']];
+  }
+  else if(key==='fac:pool'){
+    title='CAM 21 — SWIMMING POOL';
+    el.push(skyline(80,720,120));
+    [90,690,760].forEach((x,i)=>el.push(palm(x,128,1.15-(i?0.1:0),'#d3d1c5')));
+    el.push(umbrella(560,FY-2,.95));el.push(umbrella(700,FY-2,.85));
+    [470,540,610,680].forEach((x,i)=>el.push(lounger(x,FY-2,i%2===1)));
+    el.push(`<path d="M60,${FY-56} L400,${FY-56} Q430,${FY-56} 430,${FY-26} L430,${FY-4} Q430,${FY} 420,${FY} L70,${FY} Q60,${FY} 60,${FY-10} Z" fill="#e3e8e5" stroke="#c4cac6" stroke-width="1.6"/>`);
+    for(let i=0;i<4;i++)el.push(`<path d="M${95+i*80},${FY-34+(i%2)*12} q12,-5 24,0 q12,5 24,0" stroke="#c4cac6" stroke-width="1.6" fill="none"/>`);
+    el.push(`<path d="M428,${FY-58} L428,${FY-22} M444,${FY-58} L444,${FY-22} M424,${FY-60} L448,${FY-60}" stroke="#b0aea2" stroke-width="3" fill="none"/>`);
+    const open=h>=6&&h<=21&&!rainy;
+    const swimN=open?clamp(Math.round(occ*((h>=7&&h<=10)||(h>=16&&h<=19)?.16:.07)),0,6):0;
+    for(let i=0;i<swimN;i++)el.push(fig(100+R()*300,FY-16-R()*30,1.05,'swim'));
+    const deckN=open?clamp(Math.round(swimN*.7+R()*2),0,4):0;
+    for(let i=0;i<deckN;i++)el.push(fig(485+i*70,FY-14,.94,'sit',{flip:i%2===1}));
+    const att=((p.staff.fnb||[]).length||(p.staff.security||[]).length)?1:0;
+    if(open&&att)el.push(fig(300,FY-4,1.08,'net'));
+    info=[['In use',swimN+deckN],['Capacity',Math.min(40,rooms*2)],['Pool staff',open?att:0],['Status',open?(rainy?'rain hold':'open'):'closed']];
+  }
+  else if(key==='fac:gym'){
+    title='CAM 22 — FITNESS CENTRE';
+    el.push(windowWall(430,60,770,240));
+    for(let i=0;i<3;i++)el.push(`<g transform="translate(${100+i*115},${FY})"><path d="M0,-4 L44,-4 L44,-30 L36,-30" stroke="${MID}" stroke-width="4" fill="none"/><rect x="0" y="-8" width="46" height="6" rx="3" fill="${INK}" opacity=".85"/></g>`);
+    el.push(`<rect x="520" y="${FY-10}" width="150" height="5" rx="2.5" fill="${MID}"/><circle cx="530" cy="${FY-7}" r="11" fill="${INK}"/><circle cx="660" cy="${FY-7}" r="11" fill="${INK}"/>`);
+    const bizShare=p.rooms.filter(r=>r.guest&&['business','corporate','premium','vip'].includes(r.guest.type)).length;
+    const open=h>=5&&h<=22;
+    const n=open?clamp(Math.round(bizShare*((h>=6&&h<=9)||(h>=17&&h<=20)?.5:.15)+R()),0,5):0;
+    for(let i=0;i<n;i++)el.push(fig(120+i*115,FY-8,1.04,i%3===0?'walk':'stand',{norefl:false}));
+    info=[['Training now',n],['In-house fit guests',bizShare],['Hours','05–22'],['Status',open?'open':'closed']];
+  }
+  else if(key==='fac:spa'){
+    title='CAM 23 — SPA & WELLNESS';
+    el.push(`<rect x="60" y="60" width="700" height="200" fill="#f2f0e8"/>`);
+    [130,690].forEach(x=>el.push(plantBig(x,FY,.95)));
+    [240,430,620].forEach(x=>el.push(pendant(x,54,'cone')));
+    for(let i=0;i<3;i++)el.push(`<g transform="translate(${210+i*180},${FY})"><rect x="-52" y="-22" width="104" height="9" rx="4.5" fill="${MID2}"/><rect x="-52" y="-13" width="104" height="13" rx="3" fill="${MID}"/></g>`);
+    const prem=p.rooms.filter(r=>r.guest&&['premium','vip','wedding'].includes(r.guest.type)).length;
+    const open=h>=9&&h<=20;
+    const n=open?clamp(Math.round(prem*.4+occ*.03+R()),0,3):0;
+    for(let i=0;i<n;i++)el.push(`<g transform="translate(${210+i*180},${FY-24})"><ellipse cx="0" cy="-3" rx="30" ry="6.5" fill="${INK}"/><circle cx="-36" cy="-6" r="5" fill="${INK}"/></g>`);
+    const th=open?Math.min(((p.staff.fnb||[]).length+(p.staff.housekeeping||[]).length)?2:0,n+1):0;
+    for(let i=0;i<th;i++)el.push(fig(260+i*180,FY-4,1.05,'stand'));
+    info=[['In treatment',n],['Therapists',th],['Premium in-house',prem],['Status',open?'open':'closed']];
+  }
+  else if(key==='fac:laundry'){
+    title='CAM 31 — LAUNDRY ROOM';
+    for(let i=0;i<5;i++)el.push(`<g transform="translate(${556+i*47},${FY})"><rect x="0" y="-88" width="42" height="88" rx="2" fill="#f0eee6" stroke="${LINE}" stroke-width="1.4"/><circle cx="21" cy="-48" r="14" fill="#fff" stroke="#c9c7bc" stroke-width="2"/><circle cx="21" cy="-48" r="8.5" fill="#e6e4da"/><rect x="6" y="-82" width="12" height="4" rx="2" fill="${MID}"/></g>`);
+    el.push(`<rect x="60" y="${FY-46}" width="120" height="46" rx="2" fill="${MID2}"/><rect x="60" y="${FY-50}" width="120" height="6" rx="3" fill="#fff" stroke="${LINE}" stroke-width="1"/>`);
+    const loads=clamp(Math.round(occ*.35+dirty*.4),0,20);
+    const staffN=Math.min(hk+((p.staff.fnb||[]).length?1:0),3);
+    const busy=loads>8;
+    for(let i=0;i<Math.min(staffN,3);i++){el.push(hkCart(240+i*110,FY-2,.95));el.push(fig(270+i*110,FY-4,1.08,busy?'push':'stand'));}
+    info=[['Loads today',loads],['Staff working',staffN],['Backlog',busy?'heavy':'normal'],['Linen state',dirty>rooms*.3?'stretched':'ok']];
+  }
+  else if(key==='fac:traveldesk'){
+    title='CAM 41 — TRAVEL DESK';
+    el.push(windowWall(300,44,770,250));
+    el.push(palm(740,248,1,'#cfccc0'));
+    el.push(plantBig(56,FY,1.05));
+    el.push(`<g transform="translate(96,116)"><rect x="0" y="0" width="86" height="56" rx="3" fill="${INK}"/><path d="M14,36 L34,20 L46,30 L66,12" stroke="#fff" stroke-width="2.4" fill="none"/><path d="M60,10 L70,10 L70,18" stroke="#fff" stroke-width="2.4" fill="none"/></g>`);
+    const open=h>=8&&h<=20;
+    if(open)el.push(fig(196,FY-7,1.04,'desk'));
+    el.push(reception(120,FY,160));
+    const tour=(p.city&&p.city.tour)||.3;
+    const vis=open?clamp(Math.round(occ*tour*.35+(h>=9&&h<=13?2:0)+R()*2),0,7):0;
+    for(let i=0;i<Math.min(vis,3);i++){el.push(fig(330+i*40,FY-4,1.12,i===0?'pair':'stand',{flip:true}));if(i===0)el.push(bag(300,FY-6,1));}
+    el.push(sofa(560,FY-2,86));
+    for(let i=0;i<Math.max(0,Math.min(vis-3,2));i++)el.push(fig(584+i*34,FY-16,1.02,'sit'));
+    const bookings=clamp(Math.round(occ*tour*.5),0,20);
+    info=[['Enquiries',vis],['Bookings today',bookings],['Queue',Math.max(0,vis-2)],['Status',open?'open':'closed']];
+  }
+  else if(key==='fac:parking'){
+    title='CAM 51 — PARKING & VALET';
+    el.push(`<rect x="0" y="0" width="800" height="${FY}" fill="#efede4"/>`);
+    for(let i=0;i<4;i++)el.push(`<rect x="${95+i*180}" y="120" width="17" height="${FY-120}" fill="${MID2}"/><rect x="${95+i*180}" y="120" width="17" height="8" fill="${MID}"/>`);
+    el.push(`<rect x="60" y="60" width="680" height="8" rx="4" fill="${MID2}"/>`);
+    for(let i=0;i<6;i++)el.push(`<line x1="${55+i*126}" y1="${FY}" x2="${84+i*126}" y2="${FY-64}" stroke="#cfcdc1" stroke-width="2"/>`);
+    const veh=clamp(Math.round(occ*.35),0,12);
+    const car=(x,y,s)=>`<g transform="translate(${x},${y}) scale(${s})"><path d="M-32,0 L-29,-10 Q-17,-18 -5,-18 L13,-17 Q26,-14 32,-7 L32,0 Z" fill="${INK}"/><circle cx="-18" cy="0" r="5.4" fill="${INK}"/><circle cx="18" cy="0" r="5.4" fill="${INK}"/><circle cx="-18" cy="0" r="2.2" fill="#efede4"/><circle cx="18" cy="0" r="2.2" fill="#efede4"/></g>`;
+    for(let i=0;i<Math.min(veh,6);i++)el.push(car(112+i*122,FY-6,1));
+    const moving=arrDue>0||depNow>0;
+    if(moving)el.push(`<g class="camWalk" style="--dur:24s">${car(-90,FY-2,1.05)}</g>`);
+    const valet=p.facilities.includes('parking')&&(fd+fnb)>0?1:0;
+    if(valet)el.push(fig(400,FY-4,1.1,moving?'walk':'stand'));
+    if(sec>0&&night)el.push(fig(150+R()*420,FY-2,1.1,'walk',{flip:R()<.5}));
+    info=[['Vehicles parked',veh],['Arrivals moving',arrDue],['Valet',valet?'on post':'—'],['Patrol',sec>0&&night?'active':'—']];
+  }
+  else if(key==='fac:conf'||key==='fac:banquet'){
+    const bq=key==='fac:banquet';
+    title=bq?'CAM 61 — BANQUET HALL':'CAM 62 — CONFERENCE HALL';
+    el.push(windowWall(520,60,770,240));
+    [200,360].forEach(x=>el.push(pendant(x,52,'cone')));
+    const wd=G.dow>=1&&G.dow<=5;
+    const busy=bq?(h>=18&&h<=23&&R()<.5):(wd&&h>=9&&h<=17);
+    const corp=p.rooms.filter(r=>r.guest&&['corporate','business'].includes(r.guest.type)).length;
+    const n=busy?clamp(Math.round(corp*(bq?1.6:.9)+(bq?5:4)+R()*3),0,bq?12:10):0;
+    let placed=0;
+    if(bq){
+      [[190,FY-2],[380,FY-2],[570,FY-2],[285,FY-42],[475,FY-42]].forEach(([tx,ty])=>{el.push(diningTable(tx,ty));
+        const at=Math.min(Math.max(0,n-placed),2);
+        if(at>0)el.push(fig(tx-32,ty-2,1.02,'sit',{flip:true}));
+        if(at>1)el.push(fig(tx+32,ty-2,1.02,'sit'));placed+=at;});
+    }else{
+      el.push(`<rect x="96" y="${FY-64}" width="560" height="7" rx="3.5" fill="${MID}"/>`);
+      for(let c=0;c<8&&placed<n;c++){if(R()<.8){el.push(fig(130+c*70,FY-4,1.02,'sit',{flip:c%2===0}));placed++;}}
+      el.push(`<rect x="700" y="${FY-120}" width="56" height="80" rx="2" fill="#fff" stroke="${LINE}" stroke-width="1.6"/>`);
+    }
+    if(busy)el.push(fig(720,FY-4,1.08,'stand'));
+    info=[[bq?'Event guests':'Attendees',placed],['Corporate in-house',corp],['Booked',busy?'in session':'—'],['Setup',bq?'rounds':'boardroom']];
+  }
+  else if(key==='fac:lounge'){
+    title='CAM 71 — EXECUTIVE LOUNGE';
+    el.push(windowWall(90,44,540,240));
+    el.push(palm(120,238,.9,'#d3d1c5'));
+    [200,330,460].forEach(x=>el.push(pendant(x,58,'ball')));
+
+    el.push(sofa(120,FY-2,96));el.push(lowTable(128,FY-2,70));el.push(sofa(300,FY-2,96));
+    const elig=p.rooms.filter(r=>r.guest&&['vip','premium','corporate','business'].includes(r.guest.type)).length;
+    const open=h>=6&&h<=23;
+    const n=open?clamp(Math.round(elig*((h>=17&&h<=21)?.5:.2)+R()),0,6):0;
+    for(let i=0;i<Math.min(n,4);i++)el.push(fig((i<2?146:326)+(i%2)*44,FY-16,1.02,'sit',{flip:i%2===1}));
+    for(let i=0;i<Math.max(0,n-4);i++)el.push(fig(480+i*36,FY-4,1.06,'pair'));
+    const host=open&&fnb>0?1:0;if(host)el.push(fig(660,FY-7,1,'desk'));
+    el.push(reception(592,FY,168));
+    info=[['In the lounge',n],['Eligible guests',elig],['Host',host?'on duty':'—'],['Peak','17–21']];
+  }
+  else{title='CAM — '+key;info=[['Signal','—']];}
+  return {title,sub,el:el.join(''),info};
+};
+
+/* frame chrome: lighter glass, thinner border */
+camFrame=function(p,key,big){
+  ensureCams(p);
+  const sc=camScene(p,key);
+  const hh=String(G.hour).padStart(2,'0');
+  const wIc=/rain/i.test(G.weather||'')?'RAIN':/heat/i.test(G.weather||'')?'HEAT':/cold|fog/i.test(G.weather||'')?'FOG':'CLR';
+  return `<div class="camfeed ${big?'cambig':''}">
+    <div class="camhead"><span class="camlive"><i></i>LIVE</span><span class="camtitle">${sc.title}</span><span class="camtime">DAY ${G.day} · ${hh}:00 · ${wIc}</span></div>
+    <div class="camview"><svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMax slice">
+      ${sc.el}
+      <rect x="0" y="0" width="800" height="400" fill="none" stroke="#e0ded3" stroke-width="1.5"/>
+    </svg></div>
+    <div class="caminfo">${sc.info.map(([k,v])=>`<span><b>${v}</b> ${k}</span>`).join('')}</div>
+  </div>`;
+};
+}catch(e){}})();
 
 renderWiz();
 </script>
