@@ -315,3 +315,44 @@ The game is de-localised from India-only into a three-region simulator (India ·
 **Verified** (45–60-day probes per country, headless): India ₹ / GST / Mumbai / 56% margin — **identical to the single-country build**; USA $ / 15% tax / New York / std rate ~$288, housekeeper ~$2,000/mo, build ~$59k, start ~$494k / 46% margin (realistically tighter on higher labour); Europe € / 10% VAT / Paris / ~€327 rate / 53% margin. Guest names, competitor brands, hotel names and taxes all localise; zero ₹ leaks in the USA/Europe UI; all Phase-11 systems (corporate, awards, roster gates) and the full regression stay green in every region.
 
 **Brand** — "Aatithya / आ" retired for the generic international mark **Grand Stay** across title, topbar, wizard and landing plate.
+
+---
+
+## 15. International build — full QA pass (`v22` follow-up, this branch)
+
+A 100% sweep of the international build: every tab (28), every department page, and the room/KPI modals rendered headless in all three countries and scanned for wrong-currency output, `NaN`/`undefined`/`Infinity`, and render exceptions; every formula with an absolute money constant audited for country-scaling; every `type="number"` money input audited for internal-vs-local units.
+
+### Fixed — currency display leaks (visible in USA/Europe)
+| Where | Was | Now |
+|---|---|---|
+| Pricing table header | `Your Rate (₹)` | `Your Rate ($/€/₹)` |
+| Roster analytics column | `Labour ₹/day` | active symbol |
+| Staff — auto-train budget row | `₹` prefix | active symbol |
+| Utilities — per-occupied-room benchmark | `~₹450–900` hard-coded | converted via `cr0()` (`~$13–$26`, `~€15–€30`) |
+| Policies — early/late fee & EV price labels | `(₹, …)` | active symbol |
+| F&B free-breakfast note | `revenue is ₹0` | active symbol |
+| Sidebar Pricing icon | `₹` glyph | neutral 💰 (icon is CSS-hidden anyway) |
+
+### Fixed — money inputs now read/write local currency
+Previously these inputs displayed the raw internal (India-base) number while surrounding text showed converted currency — in the USA the standard rate input read "9000" beside a "$265" market reference. All now display local currency and convert back on change (`÷ LOC.k` on render, `× LOC.k` on commit):
+- **Room rate inputs** (Pricing) + Apply Rates handler
+- **Policy fees** — early check-in, late checkout, EV charging (`polNum` gained a money mode)
+- **Monthly auto-train budget** (step localised too: 200 in $/€, 5000 in ₹)
+- **Investor raise amount** (min/step/default localised)
+- **Loyalty redemption value** kept as an abstract per-point number (points are internal-scale), but the misleading ₹ prefix was replaced with an honest conversion hint: "1,000 pts ≈ $12".
+
+### Fixed — formulas that ignored country cost levels
+- **`assetValue()` / `chainAssets()`** used flat ₹13.5L/room + ₹23L/facility — a US hotel was valued at ~35% of its build cost (asset-to-build ratio 1.0 vs India's 2.79), understating loan capacity, IPO valuation and net worth. Now scaled by country `capex`; ratio is a uniform 2.79 everywhere and borrowing capacity for the same 14-room hotel is ₹1.26 Cr / $1.04M / €1.10M as expected.
+- **Floor construction** (`2500000 + floors×800000`) — unscaled while room builds were 2.8× dearer; now × `capex` (all four call sites, CapEx plan included).
+- **New-hotel setup cost** (₹1.5 Cr flat, with a hard-coded ₹ toast) — now × `capex` ($1.24M / €1.14M) with a converted toast.
+- **Quick loan / investor buttons** (₹20L/₹50L/₹1.5Cr/₹1Cr flat) — now × `capex` so financing options stay proportionate to build costs.
+- **Housekeeping KPI target** (₹350/occupied room, India-calibrated) — housekeeping payroll is wage-scaled (×3.2 US, ×3.0 EU) so the KPI failed structurally abroad. Target now scales with the housekeeping salary ratio (≈$33/€35), matching how the metric's numerator scales. GAC/maintenance/utility targets are *not* wage-scaled internally, so their India-calibrated targets remain fair and were left alone.
+
+### Fixed — content bug (all countries)
+- **Staff tab printed `undefined`** for the Procurement Manager hire card: `roleIcon()` predates the v17 procurement role. Added its icon (📦) plus a safe fallback.
+
+### Verified clean after fixes
+- Sweep: **0 issues** across 28 tabs × 3 countries + department pages + modals; no page errors.
+- Money-input round-trips: typing $275 stores 9,350 internal; fee/train/investor inputs round-trip exactly (k=1 and k=34 both tested).
+- KPI probe: HK cost/occupied-room passes in all three countries with honest effort; GOPPAR intentionally remains tougher in the US (real labour-cost structure).
+- Full regression (`intl`, `leakcheck`, `smoke4`, `smoke5`): India economy byte-identical behaviour (₹6,900 std rate, 60% margin), deposits ledger exact, Phase-11 systems green.

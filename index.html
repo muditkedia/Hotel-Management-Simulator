@@ -264,7 +264,7 @@ label.fl{display:block;font-size:11px;color:var(--mut);margin:10px 0 4px;font-we
     <div class="nav on" data-tab="overview"><span class="ic">▣</span>Overview</div>
     <div class="nav" data-tab="rooms"><span class="ic">▦</span>Rooms</div>
     <div class="nav" data-tab="guests"><span class="ic">☺</span>Front Desk<span class="badge" id="bgGuests" style="display:none"></span></div>
-    <div class="nav" data-tab="pricing"><span class="ic">₹</span>Pricing</div>
+    <div class="nav" data-tab="pricing"><span class="ic">💰</span>Pricing</div>
     <div class="nav" data-tab="policies"><span class="ic">⚙</span>Policies</div>
     <div class="nav" data-tab="staff"><span class="ic">⚇</span>Staff</div>
     <div class="nav" data-tab="facilities"><span class="ic">◈</span>Facilities</div>
@@ -833,12 +833,12 @@ function guestMixTags(p){
 function tabPricing(p){
   return `<div class="page-head"><div><h2>Pricing & Policy</h2><div class="desc">Set nightly rates per category. Market reference adjusts with season & locality.</div></div></div>
   <div class="notice">Season index <b>${G.seasonNow.toFixed(2)}</b> · City ${p.city.name} (price sensitivity ${(p.city.sens).toFixed(2)}) · Locality rate ceiling ×${p.loc.rate}. Pricing far above the market reference reduces occupancy; far below shrinks margin and brand positioning.</div>
-  <div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Your Rate (₹)</th><th>Market Ref</th><th>Position</th><th>Demand Pull</th><th>Rooms</th></tr></thead><tbody>
+  <div class="tbl-wrap"><table><thead><tr><th>Category</th><th>Your Rate (${LOC.sym})</th><th>Market Ref</th><th>Position</th><th>Demand Pull</th><th>Rooms</th></tr></thead><tbody>
     ${RT_ORDER.filter(rt=>p.rooms.some(r=>r.type===rt)).map(rt=>{
       const mkt=marketRate(p,rt), pcomp=priceComp(p,rt);
       const posn=p.prices[rt]/mkt;
       return `<tr><td class="b">${ROOMTYPES[rt].name}</td>
-        <td><input type="number" style="width:110px" value="${p.prices[rt]}" data-rt="${rt}" class="priceIn"></td>
+        <td><input type="number" style="width:110px" value="${Math.round(p.prices[rt]/LOC.k)}" data-rt="${rt}" class="priceIn"></td>
         <td>${cr0(mkt)}</td>
         <td>${posn>1.12?'<span class="pill red">premium</span>':posn<.9?'<span class="pill blue">value</span>':'<span class="pill green">market</span>'}</td>
         <td>${barInline(pcomp/1.5*100, pcomp>1?'#46c06a':pcomp>.7?'#e6b450':'#ef6a6a')}</td>
@@ -883,7 +883,7 @@ function tabStaff(p){
     </div>
   </div>`;
 }
-function roleIcon(r){return {frontdesk:'🛎️',housekeeping:'🧹',maintenance:'🔧',manager:'👔',security:'🛡️',fnb:'🍽️'}[r];}
+function roleIcon(r){return {frontdesk:'🛎️',housekeeping:'🧹',maintenance:'🔧',manager:'👔',security:'🛡️',fnb:'🍽️',procurement:'📦'}[r]||'👤';}
 window.hireStaff=(role,tier)=>{const p=P();const s=mkStaff(role,tier);if(G.cash<s.sal){toast('Need at least one month salary in cash.','neg');return;}if(!p.staff[role])p.staff[role]=[];p.staff[role].push(s);toast('Hired '+s.name+' as '+ROLES[role].name+'.');renderAll();};
 window.fireStaff=id=>{const p=P();for(const role in p.staff){const i=p.staff[role].findIndex(s=>s.id===id);if(i>=0){const s=p.staff[role][i];p.staff[role].splice(i,1);toast('Dismissed '+s.name+'.','warn');break;}}renderAll();};
 
@@ -909,7 +909,7 @@ window.buildRoom=rt=>{const p=P();const qi=+($('#q_'+rt)?.value||0);const q=QUAL
   if(G.cash<cost){toast('Not enough cash.','neg');return;}
   let floor=1;for(let f=1;f<=p.floors;f++){if(p.rooms.filter(r=>r.floor===f).length<p.capPerFloor){floor=f;break;}}
   G.cash-=cost;p.expToday+=cost;p.rooms.push(makeRoom(p,rt,floor,q));toast(ROOMTYPES[rt].name+' room built on floor '+floor+'.');renderAll();};
-window.addFloor=()=>{const p=P();const cost=2500000+p.floors*800000;if(G.cash<cost){toast('Not enough cash for a new floor.','neg');return;}G.cash-=cost;p.expToday+=cost;p.floors++;toast('Floor '+p.floors+' added (+'+p.capPerFloor+' room capacity).');renderAll();};
+window.addFloor=()=>{const p=P();const cost=Math.round((2500000+p.floors*800000)*(activeCountry().capex||1));if(G.cash<cost){toast('Not enough cash for a new floor.','neg');return;}G.cash-=cost;p.expToday+=cost;p.floors++;toast('Floor '+p.floors+' added (+'+p.capPerFloor+' room capacity).');renderAll();};
 window.switchProp=i=>{G.active=i;scheduleDay();toast('Now managing '+G.properties[i].name+'.');renderAll();};
 
 /* [flattened v18] dead ancestor of openNewHotel() removed — the last declaration wins by hoisting */
@@ -919,7 +919,7 @@ window.openNewHotel=openNewHotel;
 function wireTab(){
   if(G.tab==='pricing'){
     $('#applyPrices')&&($('#applyPrices').onclick=()=>{
-      $$('.priceIn').forEach(inp=>{P().prices[inp.dataset.rt]=Math.max(100,+inp.value||100);});
+      $$('.priceIn').forEach(inp=>{P().prices[inp.dataset.rt]=Math.max(100,Math.round((+inp.value||0)*LOC.k)||100);});
       toast('Rates applied.'); renderAll();
     });
     $('#autoPrice')&&($('#autoPrice').onclick=()=>{
@@ -1172,7 +1172,7 @@ function bookingConfidenceDrift(prop){
 
 /* ---------------- TAB: POLICIES ---------------- */
 function polSel(label,key,opts,p){return `<label class="fl">${label}</label><select onchange="setPolicyR('${key}',this.value)">${opts.map(o=>`<option value="${o[0]}" ${p.policies[key]===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`;}
-function polNum(label,key,p){return `<label class="fl">${label}</label><input type="number" value="${p.policies[key]}" onchange="setPolicy('${key}',+this.value)">`;}
+function polNum(label,key,p,m){const v=m?Math.round((p.policies[key]||0)/LOC.k):p.policies[key];return `<label class="fl">${label}</label><input type="number" value="${v}" onchange="setPolicy('${key}',${m?"Math.round((+this.value||0)*LOC.k)":"+this.value"})">`;}
 function polTog(label,key,p){return `<div class="toggle"><span>${label}</span><div class="sw ${p.policies[key]?'on':''}" onclick="togglePolicy('${key}',this)"><i></i></div></div>`;}
 /* [flattened v18] dead ancestor of tabPolicies() removed — the last declaration wins by hoisting */
 window.setPolicy=(k,v)=>{P().policies[k]=v;};
@@ -1346,20 +1346,20 @@ window.buyFac=f=>{const p=P(),fc=FACILITIES[f];let cost=fc.build;if(G.facDiscoun
 
 /* ---------------- OPEN NEW HOTEL (override: augment new prop) ---------------- */
 function openNewHotel(){
-  if(G.cash<15000000){toast('You need at least ₹1.5 Cr to open a new hotel.','neg');return;}
+  const _nhc=Math.round(15000000*(activeCountry().capex||1));if(G.cash<_nhc){toast('You need at least '+cr(_nhc)+' to open a new hotel.','neg');return;}
   const box=$('#mbox');
   box.innerHTML=`<div class="mhead"><div class="mic" style="background:#1c2740">🏨</div><div><h3>Open a New Hotel</h3><div class="ms">Select a city & locality for your next property</div></div></div>
   <div class="mbody">
     <label class="fl">City</label><select id="ncity">${CITIES.map((c,i)=>`<option value="${i}">${c.name} · Tier ${c.tier}</option>`).join('')}</select>
     <label class="fl">Locality</label><select id="nloc">${LOCALITIES.map((l,i)=>`<option value="${i}">${l.name}</option>`).join('')}</select>
     <label class="fl">Hotel name</label><input type="text" id="nname" placeholder="e.g. Grand Residency">
-    <div class="notice" style="margin-top:12px">Setup cost: <b>${cr(15000000)}</b> — 5 starter rooms & basic staff. Runs on the same live engine; switch anytime.</div>
-    <button class="btn primary" id="confirmNew" style="width:100%;margin-top:6px">Open Hotel — ${cr(15000000)}</button>
+    <div class="notice" style="margin-top:12px">Setup cost: <b>${cr(_nhc)}</b> — 5 starter rooms & basic staff. Runs on the same live engine; switch anytime.</div>
+    <button class="btn primary" id="confirmNew" style="width:100%;margin-top:6px">Open Hotel — ${cr(_nhc)}</button>
   </div>`;
   $('#modal').style.display='flex';
   $('#confirmNew').onclick=()=>{
     const ci=+$('#ncity').value,li=+$('#nloc').value,city=CITIES[ci],loc=LOCALITIES[li];
-    G.cash-=15000000;
+    G.cash-=_nhc;
     const prop={name:$('#nname').value||('Grand '+city.name),city,loc,floors:1,capPerFloor:10,
       rooms:[],staff:{},facilities:[],prices:{},rating:0,reviews:[],reputation:40,
       policies:Object.assign({},P().policies),incidents:0,lifetimeGuests:0,lifetimeRev:0,revToday:0,revYest:0,expToday:0,expYest:0};
@@ -1569,9 +1569,9 @@ function tabPolicies(p){
       ${polNum('Check-out time (hour, 0–23)','checkoutTime',p)}
       <div class="muted sm" style="margin-top:4px">Shifts the arrival curve, housekeeping turnaround and room readiness. Later check-in = later arrival waves.</div>
       ${polTog('Allow early check-in','earlyCI',p)}
-      ${P0.earlyCI?polNum('Early check-in fee (₹, 0 = complimentary)','earlyFee',p):''}
+      ${P0.earlyCI?polNum('Early check-in fee ('+LOC.sym+', 0 = complimentary)','earlyFee',p,1):''}
       ${polTog('Allow late checkout','lateCO',p)}
-      ${P0.lateCO?polNum('Late checkout fee (₹, 0 = complimentary)','lateFee',p):''}
+      ${P0.lateCO?polNum('Late checkout fee ('+LOC.sym+', 0 = complimentary)','lateFee',p,1):''}
     </div>
     <div class="card"><h3>Bookings & Stay</h3>
       ${polNum('Minimum stay (nights)','minStay',p)}
@@ -1587,7 +1587,7 @@ function tabPolicies(p){
     </div>
     <div class="card"><h3>Parking & EV</h3>
       ${p.parking.spaces>0?polSel('Parking policy','parking',[['complimentary','Complimentary'],['paid','Paid']],p):'<label class="fl">Parking policy</label><select disabled style="opacity:.5"><option>Build parking first</option></select>'+lockNote('Parking')}
-      ${p.parking.ev>0?polNum('EV charging price (₹/unit)','evPrice',p):lockNote('EV Charging')}
+      ${p.parking.ev>0?polNum('EV charging price ('+LOC.sym+'/unit)','evPrice',p,1):lockNote('EV Charging')}
       <div class="muted sm" style="margin-top:4px">Spaces ${p.parking.occupied}/${p.parking.spaces} · EV ${p.parking.evOccupied}/${p.parking.ev}.</div>
     </div>
     <div class="card"><h3>Food, Laundry & Room Service</h3>
@@ -1674,7 +1674,7 @@ window.buildRoom=rt=>{const p=P();const el=document.getElementById('q_'+rt);cons
   if(G.cash<cost){toast('Not enough cash.','neg');return;}
   let floor=1;for(let f=1;f<=p.floors;f++){if(p.rooms.filter(r=>r.floor===f).length<p.capPerFloor){floor=f;break;}}
   G.cash-=cost;p.expToday+=cost;p.rooms.push(makeRoom(p,rt,floor,q));logEvent(p,'expansion',ROOMTYPES[rt].name+' room built on floor '+floor+'.');logDecision('Build '+ROOMTYPES[rt].name+' room',cost,'Add sellable inventory','+1 room','More revenue capacity',['occupancy','revenue']);toast(ROOMTYPES[rt].name+' room built on floor '+floor+'.');renderAll();};
-window.addFloor=()=>{const p=P();const cost=2500000+p.floors*800000;if(G.cash<cost){toast('Not enough cash for a new floor.','neg');return;}G.cash-=cost;p.expToday+=cost;p.floors++;logEvent(p,'expansion','Floor '+p.floors+' added.');logDecision('Add floor',cost,'Raise build capacity','+'+p.capPerFloor+' capacity','Room to grow',['expansion']);toast('Floor '+p.floors+' added.');renderAll();};
+window.addFloor=()=>{const p=P();const cost=Math.round((2500000+p.floors*800000)*(activeCountry().capex||1));if(G.cash<cost){toast('Not enough cash for a new floor.','neg');return;}G.cash-=cost;p.expToday+=cost;p.floors++;logEvent(p,'expansion','Floor '+p.floors+' added.');logDecision('Add floor',cost,'Raise build capacity','+'+p.capPerFloor+' capacity','Room to grow',['expansion']);toast('Floor '+p.floors+' added.');renderAll();};
 window.buyFac=f=>{const p=P(),fc=FACILITIES[f];let cost=fc.build;if(G.facDiscount)cost=Math.round(cost*(1-G.facDiscount));
   if(G.cash<cost){toast('Not enough cash to build '+fc.name+'.','neg');return;}
   G.cash-=cost;p.expToday+=cost;p.facilities.push(f);
@@ -2045,7 +2045,7 @@ function materializeProject(prop,pr){
 window.buildRoom=rt=>{const p=P();const el=document.getElementById('q_'+rt);const qi=+((el&&el.value)||0);
   if(p.rooms.filter(r=>r.floor<=p.floors).length+p.projects.filter(x=>x.kind==='room').length>=p.floors*p.capPerFloor){toast('No floor capacity — add a floor first.','warn');return;}
   enqueueProject(p,'room',{rt,qi},ri(3,5),ROOMTYPES[rt].build+QUALITY[qi].cost,ROOMTYPES[rt].name+' room');};
-window.addFloor=()=>{const p=P();enqueueProject(p,'floor',{},ri(12,18),2500000+p.floors*800000,'New floor');};
+window.addFloor=()=>{const p=P();enqueueProject(p,'floor',{},ri(12,18),Math.round((2500000+p.floors*800000)*(activeCountry().capex||1)),'New floor');};
 window.buyFac=f=>{const p=P();if(p.facilities.includes(f)||p.projects.some(x=>x.kind==='facility'&&x.spec.f===f)){toast('Already built or in progress.');return;}let cost=FACILITIES[f].build;if(G.facDiscount){cost=Math.round(cost*(1-G.facDiscount));}const ok=enqueueProject(p,'facility',{f},clamp(Math.round(FACILITIES[f].build/300000)+4,5,12),cost,FACILITIES[f].name);if(ok&&G.facDiscount)G.facDiscount=0;};
 window.buildParking=n=>{const p=P();enqueueProject(p,'parking',{n},ri(2,3),n*45000,n+' parking spaces');};
 window.buildEVbays=n=>{const p=P();enqueueProject(p,'ev',{n},ri(2,3),n*70000,n+' EV charging bays');};
@@ -2071,7 +2071,7 @@ function processMarketing(prop){
 }
 
 /* ---------------- FINANCING ---------------- */
-function assetValue(){const p=P();return p.rooms.length*1350000+p.facilities.length*2300000;} // aligned with chainAssets() — one valuation basis (validation audit)
+function assetValue(){const p=P();return Math.round((p.rooms.length*1350000+p.facilities.length*2300000)*(activeCountry().capex||1));} // aligned with chainAssets() — one valuation basis (validation audit)
 function totalDebt(){return G.loans.reduce((s,l)=>s+l.balance,0);}
 function creditRating(){const debt=totalDebt(),base=assetValue()+G.cash;const dr=debt/Math.max(1,base);if(dr<.1)return 'AAA';if(dr<.25)return 'AA';if(dr<.4)return 'A';if(dr<.55)return 'BBB';if(dr<.7)return 'BB';return 'B';}
 function maxLoan(){return Math.max(0,Math.round(assetValue()*.6-totalDebt()));}
@@ -2254,7 +2254,7 @@ function tabExpand(p){
       <div class="shopitem"><div class="si-ic">🅿️</div><div class="si-b"><div class="si-t">Parking Spaces</div><div class="si-d">Now ${p.parking.spaces} · ${cr0(45000)}/space</div></div><div class="wrapf"><button class="btn" onclick="buildParking(1)">+1</button><button class="btn" onclick="buildParking(5)">+5</button></div></div>
       <div class="shopitem"><div class="si-ic">🔌</div><div class="si-b"><div class="si-t">EV Charging Bays</div><div class="si-d">Now ${p.parking.ev} · ${cr0(70000)}/bay</div></div><div class="wrapf"><button class="btn" onclick="buildEVbays(1)">+1</button><button class="btn" onclick="buildEVbays(5)">+5</button></div></div>
       <div class="shopitem"><div class="si-ic">🧳</div><div class="si-b"><div class="si-t">Valet Service ${p.parking.valet?'<span class="pill green">active</span>':''}</div><div class="si-d">${cr(250000)} one-time</div></div><button class="btn" ${p.parking.valet?'disabled':''} onclick="enableValet()">Enable</button></div>
-      <div class="shopitem"><div class="si-ic">🏨</div><div class="si-b"><div class="si-t">Open a New Hotel</div><div class="si-d">New city property · from ${cr(15000000)}</div></div><button class="btn primary" style="padding:7px 13px" onclick="openNewHotel()">Expand</button></div>
+      <div class="shopitem"><div class="si-ic">🏨</div><div class="si-b"><div class="si-t">Open a New Hotel</div><div class="si-d">New city property · from ${cr(Math.round(15000000*(activeCountry().capex||1)))}</div></div><button class="btn primary" style="padding:7px 13px" onclick="openNewHotel()">Expand</button></div>
       <div class="notice" style="margin-top:10px">Portfolio: <b>${G.properties.length}</b> ${G.properties.length>1?'hotels':'hotel'}.${G.properties.length>1?' Manage the chain from Headquarters.':''}</div>
       ${G.properties.length>1?`<div class="wrapf">${G.properties.map((pp,i)=>`<button class="tag ${i===G.active?'on':''}" onclick="switchProp(${i})">${pp.name}</button>`).join('')}</div>`:''}
     </div>
@@ -2285,10 +2285,8 @@ function tabFinance(p){
     <div class="card"><h3>Financing</h3>
       <div class="muted sm" style="margin-bottom:6px">Credit rating <b>${creditRating()}</b> · borrowing capacity <b>${cr(maxLoan())}</b></div>
       <div class="wrapf" style="margin-bottom:8px">
-        <button class="btn" onclick="takeLoan(2000000,24)">Loan ${cr(2000000)} / 24mo</button>
-        <button class="btn" onclick="takeLoan(5000000,36)">Loan ${cr(5000000)} / 36mo</button>
-        <button class="btn" onclick="takeLoan(15000000,60)">Loan ${cr(15000000)} / 60mo</button>
-        <button class="btn" onclick="investorRaise(10000000)">Investor ${cr(10000000)}</button>
+        ${[[2000000,24],[5000000,36],[15000000,60]].map(([a,mo])=>{const A=Math.round(a*(activeCountry().capex||1));return `<button class="btn" onclick="takeLoan(${A},${mo})">Loan ${cr(A)} / ${mo}mo</button>`;}).join('')}
+        <button class="btn" onclick="investorRaise(${Math.round(10000000*(activeCountry().capex||1))})">Investor ${cr(Math.round(10000000*(activeCountry().capex||1)))}</button>
       </div>
       ${G.loans.length?G.loans.map(l=>`<div class="row"><span class="lab">Loan ${cr0(l.principal)} @ ${(l.annual*100).toFixed(1)}%</span><span class="val">EMI ${cr0(l.emi)} · ${l.termLeft}mo · bal ${cr0(l.balance)}</span></div>`).join(''):'<div class="muted sm">No active loans.</div>'}
       ${G.investorShare>0?`<div class="row"><span class="lab">Investor profit share</span><span class="val">${Math.round(G.investorShare*100)}%</span></div>`:''}
@@ -3245,7 +3243,7 @@ function tabFacility(p,key){
      ${st.service!=='comp'?`<div class="row"><span class="lab">Pricing strategy</span><span class="val">${['budget','standard','premium'].map(x=>`<button class="tag ${st.pricing===x?'on':''}" ${dis} onclick="deptPricing('${key}','${x}')">${x[0].toUpperCase()+x.slice(1)}</button>`).join(' ')}</span></div>
      <div class="row"><span class="lab">Auto-calculated price</span><span class="val gold">${cr(price)} / use</span></div>
      <div class="muted sm">Priced automatically from city, locality, hotel class & positioning — you set the strategy, the system sets the rate.</div>`
-     :'<div class="muted sm">Offered free: revenue is ₹0, the operating cost is still incurred, and guest satisfaction rises.</div>'}
+     :'<div class="muted sm">Offered free: revenue is '+LOC.sym+'0, the operating cost is still incurred, and guest satisfaction rises.</div>'}
      ${d.strat?`<div class="row" style="margin-top:8px;border-top:1px solid var(--line2);padding-top:8px"><span class="lab">Restaurant focus</span><span class="val">${[['guest','Hotel Guests'],['balanced','Balanced'],['external','External']].map(o=>`<button class="tag ${(st.strategy||'balanced')===o[0]?'on':''}" ${dis} onclick="deptStrategy('${key}','${o[0]}')">${o[1]}</button>`).join(' ')}</span></div><div class="muted sm">Guests-first lifts hotel reviews but cuts outside revenue; External maximises covers but risks guest waits.</div>`:''}
      ${key==='laundry'?`<div style="border-top:1px solid var(--line2);padding-top:8px;margin-top:8px"><div class="toggle"><span>Express service (faster, +cost)</span><div class="sw ${st.express?'on':''}" ${player?'':'style="opacity:.5;pointer-events:none"'} onclick="deptToggle('laundry','express')"><i></i></div></div><div class="toggle"><span>Outsource (clears backlog, per-item cost)</span><div class="sw ${st.outsource?'on':''}" ${player?'':'style="opacity:.5;pointer-events:none"'} onclick="deptToggle('laundry','outsource')"><i></i></div></div><div class="muted sm">Backlog delays housekeeping and room readiness — luxury guests expect fast turnaround.</div></div>`:''}
    </div>
@@ -5673,7 +5671,7 @@ window.investorRaise=amt=>{const p=P();
   html+=`<div class="card" style="margin-top:12px"><h3>Investor Relations ${tip('investors')}</h3>
    ${un?`${row('Pitch quality',barInline(q,q>70?'#2e9e5b':q>45?'#d8a24a':'#d64545')+' '+q+'/100')}
      ${row('Likely funding up to',cr(cap))}${row('Indicative terms','~'+Math.round(Math.min(25,(cap/Math.max(1,assetValue()))*(135-q/2)))+'% profit share at full raise')}
-     <div class="row"><span class="lab">Raise</span><span class="val"><input id="invAmt" type="number" min="500000" step="500000" value="${Math.min(cap,5000000)}" style="width:120px"> <button class="btn primary" onclick="investorRaise(+document.getElementById('invAmt').value)">Pitch & Close</button></span></div>
+     <div class="row"><span class="lab">Raise</span><span class="val"><input id="invAmt" type="number" min="${Math.round(500000/LOC.k)}" step="${Math.round(500000/LOC.k)}" value="${Math.round(Math.min(cap,5000000)/LOC.k)}" style="width:120px"> <button class="btn primary" onclick="investorRaise(Math.round((+document.getElementById('invAmt').value||0)*LOC.k))">Pitch & Close</button></span></div>
      <div class="muted sm">Better rating, reputation, assets, profits and chain size improve terms.</div>`
    :`<div class="muted sm">🔒 Investors want a track record: <b>4.0★+</b>, <b>300+ guests served</b>, <b>day 60+</b> and a <b>profitable week</b>. Build it, then pitch.</div>`}
   </div>`;
@@ -5792,7 +5790,7 @@ function runAutoTrain(p){
   const spent=p._trainSpent||0;
   html+=`<div class="card" style="margin-top:12px"><h3>Training Programme ${tip('trainbudget')}</h3>
     ${row('Per-session cost',cr0(Math.round(12000*DX().costM))+' · +4 skill, +2 morale')}
-    ${row('Monthly auto-train budget',`₹ <input type="number" min="0" step="5000" value="${p.trainBudget||0}" style="width:100px" onchange="setTrainBudget(this.value)">`)}
+    ${row('Monthly auto-train budget',`${LOC.sym} <input type="number" min="0" step="${LOC.k>1?200:5000}" value="${Math.round((p.trainBudget||0)/LOC.k)}" style="width:100px" onchange="setTrainBudget(Math.round((+this.value||0)*LOC.k))">`)}
     <div class="toggle" style="margin-top:6px"><span>Auto-train weakest employees within budget</span><div class="sw ${p.autoTrain?'on':''}" onclick="autoTrainT()"><i></i></div></div>
     ${row('Spent this month',cr0(spent)+' / '+cr0(p.trainBudget||0))}
     <div class="muted sm" style="margin-top:4px">Use the 🎓 button beside any employee on the Live Floor to train them individually.</div>
@@ -5833,7 +5831,7 @@ tabLoyalty=function(p){
   </div>
   <div class="card" style="margin-bottom:12px"><h3>Programme Economics</h3>
     ${row('Points earned per stay',`<input type="number" min="0" max="15" value="${G.loyal.earnPct}" style="width:60px" onchange="loyalSet('earnPct',this.value)"> % of spend`)}
-    ${row('Point value at redemption',`₹ <input type="number" step="0.1" min="0" max="2" value="${G.loyal.redeemVal}" style="width:60px" onchange="loyalSet('redeemVal',this.value)"> per point`)}
+    ${row('Point value at redemption',`<input type="number" step="0.1" min="0" max="2" value="${G.loyal.redeemVal}" style="width:60px" onchange="loyalSet('redeemVal',this.value)"> per point · 1,000 pts ≈ ${cr(G.loyal.redeemVal*1000)}`)}
     <div class="toggle" style="margin-top:6px"><span>Allow redemption at checkout (up to 20% of bill)</span><div class="sw ${G.loyal.allowRedeem?'on':''}" onclick="loyalRedeemT()"><i></i></div></div>
   </div>
   <div class="card"><h3>Member Ledger — top guests</h3>
@@ -6535,7 +6533,7 @@ function tabUtilities(p){
   <div class="cards cols-3" style="margin-bottom:12px">
     ${ovCard('Today (projected)',cr(u.total),'all utilities','')}
     ${ovCard('30-day cost',cr(H.slice(-30).reduce((s,x)=>s+(x.total||0),0)),'trend below','')}
-    ${ovCard('Per occupied room',cr0(u.total/Math.max(1,occupied(p))),'benchmark ~₹450–900','')}
+    ${ovCard('Per occupied room',cr0(u.total/Math.max(1,occupied(p))),'benchmark ~'+cr0(450)+'–'+cr0(900),'')}
   </div>
   <div class="cards cols-3" style="margin-bottom:12px">
     ${U.map(([k,n,ic])=>`<div class="card"><h3>${ic} ${n}</h3><div class="stat" style="font-size:18px">${cr0(u[k]||0)}<small>/day</small></div>${H.length>1?chartI('ut_'+k,[{vals:H.map(x=>x[k]||0),color:'#6fc6df',name:n}],v=>cr0(v),L,340,90):'<div class="muted sm">Collecting…</div>'}</div>`).join('')}
@@ -6653,7 +6651,7 @@ function runSecurity(p){
 /* =======================================================================
    6) HQ — regional management makes the chain real
    ======================================================================= */
-function chainAssets(){let v=0;(G.properties||[]).forEach(p=>{v+=p.rooms.length*1350000+p.facilities.length*2300000;});return v;}
+function chainAssets(){let v=0;(G.properties||[]).forEach(p=>{v+=Math.round((p.rooms.length*1350000+p.facilities.length*2300000)*(activeCountry().capex||1));});return v;}
 window.hqRegional=()=>{G.hq.regional=!G.hq.regional;
   logDecision(G.hq.regional?'Hired regional operations manager':'Released regional manager',0,'Chain oversight','Other hotels '+(G.hq.regional?'now operate daily':'go dormant'),cr0(55000)+'/mo overhead',['expansion','finance']);
   toast(G.hq.regional?'Regional manager appointed — all properties now operate daily.':'Regional manager released — unmanaged hotels fall dormant.','pos');renderTab();};
@@ -6879,7 +6877,7 @@ function kpiList(p){
    {n:'Direct Booking Ratio',v:(ch.direct||0)/chTot*100,f:pc,t:30,s:S('directMix'),def:'Direct bookings ÷ all bookings today.',how:'Rating 3.9★+, marketing, direct incentives — OTA commission saved is pure margin.'},
    {n:'F&B Dept Cost Ratio',v:rest.rev?Math.min(150,rest.cost/rest.rev*100):0,f:pc,t:70,s:null,def:'Total restaurant department cost (food, labour share, fixed) ÷ restaurant revenue. True food cost alone runs 28-35%.',how:'Menu engineering, supplier tier, avoiding ingredient stock-outs, filling covers.',lower:true},
    {n:'Labour Cost %',v:payroll/rev30*30*100/30,f:pc,t:32,s:null,def:'Monthly payroll ÷ monthly revenue.',how:'Roster to need (not headcount), training productivity, avoid idle payroll.',lower:true},
-   {n:'Housekeeping Cost / Occ. Room',v:hkPay/30/occN,f:cr0,t:350,s:null,def:'Daily housekeeping payroll ÷ occupied rooms.',how:'Roster efficiency and higher occupancy dilute the fixed crew.',lower:true},
+   {n:'Housekeeping Cost / Occ. Room',v:hkPay/30/occN,f:cr0,t:Math.round(350*(ROLES.housekeeping.sal/((typeof _BASE!=='undefined'&&_BASE.sal&&_BASE.sal.housekeeping)||ROLES.housekeeping.sal))),s:null,def:'Daily housekeeping payroll ÷ occupied rooms.',how:'Roster efficiency and higher occupancy dilute the fixed crew.',lower:true},
    {n:'Maintenance Cost / Avail. Room',v:(sum('maintCost')/Math.max(1,n30.length))/Math.max(1,p.rooms.length),f:cr0,t:250,s:S('maintCost'),def:'Daily maintenance spend ÷ available rooms.',how:'Preventive servicing beats breakdowns 3:1.',lower:true},
    {n:'Utility Cost / Occ. Room',v:u.total/occN,f:cr0,t:700,s:null,def:'Daily utilities ÷ occupied rooms.',how:'LED, solar, water recycling, smart HVAC (Utilities page).',lower:true},
    {n:'Complaint Rate',v:sum('complaints')/arr30*100,f:pc,t:8,s:S('complaints'),def:'Complaints ÷ arrivals (30d).',how:'Coverage at the desk, housekeeping capacity, stocked inventory, working assets.',lower:true},
@@ -7452,7 +7450,7 @@ function tabCapex(p){
   const rows=[];
   const add=(name,cost,life,annual,note,act)=>rows.push({name,cost,life,annual,note,act});
   if(worn)add('Renovate '+worn+' worn room'+(worn>1?'s':''),worn*Math.round(180000*G.D.costM),5,Math.round(worn*revpar*365*.06),'Worn rooms drag satisfaction, reviews and rate power',`<button class="btn" style="padding:3px 9px;font-size:11px" onclick="renoBand(40,101)">Start</button>`);
-  add('Add a floor (+'+p.capPerFloor+' room capacity)',2500000+p.floors*800000,20,Math.round(p.capPerFloor*revpar*365*.45),'Shell only — rooms are built and fitted separately',`<button class="btn" style="padding:3px 9px;font-size:11px" onclick="addFloor()">Start</button>`);
+  add('Add a floor (+'+p.capPerFloor+' room capacity)',Math.round((2500000+p.floors*800000)*(activeCountry().capex||1)),20,Math.round(p.capPerFloor*revpar*365*.45),'Shell only — rooms are built and fitted separately',`<button class="btn" style="padding:3px 9px;font-size:11px" onclick="addFloor()">Start</button>`);
   Object.keys(UTIL_INV).forEach(k=>{const V=UTIL_INV[k];if(p.util.inv[k])return;
     const base=V.save==='elec'?u.elec:V.save==='water'?u.water:V.save==='gas'?u.gas:0;
     const annual=V.save?Math.round(base*V.pct*365):Math.round(u.total*365*.01);
@@ -7571,7 +7569,7 @@ tabRoster=function(p){
    <div class="muted sm" style="margin-top:6px">Shown as <b>on duty / needed</b>. Red-tinted shifts are needed but unstaffed — check-ins stall, rooms stay dirty, the kitchen goes dark, repairs wait. Night cells pay a 15% premium; hours beyond ${p.contract||46}h/week bill at 1.5×.</div>
   </div>
   <div class="card" style="margin-top:12px"><h3>Workforce Analytics ${tip('overtime')}</h3>
-   <div class="tbl-wrap"><table><thead><tr><th>Department</th><th>Team</th><th>Hours/wk</th><th>Coverage gap</th><th>OT/head</th><th>Labour ₹/day</th></tr></thead><tbody>
+   <div class="tbl-wrap"><table><thead><tr><th>Department</th><th>Team</th><th>Hours/wk</th><th>Coverage gap</th><th>OT/head</th><th>Labour ${LOC.sym}/day</th></tr></thead><tbody>
    ${wf.rows.map(r=>`<tr><td class="b">${ROLES[r.role].name}</td><td>${r.head}</td><td>${r.wk}</td><td>${r.gap?'<span class="pill red">'+r.gap+'h</span>':'<span class="pill green">0</span>'}</td><td>${r.otH||0}h</td><td>${cr0(r.costDay)}</td></tr>`).join('')}
    <tr style="border-top:2px solid var(--line2)"><td class="b">Total</td><td></td><td></td><td>${wf.totGap}h</td><td>${wf.totOT}h</td><td class="b">${cr0(wf.totCost)} · ${cr0(wf.perOcc)}/occupied room</td></tr>
    </tbody></table></div>
