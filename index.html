@@ -1383,7 +1383,10 @@ function startGame(){
   $('#setup').style.display='none';$('#app').style.display='grid';
   renderAll();startLoop();
 }
-function load(){try{const s=localStorage.getItem('aatithya');if(!s){toast('No save found.','warn');return;}G=JSON.parse(s);augmentInit();setPause(true);renderAll();toast('Game loaded.','pos');}catch(e){toast('Load failed.','neg');}}
+function load(){try{const s=localStorage.getItem('aatithya');if(!s){toast('No save found.','warn');return;}G=JSON.parse(s);augmentInit();
+  const su=$('#setup');if(su)su.style.display='none';const ap=$('#app');if(ap)ap.style.display='grid';
+  const ld=document.getElementById('v9landing');if(ld)ld.style.display='none';
+  startLoop();setPause(true);renderAll();toast('Game loaded.','pos');}catch(e){toast('Load failed.','neg');}}
 
 
 /* =======================================================================
@@ -1433,7 +1436,7 @@ function newGame(setup){
     city,loc,floors:1,capPerFloor:10,
     rooms:[],staff:{},facilities:[],prices:{},
     rating:0,reviews:[],reputation:38,repTrend:0,
-    policies:{earlyCI:false,lateCO:false,freeUpg:false,minStay:1,generosity:.5},
+    policies:{earlyCI:true,lateCO:true,freeUpg:false,minStay:1,generosity:.5},
     parking:{spaces:0,ev:0,occupied:0,evOccupied:0},
     incidents:0,lifetimeGuests:0,lifetimeRev:0,
     revToday:0,revYest:0,expToday:0,expYest:0
@@ -1486,7 +1489,11 @@ function processMaintenance(prop){
     if(is.age%3===0&&is.sev<3){is.sev++;is.cost=Math.round(is.cost*1.6);logEvent(prop,'maintenance',is.t+(is.roomId?' (Room '+is.roomId+')':'')+' escalated to severity '+is.sev+'.');
       if(is.sev===3&&is.roomId){const r=prop.rooms.find(x=>x.id===is.roomId);if(r&&r.status!=='occupied'&&r.status!=='renovation'){r.status='maintenance';r.maintT=ri(2,4);}}}
   });
-  let cap=Math.round(maintSpeed(prop)*1.2);
+  let cap=(function(){const st=prop.staff.maintenance||[];if(!st.length)return 0;
+    let hrs=0;try{const R=(prop.roster&&prop.roster.maintenance)||null;if(R)for(let h=0;h<24;h++)hrs+=Math.min(R[G.dow][h]||0,st.length);}catch(e){}
+    if(!hrs)return 0; // nobody rostered today — repairs wait (staffing gate)
+    const skill=st.reduce((a,x)=>a+x.skill/100,0)/st.length;
+    return Math.max(1,Math.round(hrs/8*skill*1.6));})();
   prop.maintBacklog.sort((a,b)=>b.sev-a.sev);
   prop.maintBacklog=prop.maintBacklog.filter(is=>{if(cap>0){G.cash-=is.cost;prop.expToday+=is.cost;cap--;logEvent(prop,'maintenance',is.t+' resolved by maintenance team.');return false;}return true;});
 }
@@ -1829,7 +1836,7 @@ function augmentInit(){
   G.chain.rep=G.properties.reduce((s,p)=>s+p.reputation,0)/G.properties.length;
 }
 function augmentProp(prop){
-  prop.policies=Object.assign({earlyFee:500,lateFee:600,cancelType:'partial',maxStay:30,overbook:0,payment:'partial',parking:'complimentary',evPrice:12,breakfast:'optional',laundry:'paid',roomsvc24:false,checkinTime:14,checkoutTime:11},prop.policies);
+  prop.policies=Object.assign({earlyFee:500,lateFee:500,cancelType:'partial',maxStay:30,overbook:0,payment:'none',parking:'complimentary',evPrice:12,breakfast:'optional',laundry:'paid',roomsvc24:false,checkinTime:13,checkoutTime:11},prop.policies);
   if(!prop.parking)prop.parking={spaces:Math.max(4,Math.round(prop.rooms.length*.8)),ev:1,occupied:0,evOccupied:0};
   if(prop.parking.reserved==null)prop.parking.reserved=0;
   if(prop.parking.disabled==null)prop.parking.disabled=Math.max(1,Math.round(prop.parking.spaces*.05));
@@ -2096,8 +2103,8 @@ function dayRollover(){
   prop.rooms.forEach(r=>{if(r.status==='renovation'){r.renoT--;if(r.renoT<=0){r.status='clean';r.cond=100;if(r._renoGain>=26){const qi=QUALITY.findIndex(q=>q.name===r.q.name);if(qi<QUALITY.length-1)r.q=QUALITY[qi+1];}logEvent(prop,'maintenance','Room '+r.id+' reopened after renovation.');feed('✨ Room '+r.id+' reopened after renovation.','pos');}}});
   // maintenance spawn/process (spares shortage slows repairs)
   const cashBefore=G.cash;
-  prop.rooms.forEach(r=>{const used=r.status==='occupied'||r.cond<70;if(Math.random()<(used?.05:.015)+(r.cond<55?.04:0))spawnMaintIssue(prop,r);});
-  if(prop.rooms.length&&Math.random()<.08)spawnMaintIssue(prop,null);
+  prop.rooms.forEach(r=>{const used=r.status==='occupied'||r.cond<70;if(Math.random()<(used?.02:.006)+(r.cond<55?.016:0))spawnMaintIssue(prop,r);});
+  if(prop.rooms.length&&Math.random()<.03)spawnMaintIssue(prop,null);
   processMaintenance(prop);
   prop._maintCostToday=Math.max(0,cashBefore-G.cash);
   // inventory, projects, marketing
@@ -3716,6 +3723,7 @@ function showEvent(ev,prop){
     ${choices.map(o=>`<button class="choice" data-i="${o.i}"><div class="ct">${o.c.t}</div><div class="cc">${o.c.c}</div></button>`).join('')}
    </div>`;
   $('#modal').style.display='flex';
+  $('#modal').onclick=null; // events are decisions — no backdrop dismiss, a choice must be made
   $$('.choice',box).forEach(b=>b.onclick=()=>{const ci=+b.dataset.i;ev.ch[ci].f(prop);logEvent(prop,'service',ev.title+' — '+ev.ch[ci].t);logDecision(ev.title,0,ev.ch[ci].t,ev.ch[ci].c,'Event outcome',['reputation','satisfaction']);$('#modal').style.display='none';if(G.autoResume)setPause(false);renderAll();});
 }
 
@@ -4276,8 +4284,7 @@ runFrontOffice=function(prop){
 /* check-in: nobody rostered at the desk ⇒ guests wait (manager can cover, poorly) */
 checkInGuest=function(prop,a,waiting){
   const od=onDuty(prop,'frontdesk');
-  const mgr=(prop.staff.manager||[]).length>0;
-  if(od===0&&!mgr){
+  if(od===0){
     a.fdWait=(a.fdWait||0)+1;a.sat-=3;
     if(!a._noFd){a._noFd=1;feed('🛎️ No one at the desk — '+a.name+' is waiting in the lobby.','warn');}
     if(a.fdWait>=3){a.checkedIn='lost';prop.incidents=(prop.incidents||0)+1;prop._compToday=(prop._compToday||0)+1;
@@ -4725,7 +4732,7 @@ function ensureV12(p){
   if(!p.identity)p.identity={name:'Emerging Hotel',conf:0,tags:[]};
   if(!p._mix)p._mix={};
   if(!p.proc)p.proc={supplier:1};
-  if(!p.contract)p.contract=46;
+  if(!p.contract)p.contract=48;
   if(!p.projPref)p.projPref=1;
   if(!p._prevDaily)p._prevDaily={};
   if(!p.escrow)p.escrow=0;
@@ -5047,7 +5054,7 @@ function v12Payroll(p){
 {const _v12Ros=tabRoster;tabRoster=function(p){let html=_v12Ros(p);try{
   const pay=v12Payroll(p);
   html+=`<div class="card" style="margin-top:12px"><h3>Payroll Impact ${tip('overtime')}</h3>
-    ${row('Contracted hours / week',`<input type="number" min="40" max="48" value="${p.contract}" style="width:60px" onchange="P().contract=clamp(+this.value,40,48);renderTab()"> h (hard cap ${R_MAXWK}h)`)}
+    ${row('Contracted hours / week',`<input type="number" min="40" max="56" value="${p.contract}" style="width:60px" onchange="P().contract=clamp(+this.value,40,56);renderTab()"> h (hard cap ${R_MAXWK}h)`)}
     ${pay.rows.map(r=>row(ROLES[r.role].name+' — '+r.perHead+'h/head'+(r.otH?' ('+r.otH+'h OT)':''),(r.otPay?'+'+cr0(r.otPay)+' OT/day ':'')+(r.nightPay?'+'+cr0(r.nightPay)+' night/day':'')||'—')).join('')}
     ${row('<b>Daily premium payroll</b>','<b>'+cr0(pay.ot+pay.night)+'</b>')}
     <div class="wrapf" style="margin-top:6px">${R_ROLES.map(r=>(p.staff[r]||[]).length?`<button class="btn" style="padding:4px 9px;font-size:11px" onclick="grantLeave('${r}')">Leave: ${ROLES[r].name}</button>`:'').join('')}</div>
@@ -5472,7 +5479,7 @@ pickChannel=function(prop,weekend){
 };
 
 /* ---------- (1) ROSTER OVERHAUL ---------- */
-const R_MAXDAY=12;
+const R_MAXDAY=8;
 function dayHours(p,role,d){return p.roster[role][d].reduce((a,b)=>a+b,0);}
 rNeed=function(p,role,dow,h){
   const rms=p.rooms.length;if(!rms)return 0;
@@ -5484,10 +5491,16 @@ rNeed=function(p,role,dow,h){
   }
   if(role==='maintenance')return (h>=9&&h<=18&&rms>=8)?1:0;
   if(role==='security'){
-    if(h>=20||h<=5)return rms>=10?1:0;
-    return rms>=30?1:0; /* big hotels keep day security too */
+    if(h>=20||h<=5)return rms>=6?1:0;
+    return (rms>=24||p.facilities.includes('banquet'))?1:0; /* big or event hotels keep day security */
   }
-  if(role==='fnb')return p.facilities.includes('restaurant')&&((h>=7&&h<=10)||(h>=12&&h<=15)||(h>=19&&h<=23))?Math.max(1,Math.ceil((p.fnb?p.fnb.seats:24)/26)):0;
+  if(role==='fnb'){const F=p.facilities,meal=(h>=7&&h<=10)||(h>=12&&h<=15)||(h>=19&&h<=23);
+    if(F.includes('restaurant')&&meal)return Math.max(1,Math.ceil((p.fnb?p.fnb.seats:24)/26));
+    if(F.includes('breakfast')&&h>=6&&h<=10)return 1;
+    if(F.includes('lounge')&&h>=17&&h<=22)return 1;
+    if(F.includes('banquet')&&h>=18&&h<=22)return 1;
+    if(F.includes('roomsvc')&&meal)return 1;
+    return 0;}
   return 0;
 };
 autoFillRoster=function(p){
@@ -5552,7 +5565,7 @@ tabRoster=function(p){
    <div class="muted sm" style="margin-top:6px">Red tint = hours this team is needed · red outline = below need. Night cells (22–06) carry a 15% premium; hours beyond ${p.contract}h/week pay 1.5×.</div>
   </div>
   <div class="card" style="margin-top:12px"><h3>Payroll Impact ${tip('overtime')}</h3>
-    ${row('Contracted hours / week',`<input type="number" min="40" max="48" value="${p.contract}" style="width:60px" onchange="P().contract=clamp(+this.value,40,48);renderTab()"> h (hard cap ${R_MAXWK}h)`)}
+    ${row('Contracted hours / week',`<input type="number" min="40" max="56" value="${p.contract}" style="width:60px" onchange="P().contract=clamp(+this.value,40,56);renderTab()"> h (hard cap ${R_MAXWK}h)`)}
     ${pay.rows.map(r=>row(ROLES[r.role].name+' — '+r.perHead+'h/head'+(r.otH?' ('+r.otH+'h OT)':''),(r.otPay?'+'+cr0(r.otPay)+' OT/day ':'')+(r.nightPay?'+'+cr0(r.nightPay)+' night/day':'')||'—')).join('')}
     ${row('<b>Daily premium payroll</b>','<b>'+cr0(pay.ot+pay.night)+'</b>')}
     <div class="wrapf" style="margin-top:6px">${R_ROLES.map(r=>(p.staff[r]||[]).length?`<button class="btn" style="padding:4px 9px;font-size:11px" onclick="grantLeave('${r}')">Leave: ${ROLES[r].name}</button>`:'').join('')}</div>
@@ -6487,7 +6500,7 @@ function utilCompute(p){
   const elec=Math.round((rms*60+dept.rooms+dept.kitchen*.4+dept.laundry*.5+dept.pool+dept.spa+dept.gym)*red('elec')*inf);
   const water=Math.round((occ*55+rms*15+dept.laundry*.5+(has('pool')?500:0))*red('water')*inf);
   const gas=Math.round((dept.kitchen*.6+(has('laundry')?150:0))*red('gas')*inf);
-  const net=Math.round(250+rms*7*inf);
+  const net=has('wifi')?Math.round(250+rms*7*inf):0;
   const waste=Math.round(rms*12+occ*9);
   const genf=(p.util.outage==='power'&&I.generator)?Math.round(200+occ*40):0;
   return {elec,water,gas,net,waste,genf,total:elec+water+gas+net+waste+genf,dept};
@@ -8060,10 +8073,10 @@ function camScene(p,key){
     const q=Math.max(0,arrDue+Math.round(depNow*.6)-deskN*2);
     const ciQ=Math.min(5,arrDue+q);
     for(let i=0;i<ciQ;i++){el.push(_prsn(505-i*30,352,1.3,'stand'));if(R()<.6)el.push(_lugg(505-i*30+14,352,1));}
-    const lounging=clamp(Math.round(occ*(night?.05:h>=17?.22:.12)+(rainy?2:0)),0,7);
+    const lounging=clamp(Math.round(occ*(night?.06:h>=17?.28:.18)+(rainy?2:0)),0,7);
     for(let i=0;i<Math.min(lounging,4);i++)el.push(_prsn(272+i*26,340,1.15,'sit'));
     for(let i=0;i<Math.max(0,lounging-4);i++)el.push(_prsn(420+i*34,354,1.25,'stand'));
-    const walkers=clamp(Math.round(occ*.08)+(arrSoon?1:0),night?0:1,4);
+    const walkers=clamp(Math.round(occ*.14)+(arrSoon?1:0),night?0:1,5);
     for(let i=0;i<walkers;i++)el.push(_prsn(-40-R()*120,354,1.3,'walk',34+R()*30));
     if(p.facilities.includes('parking')&&(arrDue>0||R()<.3)){el.push(_prsn(150,356,1.3,'stand'));el.push(_cart(184,362));}
     if(hk>0&&dirty>0&&!night)el.push(_prsn(660,352,1.25,'carry'));
@@ -8327,6 +8340,188 @@ const st=document.createElement('style');st.id='v24Cams';st.textContent=css;(doc
 }catch(e){}return h;};}
 
 try{Object.assign(TIPS,{cameras:{t:'CCTV Control Room',d:'One silhouette frame per in-game hour, generated from live simulation state: occupancy, arrivals and departures, rosters on duty, weather, meal periods and demand. Install the core package under Security, then wire individual facilities.'}});}catch(e){}
+
+/* =======================================================================
+   v25 — SILHOUETTE MINIMAL
+   UI pass toward the finalised reference: black-pill navigation, delta
+   chips in the topbar, the Cameras page rebuilt as the operational
+   centerpiece (large pinned lobby feed + stacked switchable feeds + floor
+   chips + live-operations summary row), richer silhouette scenes.
+   Plus the remaining logic wiring: pricing page de-duplication, guest-mix
+   card removal, auto-roster top-up when facilities open or staff join.
+   ======================================================================= */
+
+/* ---------------- (A) visual refinements over v24 ---------------- */
+(function(){try{
+const css=`
+body.light #side .nav{border-radius:8px!important;margin:1px 8px;padding-left:12px}
+body.light #side .nav.on{background:#151513!important;color:#fff!important;box-shadow:none!important}
+body.light #side .nav.on .badge{background:#fff;color:#151513}
+body.light .page-head h2{font-weight:600}
+body.light .kpi .v small{color:var(--mut2)}
+.kpi .delta{font-size:9.5px;font-weight:700;letter-spacing:.3px;display:block;margin-top:1px}
+.kpi .delta.up{color:#1e5c3a}.kpi .delta.dn{color:#7a2430}
+/* cameras centerpiece layout */
+.camlayout{display:grid;grid-template-columns:1.55fr 1fr;gap:12px;align-items:start}
+.camlayout .camfeed{margin-bottom:0}
+.camright{display:flex;flex-direction:column;gap:12px}
+.camchips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0}
+.camchips .tag{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;letter-spacing:.5px}
+.camops{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
+.camops .card{margin:0!important}
+.camops h3{font-size:11px!important;letter-spacing:.8px;text-transform:uppercase}
+.oprow{display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line,#e3e3db);font-size:12px}
+.oprow:last-child{border-bottom:none}
+.oprow .st{font-size:10px;font-weight:700;letter-spacing:.6px}
+.oprow .st.g{color:#1e5c3a}.oprow .st.b{color:#b45f14}.oprow .st.r{color:#7a2430}.oprow .st.m{color:#8e8e85}
+.tline{font-size:11.5px;padding:3px 0;display:flex;gap:8px;border-bottom:1px solid var(--line,#e3e3db)}
+.tline:last-child{border-bottom:none}
+.tline .tt{font-family:ui-monospace,Menlo,monospace;color:var(--mut2,#8e8e85);flex:none}
+@media(max-width:1100px){.camops{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.camlayout{grid-template-columns:1fr}.camops{grid-template-columns:1fr}}
+`;
+const st=document.createElement('style');st.id='v25Style';st.textContent=css;(document.head||document.body).appendChild(st);
+}catch(e){}})();
+
+/* topbar: vs-yesterday deltas on Occupancy and ADR (reference style) */
+{const _v25TB=renderTopbar;renderTopbar=function(){_v25TB();try{
+  const p=P();const a=p.analytics||[];const y=a[a.length-1];if(!y)return;
+  const ks=document.querySelectorAll('#kpis .kpi');
+  ks.forEach(k=>{const lab=(k.querySelector('.k')||{}).textContent||'';
+    let cur=null,prev=null,pct=false;
+    if(lab==='Occupancy'){const t=p.rooms.length;cur=t?occupied(p)/t*100:0;prev=y.occ||0;pct=true;}
+    else if(lab==='ADR'){cur=adr(p);prev=y.adr||0;}
+    if(cur==null||!prev)return;
+    const d=cur-prev,rel=Math.abs(d)/Math.max(1,prev)*100;
+    if(rel<1)return;
+    const el=document.createElement('span');el.className='delta '+(d>=0?'up':'dn');
+    el.textContent=(d>=0?'▲ ':'▼ ')+Math.round(rel)+'% vs yesterday';
+    const v=k.querySelector('.v');if(v&&!k.querySelector('.delta'))v.appendChild(el);});
+}catch(e){}};}
+
+/* ---------------- (B) scene dressing: skyline windows & pendants ---------------- */
+{const _v25Scene=camScene;camScene=function(p,key){
+  const sc=_v25Scene(p,key);
+  try{
+    if(key==='lobby'||key==='fac:restaurant'||key==='fac:lounge'){
+      let dress='';
+      // window wall with a soft skyline behind the action
+      dress+=`<rect x="120" y="70" width="560" height="190" fill="#f7f6f1" stroke="#dedcd2" stroke-width="1.4"/>`;
+      const bs=[[150,196,52],[215,178,40],[268,206,60],[340,186,46],[398,198,70],[480,174,44],[536,208,58],[606,190,42]];
+      dress+=bs.map(([x,y,w])=>`<rect x="${x}" y="${y}" width="${w}" height="${258-y}" fill="#eceadf"/>`).join('');
+      for(let mx=190;mx<680;mx+=70)dress+=`<line x1="${mx}" y1="70" x2="${mx}" y2="260" stroke="#e3e1d6" stroke-width="1.2"/>`;
+      dress+=`<line x1="120" y1="260" x2="680" y2="260" stroke="#d8d6ca" stroke-width="1.6"/>`;
+      [230,400,570].forEach(x=>{dress+=`<line x1="${x}" y1="0" x2="${x}" y2="96" stroke="#1b1b19" stroke-width="1.6"/><circle cx="${x}" cy="102" r="7" fill="#1b1b19"/>`;});
+      sc.el=dress+sc.el;
+    }
+    if(key==='fac:pool'){
+      let dress='';
+      [660,740].forEach(x=>{dress+=`<line x1="${x}" y1="180" x2="${x}" y2="288" stroke="#1b1b19" stroke-width="2"/><path d="M${x-46},196 Q${x},164 ${x+46},196 Z" fill="#1b1b19" opacity=".85"/>`;});
+      dress+=`<path d="M40,372 L40,300 Q40,282 58,282 L60,372 Z" fill="#c9c6ba"/>`;
+      sc.el=dress+sc.el;
+    }
+  }catch(e){}
+  return sc;
+};}
+
+/* ---------------- (C) cameras page as the operational centerpiece ---------------- */
+function camOpsStatus(p){
+  const fd=onDuty(p,'frontdesk'),hk=onDuty(p,'housekeeping'),mt=onDuty(p,'maintenance'),sec=onDuty(p,'security'),fnb=onDuty(p,'fnb');
+  const dirty=p.rooms.filter(r=>r.status==='dirty').length;
+  const crit=(p.maintBacklog||[]).filter(m=>m.sev>=3).length;
+  const meal=(G.hour>=7&&G.hour<=10)||(G.hour>=12&&G.hour<=15)||(G.hour>=19&&G.hour<=22);
+  const rows=[];
+  rows.push(['Front Office',fd>0?['GOOD','g']:['UNMANNED','r']]);
+  if(p.facilities.includes('restaurant')||p.facilities.includes('breakfast'))
+    rows.push(['Restaurant',fnb>0?[meal?'BUSY':'GOOD',meal?'b':'g']:[meal?'NO STAFF':'CLOSED',meal?'r':'m']]);
+  rows.push(['Housekeeping',dirty===0?['CLEAR','g']:hk>0?['WORKING','b']:['STALLED','r']]);
+  rows.push(['Maintenance',crit>0?['CRITICAL','r']:(p.maintBacklog||[]).length?(mt>0?['WORKING','b']:['WAITING','r']):['GOOD','g']]);
+  rows.push(['Security',sec>0?['ON PATROL','g']:(G.hour>=22||G.hour<6)?['ABSENT','r']:['DAY COVER','m']]);
+  if(p.facilities.includes('laundry'))rows.push(['Laundry',hk>0?['GOOD','g']:['IDLE','m']]);
+  if(p.facilities.includes('pool'))rows.push(['Swimming Pool',/rain/i.test(G.weather||'')?['RAIN HOLD','b']:['GOOD','g']]);
+  return rows.map(([n,[t,c]])=>`<div class="oprow"><span>${n}</span><span class="st ${c}">● ${t}</span></div>`).join('');
+}
+tabCameras=function(p){
+  ensureCams(p);
+  if(!p.sec.camCore){
+    const built=camFacsBuilt(p);
+    return `<div class="page-head"><div><h2>CCTV Control Room</h2><div class="desc">Live monitoring of the property — a security investment, not a given.</div></div></div>
+    <div class="card" style="max-width:640px;margin:40px auto;text-align:center;padding:38px 30px">
+      <div style="font-size:34px;margin-bottom:10px">▣</div>
+      <h3 style="border-bottom:none">Install CCTV System to unlock live monitoring</h3>
+      <div class="muted sm" style="margin:10px 0 18px">The core package covers the ground-floor lobby, every floor corridor, the entrance, reception and waiting areas. Facility cameras can be added individually afterwards.</div>
+      <button class="btn primary" onclick="buyCamCore()" style="padding:10px 22px">Install CCTV core package — ${cr(camCoreCost())}</button>
+      <div class="muted sm" style="margin-top:14px">${built.length?built.length+' facility feed(s) will become available to add.':''}</div>
+    </div>`;
+  }
+  const purchasable=camFacsBuilt(p).filter(k=>!p.sec.camFac[k]);
+  const validKeys=new Set();for(let f=1;f<=p.floors;f++)validKeys.add('floor:'+f);camFacsBuilt(p).filter(k=>p.sec.camFac[k]).forEach(k=>validKeys.add('fac:'+k));
+  p.camSlots=p.camSlots.map(sl=>validKeys.has(sl)?sl:null);
+  const arrivals=(G.pendingArrivals||[]).filter(a=>!a.checkedIn&&a.checkedIn!=='lost').slice(0,4);
+  const tl=(G.eventLog||[]).slice(0,5);
+  const alerts=[];
+  {const dirty=p.rooms.filter(r=>r.status==='dirty').length;if(dirty>2)alerts.push(dirty+' rooms need cleaning');
+   const crit=(p.maintBacklog||[]).filter(m=>m.sev>=3).length;if(crit)alerts.push(crit+' critical maintenance issue(s)');
+   if(onDuty(p,'frontdesk')===0)alerts.push('Front desk unmanned this hour');
+   Object.keys(p.invShort||{}).forEach(k=>alerts.push('Low stock: '+((typeof INV!=='undefined'&&INV[k])?INV[k].name:k)));
+   if(!alerts.length)alerts.push('All clear — no active alerts');}
+  const floorChips=[];for(let f=1;f<=p.floors;f++)if(p.rooms.some(r=>r.floor===f))floorChips.push(`<button class="tag ${p.camSlots[0]==='floor:'+f?'on':''}" onclick="camSlotSet(0,'floor:${f}')">FLOOR ${f}</button>`);
+  return `<div class="page-head"><div><h2>CCTV Control Room</h2><div class="desc">One frame per hour, generated from the live operation — nothing here is decorative.</div></div>
+    <div class="wrapf"><span class="pill green">● ${Object.keys(p.sec.camFac).filter(k=>p.sec.camFac[k]).length+1+p.floors} feeds</span></div></div>
+  <div class="camlayout">
+    <div>
+      ${camFrame(p,'lobby',true)}
+      <div class="camchips"><span class="tag on" style="pointer-events:none">GF LOBBY · PINNED</span>${floorChips.join('')}</div>
+    </div>
+    <div class="camright">
+      ${p.camSlots.map((slot,i)=>`<div class="camslot">
+        <div class="camsel"><span class="muted sm">FEED ${i+2}</span><select onchange="camSlotSet(${i},this.value)">${camOptions(p,slot)}</select></div>
+        ${slot?camFrame(p,slot,false):'<div class="camoff"><span>NO FEED SELECTED</span></div>'}
+      </div>`).join('')}
+    </div>
+  </div>
+  <div class="camops">
+    <div class="card"><h3>Live Operations</h3>${camOpsStatus(p)}</div>
+    <div class="card"><h3>Activity Timeline</h3>${tl.length?tl.map(e=>`<div class="tline"><span class="tt">D${e.d}</span><span>${e.txt}</span></div>`).join(''):'<div class="muted sm">Quiet so far.</div>'}</div>
+    <div class="card"><h3>Today's Arrivals</h3>${arrivals.length?arrivals.map(a=>`<div class="tline"><span class="tt">${String(a.arrHour).padStart(2,'0')}:00</span><span>${a.name} · ${a.nights||1}N${a._noFd?' · <b style="color:#7a2430">waiting</b>':''}</span></div>`).join(''):'<div class="muted sm">No more arrivals scheduled.</div>'}</div>
+    <div class="card"><h3>Alerts</h3>${alerts.slice(0,5).map(a=>`<div class="tline"><span class="tt">⚠</span><span>${a}</span></div>`).join('')}</div>
+  </div>
+  ${purchasable.length?`<div class="card" style="margin-top:14px"><h3>Extend coverage</h3>
+    <div class="muted sm" style="margin-bottom:8px">Each facility camera is a one-time installation — ${cr(camFacCost())} per feed. Only built facilities can be wired.</div>
+    <div class="wrapf">${purchasable.map(k=>`<button class="btn" onclick="buyCamFac('${k}')">＋ ${CAM_FACS[k].n} — ${cr(camFacCost())}</button>`).join('')}</div>
+  </div>`:''}`;
+};
+
+/* ---------------- (D) pricing page: control / management / analytics ---------------- */
+{const _v25TP=tabPricing;tabPricing=function(p){let h=_v25TP(p);try{
+  ensureV17(p);
+  const managed=p.rm&&p.rm.mode&&p.rm.mode!=='manual';
+  h=h.replace('<h3>Revenue Management System','<h3>__V25RMS__');
+  h=h.replace('<h3>Revenue Management','<h3>Rate Tactics — fences &amp; discounts you control');
+  h=h.replace('<h3>__V25RMS__','<h3>Revenue Management — who sets prices');
+  h=h.replace('<h3>Pricing Control','<h3>Rate Control — you set the rack rates');
+  if(managed){
+    h=h.replace(/class="priceIn"/g,'class="priceIn" disabled style="opacity:.45"');
+    h=h.replace('<button class="btn primary" id="applyPrices"','<div class="notice" style="margin-top:10px">Rates are being set by your revenue manager — switch pricing control to <b>Manual</b> below to take over.</div><button class="btn primary" id="applyPrices" style="display:none"');
+    h=h.replace('<button class="btn" id="autoPrice"','<button class="btn" id="autoPrice" style="display:none"');
+  }
+}catch(e){}return h;};}
+
+/* ---------------- (E) guest-mix card removed; roster top-up on build/hire ---------------- */
+{const _v25TG=tabGuests;tabGuests=function(p){let h=_v25TG(p);try{h=cutCard(h,'Guest Mix Insight');}catch(e){}return h;};}
+
+function rosterTopUp(p,role){try{
+  if(!p.roster||!p.roster[role])return;
+  if(rWeekHours(p,role)>0)return;                 // never overwrite an existing plan
+  const head=rHead(p,role);if(!head)return;
+  const R=p.roster[role];
+  for(let d=0;d<7;d++){let day=0;
+    for(let h=0;h<24;h++){const need=rNeed(p,role,d,h);
+      if(need>0&&day<R_MAXDAY){R[d][h]=Math.min(need,head);day++;}
+      if(rWeekHours(p,role)>=head*R_MAXWK)return;}}
+}catch(e){}}
+{const _v25BF=window.buyFac;window.buyFac=f=>{_v25BF(f);try{const p=P();ensureV10(p);rosterTopUp(p,'fnb');rosterTopUp(p,'security');}catch(e){}};}
+{const _v25HS=window.hireStaff;window.hireStaff=(role,tier)=>{_v25HS(role,tier);try{const p=P();ensureV10(p);if(['fnb','security','maintenance','frontdesk','housekeeping'].includes(role))rosterTopUp(p,role);}catch(e){}};}
 
 renderWiz();
 </script>

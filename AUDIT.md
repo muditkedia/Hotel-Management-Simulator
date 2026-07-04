@@ -370,3 +370,23 @@ Previously these inputs displayed the raw internal (India-base) number while sur
 **Pacing.** Base tick retimed from 3s to 2s per in-game hour at 1×, with a new 8× control (2×=1s, 4×=0.5s, 8×=0.25s, keyboard `8`, speed-cycle updated). The hour remains the atomic simulation step — speed only changes render cadence, so nothing skips or desynchronises; verified by full sim runs and the deposits-ledger invariant at 8×.
 
 **Verified.** 3-country sweep (29 tabs + facility pages + modals): zero issues, no page errors; camera flow end-to-end (locked state → core purchase at $840K/₹3L → feeds live → facility cams → slot switching → hourly frame regeneration); theme migration both directions; mobile layout (feeds stack, KPI strip visible); smoke4/smoke5 economy and Phase-11 regressions green.
+
+---
+
+## 17. Silhouette Minimal — UI pass + logic-fix pass (`v25`, this branch)
+
+**Visual (toward the finalised reference).** Black-pill sidebar navigation, ▲/▼ vs-yesterday deltas on the topbar Occupancy/ADR chips, and the Cameras page rebuilt as the operational centerpiece: large pinned Ground-Floor Lobby feed with floor-corridor quick chips, three switchable feeds stacked to the right, and a live-operations summary row beneath (department status board, activity timeline, today's arrivals, alerts). Lobby/restaurant/lounge scenes gained a glass window-wall with soft skyline and pendant lights; daytime lobby density raised.
+
+**Logic fixes:**
+1. **Internet billing** — `utilCompute` charged `net` unconditionally; now billed only when Wi-Fi is built (`has('wifi')`), else 0.
+2. **Save/load** — `load()` never revealed the app: it parsed the save but left `#setup` visible, `#app` hidden and the game loop stopped, so "Continue Saved Game" landed on a dead screen. It now hides the landing/wizard, shows the app, and starts the loop; verified exact-state restore across a hard page reload (day, hour, cash, rooms, staff, backlog, facilities, contract all byte-equal).
+3. **Front-desk gate** — a hired manager silently covered an unmanned desk 24/7 (`od===0 && !mgr`), so check-ins always proceeded. The gate is now strict: nobody rostered → guests wait in the lobby (walkout after 3 hours). Housekeeping/maintenance/F&B/security gates already keyed off `dutyList`/`onDuty` and were verified.
+4. **Auto-roster F&B/security** — `rNeed('fnb')` only recognised `restaurant`; breakfast/lounge/banquet/room-service hotels never rostered F&B. Need now follows every built F&B facility with its operating hours; security threshold lowered (nights from 6 rooms; day cover for 24+ rooms or banquet properties). Building a facility or hiring staff now tops up an empty roster for that role automatically (never overwrites an existing plan).
+5. **Staffing caps** — daily cap corrected from 12h to **8h** (`R_MAXDAY`); weekly hard cap stays **56h**; contracted-hours input widened to 40–56 (default 48) so overtime (1.5×, beyond contract) works as designed instead of feeling like a 46h ceiling.
+6. **Maintenance** — the daily resolver computed capacity from whoever was on duty *at midnight* (when it runs) — i.e. nobody — so issues never cleared. Capacity now comes from the day's rostered maintenance hours × skill; unrostered days resolve nothing (gate). Issue spawn rates cut to ~40% of before (occupied .05→.02, idle .015→.006, wear .04→.016, common-area .08→.03).
+7. **Pricing page** — three separated concerns: "Rate Control — you set the rack rates" (inputs disabled with an explanatory notice while the RMS runs), "Rate Tactics — fences & discounts you control", "Revenue Management — who sets prices". Market ref/position/demand-pull remain read-only analytics.
+8. **Guest Mix Insight card removed** from Front Office (not replaced).
+9. **Policy defaults** (new properties): check-in 13:00, late-checkout fee 500, early check-in ON, late checkout ON, payment terms = no deposit. Existing saves keep their chosen values.
+10. **Events demand an answer** — the shared modal's leftover backdrop-dismiss handler let events be clicked away; event modals now disarm it, so one of the offered actions must be chosen (game pauses while open, as before).
+
+**Verified.** Dedicated fix-pass suite (all 20 assertions green), save→reload→load exact-match, 3-country/29-tab sweep zero issues, smoke4 economy invariants (deposit ledger consistent under the new no-deposit default) and smoke5 Phase-11 suite green.
