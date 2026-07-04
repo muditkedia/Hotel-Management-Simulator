@@ -256,6 +256,7 @@ label.fl{display:block;font-size:11px;color:var(--mut);margin:10px 0 4px;font-we
         <button class="sp on" data-sp="1" title="1×">1×</button>
         <button class="sp" data-sp="2" title="2×">2×</button>
         <button class="sp" data-sp="4" title="4×">4×</button>
+        <button class="sp" data-sp="8" title="8×">8×</button>
       </div>
     </div>
   </div>
@@ -656,7 +657,7 @@ function startLoop(){ if(loop)clearInterval(loop); lastTick=performance.now(); l
 function gameLoop(){
   if(G.paused) return;
   const now=performance.now();
-  const hourMs=3000/G.speed; // 1 hour = 3s at 1x
+  const hourMs=2000/G.speed; // 1 hour = 2s at 1x, 1s at 2x, 0.5s at 4x, 0.25s at 8x
   if(now-lastTick>=hourMs){ lastTick=now; tickHour(); refreshLive(); }
   updateClock();
 }
@@ -978,7 +979,7 @@ $('#modal').onclick=e=>{if(e.target.id==='modal')e.currentTarget.style.display='
 document.addEventListener('keydown',e=>{
   if($('#app').style.display==='none')return;
   if(e.code==='Space'){e.preventDefault();setPause(!G.paused);}
-  if(e.key==='1'){G.speed=1;setPause(false);} if(e.key==='2'){G.speed=2;setPause(false);} if(e.key==='4'){G.speed=4;setPause(false);}
+  if(e.key==='1'){G.speed=1;setPause(false);} if(e.key==='2'){G.speed=2;setPause(false);} if(e.key==='4'){G.speed=4;setPause(false);} if(e.key==='8'){G.speed=8;setPause(false);}
 });
 
 
@@ -6035,7 +6036,7 @@ function v14ResyncIds(){try{
 }catch(e){}};}
 
 /* ---------- (B18) mobile FAB speed button — implement cycleSpeed ---------- */
-window.cycleSpeed=()=>{const order=[1,2,4];G.speed=order[(order.indexOf(G.speed)+1)%order.length];setPause(false);toast('Speed '+G.speed+'×');};
+window.cycleSpeed=()=>{const order=[1,2,4,8];G.speed=order[(order.indexOf(G.speed)+1)%order.length];setPause(false);toast('Speed '+G.speed+'×');};
 
 /* ---------- UI consolidation: one authoritative home per control ----------
    Pricing still carried the v1 "Operating Policies" card duplicating the
@@ -7896,6 +7897,436 @@ renderWiz=function(){
   const html=`<div class="kpi" onclick="go('finance')" style="cursor:pointer"><div class="k">Today P&amp;L</div><div class="v">${n>=0?'<span class="up">+':'<span class="down">−'}${cr(Math.abs(n))}</span> <small>since 00:00</small></div></div>`;
   const el=$('#kpis');if(el){const first=el.querySelector('.kpi');if(first)first.insertAdjacentHTML('afterend',html);else el.insertAdjacentHTML('beforeend',html);}
 }catch(e){}};}
+
+/* =======================================================================
+   v24 — OPERATIONS CENTRE
+   1) Monochrome control-room UI: white paper, black type, thin lines,
+      restrained accent colours that only carry meaning (live / good /
+      warning / critical / revenue). Light is the default; dark becomes a
+      flat "security room" charcoal. All mechanics untouched.
+   2) CCTV: a purchasable security system (lobby+floors package first,
+      then per-facility cameras) unlocking a live Cameras dashboard —
+      hourly silhouette snapshots generated from real simulation state.
+   3) Pacing: base tick retimed in the core loop (2s per game hour at 1×,
+      down to 0.25s at the new 8×) — pure render cadence, the hour
+      remains the atomic simulation step so nothing desynchronises.
+   ======================================================================= */
+
+/* ---------------- (A) THEME — hospitality control room ---------------- */
+(function(){try{
+const css=`
+/* geometry: flat, thin, print-like — both themes */
+.card,.shopitem,.mini,.kpi,.notice,.pick,.choice,.wizstep,#mbox,.modal-card,.fitem,.toggle{border-radius:3px!important;box-shadow:none!important}
+.btn,.tag,.sp,.pill{border-radius:2px!important;box-shadow:none!important}
+.btn.primary{box-shadow:none!important}
+body{background-image:none!important}
+
+/* ---- light: the ops-centre default ---- */
+body.light{
+  --bg:#f6f6f3;--bg2:#f1f1ec;--panel:#ffffff;--panel2:#f3f3ee;
+  --line:#e3e3db;--line2:#d4d4ca;--ink:#151513;--mut:#5c5c55;--mut2:#8e8e85;
+  --gold:#8a6a1e;--gold2:#6e5416;--pos:#1e5c3a;--neg:#7a2430;--warn:#b45f14;
+  --info:#44505c;--vip:#5b4a6b;--sh:none;
+  background:#f6f6f3!important;color:#151513;
+}
+body.light #topbar{background:#fff!important;border-bottom:1px solid var(--line)!important;box-shadow:none!important}
+body.light #side{background:#fff!important;border-right:1px solid var(--line)!important}
+body.light #side .nav{color:#3c3c36;border-radius:0!important}
+body.light #side .nav.on{background:var(--panel2)!important;color:#111;box-shadow:inset 2px 0 0 #151513}
+body.light #side .grouplab,body.light #side .glab{color:var(--mut2)}
+body.light .card,body.light .shopitem,body.light .mini,body.light .toggle{background:#fff!important;border:1px solid var(--line)!important}
+body.light .card h3{color:#151513;border-bottom:1px solid var(--line);padding-bottom:6px}
+body.light .kpi{background:transparent!important;border:none!important;border-right:1px solid var(--line)!important;padding-right:12px}
+body.light .kpi:last-child{border-right:none!important}
+body.light .kpi .k{color:var(--mut2);letter-spacing:.7px}
+body.light .btn{background:#fff!important;border:1px solid #c7c7bd!important;color:#151513!important}
+body.light .btn:hover{border-color:#151513!important}
+body.light .btn.primary{background:#151513!important;border-color:#151513!important;color:#fff!important}
+body.light .btn.primary:hover{background:#33332f!important}
+body.light .tag{background:#fff!important;border:1px solid var(--line2)!important;color:#44443f!important}
+body.light .tag.on{background:#151513!important;border-color:#151513!important;color:#fff!important}
+body.light .pill{background:transparent!important;border:1px solid currentColor!important;font-weight:600}
+body.light .pill.green{color:var(--pos)!important}
+body.light .pill.red{color:var(--neg)!important}
+body.light .pill.gold{color:var(--gold)!important}
+body.light .pill.blue{color:var(--info)!important}
+body.light .up{color:var(--pos)!important}
+body.light .down{color:var(--neg)!important}
+body.light .notice{background:var(--panel2)!important;border:1px solid var(--line2)!important;color:#3c3c36}
+body.light ::-webkit-scrollbar-thumb{background:#c9c9bf;border:2px solid #f6f6f3}
+body.light input,body.light select,body.light textarea{background:#fff;border:1px solid var(--line2);color:#151513;border-radius:2px}
+body.light #botnav{background:#fff!important;border-top:1px solid var(--line)!important}
+body.light #botnav .bn.on{background:var(--panel2)!important;color:#151513!important}
+body.light .page-head h2:after{background:#151513}
+body.light .sw{background:#dddad0}body.light .sw.on{background:#151513}
+
+/* ---- dark: flat corporate security-room charcoal ---- */
+body:not(.light){
+  --bg:#111214;--bg2:#141519;--panel:#17181c;--panel2:#1d1e23;
+  --line:#26272d;--line2:#303138;--ink:#e6e6e2;--mut:#96968e;--mut2:#6b6b64;
+  --gold:#b08a3e;--pos:#4f9b70;--neg:#b0616b;--warn:#c99a52;--sh:none;
+  background:#111214!important;
+}
+body:not(.light) .card{border:1px solid var(--line)}
+`;
+const st=document.createElement('style');st.id='v24Theme';st.textContent=css;(document.head||document.body).appendChild(st);
+document.body&&document.body.classList.add('light'); // default look; applySettings re-asserts the saved choice
+}catch(e){}})();
+
+/* light becomes the default once per save; an explicit re-pick of dark sticks */
+{const _v24AI=augmentInit;augmentInit=function(){_v24AI();try{
+  if(!G.settings)G.settings={};
+  if(!G._v24theme){G._v24theme=1;G.settings.theme='light';}
+  applySettings();
+}catch(e){}};}
+
+/* ---------------- (B) CCTV — state & purchases ---------------- */
+const CAM_FACS={
+ restaurant:{n:'Restaurant'},breakfast:{n:'Breakfast Hall'},pool:{n:'Swimming Pool'},
+ gym:{n:'Fitness Centre'},spa:{n:'Spa & Wellness'},laundry:{n:'Laundry Room'},
+ traveldesk:{n:'Travel Desk'},parking:{n:'Parking & Valet'},conf:{n:'Conference Hall'},
+ banquet:{n:'Banquet Hall'},lounge:{n:'Executive Lounge'}
+};
+function ensureCams(p){ensureV17(p);if(!p.sec.camFac)p.sec.camFac={};if(!p.camSlots)p.camSlots=[null,null,null];}
+function camCoreCost(){return Math.round(300000*(activeCountry().capex||1));}
+function camFacCost(){return Math.round(90000*(activeCountry().capex||1));}
+function camFacsBuilt(p){return Object.keys(CAM_FACS).filter(k=>p.facilities.includes(k));}
+window.buyCamCore=()=>{const p=P();ensureCams(p);if(p.sec.camCore){toast('Core CCTV already installed.');return;}
+  const cost=camCoreCost();if(G.cash<cost){toast('Not enough cash.','neg');return;}
+  G.cash-=cost;p.expToday+=cost;p.sec.camCore=1;p.sec.cctv=Math.max(p.sec.cctv||0,1);
+  logEvent(p,'decision','CCTV installed: lobby, floor corridors, entrance & reception.');
+  logDecision('Install CCTV core package',cost,'Live monitoring & guest confidence','Cameras dashboard unlocked','Fewer, milder incidents',['reputation']);
+  toast('CCTV control room online.','pos');go('cameras');};
+window.buyCamFac=k=>{const p=P();ensureCams(p);if(!CAM_FACS[k]||!p.facilities.includes(k))return;
+  if(p.sec.camFac[k]){toast('Camera already installed there.');return;}
+  const cost=camFacCost();if(G.cash<cost){toast('Not enough cash.','neg');return;}
+  G.cash-=cost;p.expToday+=cost;p.sec.camFac[k]=1;
+  const slot=p.camSlots.indexOf(null);if(slot>=0)p.camSlots[slot]='fac:'+k;
+  logEvent(p,'decision','CCTV extended to the '+CAM_FACS[k].n+'.');
+  toast(CAM_FACS[k].n+' camera live.','pos');renderTab();};
+window.camSlotSet=(i,key)=>{const p=P();ensureCams(p);p.camSlots[i]=key||null;renderTab();};
+
+/* ---------------- (C) SCENE ENGINE — hourly silhouette frames ---------------- */
+function camHash(s){let h=9;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),387420489);return h>>>0;}
+function camRng(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* silhouette primitives — plain black shapes, no faces, no labels */
+const _SIL='#1b1b19';
+function _prsn(x,y,s,pose,walkDur){
+  const g0=`<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${s})" fill="${_SIL}">`;
+  let body='';
+  if(pose==='sit')body=`<circle cx="0" cy="-30" r="6"/><path d="M-6,-24 L6,-24 L6,-6 L14,-6 L14,-2 L2,-2 L2,12 L-2,12 L-2,-2 L-6,-2 Z"/>`;
+  else if(pose==='desk')body=`<circle cx="0" cy="-30" r="6"/><path d="M-7,-24 Q0,-27 7,-24 L8,-4 L-8,-4 Z"/>`;
+  else if(pose==='swim')body=`<circle cx="0" cy="-4" r="5.5"/><path d="M-14,-1 Q0,4 14,-1 L12,3 Q0,8 -12,3 Z"/>`;
+  else if(pose==='walk')body=`<circle cx="0" cy="-32" r="6"/><path d="M-6,-26 Q0,-29 6,-26 L7,-6 L3,-6 L8,14 L4.5,14 L0,-2 L-4,14 L-7.5,14 L-3.5,-6 L-7,-6 Z"/>`;
+  else if(pose==='carry')body=`<circle cx="0" cy="-32" r="6"/><path d="M-6,-26 Q0,-29 6,-26 L7,-6 L4,-6 L4,14 L1,14 L1,-4 L-1,-4 L-1,14 L-4,14 L-4,-6 L-7,-6 Z"/><rect x="6" y="-16" width="10" height="12" rx="1"/>`;
+  else body=`<circle cx="0" cy="-32" r="6"/><path d="M-6,-26 Q0,-29 6,-26 L7,-6 L4,-6 L4,14 L1,14 L1,-4 L-1,-4 L-1,14 L-4,14 L-4,-6 L-7,-6 Z"/>`;
+  if(walkDur)return `<g class="camWalk" style="--dur:${walkDur}s">${g0}${body}</g></g>`;
+  return g0+body+'</g>';
+}
+function _lugg(x,y,s){return `<g transform="translate(${x},${y}) scale(${s||1})" fill="${_SIL}"><rect x="-6" y="-18" width="12" height="17" rx="1.5"/><rect x="-1.4" y="-24" width="2.8" height="7"/></g>`;}
+function _cart(x,y){return `<g transform="translate(${x},${y})" fill="${_SIL}"><rect x="-16" y="-26" width="32" height="20" rx="2" fill="none" stroke="${_SIL}" stroke-width="2.5"/><rect x="-14" y="-22" width="28" height="14" opacity=".25"/><circle cx="-10" cy="-2" r="3.5"/><circle cx="10" cy="-2" r="3.5"/></g>`;}
+function _car(x,y,s){return `<g transform="translate(${x},${y}) scale(${s||1})" fill="${_SIL}"><path d="M-30,0 L-27,-9 Q-16,-16 -5,-16 L12,-15 Q24,-13 30,-6 L30,0 Z"/><circle cx="-17" cy="1" r="5"/><circle cx="17" cy="1" r="5"/></g>`;}
+function _plant(x,y){return `<g transform="translate(${x},${y})"><path d="M-7,0 L7,0 L5,-12 L-5,-12 Z" fill="#c9c6ba"/><path d="M0,-12 Q-9,-26 -3,-34 Q0,-24 0,-12 Q3,-28 8,-32 Q6,-20 1,-12" fill="#9a978a"/></g>`;}
+const _FUR='fill="#e4e2d8" stroke="#c4c1b4" stroke-width="1.4"';
+const _FUR2='fill="#d8d5c9" stroke="#bcb9ac" stroke-width="1.2"';
+
+/* per-camera scenes — every count is read from live simulation state */
+function camScene(p,key){
+  const h=G.hour,day=G.day,occ=occupied(p),rooms=Math.max(1,p.rooms.length);
+  const R=camRng((day*24+h)*2654435761+camHash(key));
+  const rainy=/rain|storm|monsoon/i.test(G.weather||'');
+  const night=h>=22||h<6, meal=(h>=7&&h<=10)||(h>=12&&h<=15)||(h>=19&&h<=22);
+  const arrDue=(G.pendingArrivals||[]).filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&a.arrHour===h).length;
+  const arrSoon=(G.pendingArrivals||[]).filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&a.arrHour>h&&a.arrHour<=h+2).length;
+  const depNow=p.rooms.filter(r=>r.guest&&r.guest.checkedIn===true&&r.guest.depDay===day&&Math.abs((r.guest.depHour||11)-h)<=1).length;
+  const fd=onDuty(p,'frontdesk'),hk=onDuty(p,'housekeeping'),mt=onDuty(p,'maintenance'),sec=onDuty(p,'security'),fnb=onDuty(p,'fnb');
+  const dirty=p.rooms.filter(r=>r.status==='dirty').length;
+  const el=[];let info=[],title='',sub='';
+  const floorY=372;
+  el.push(`<rect x="0" y="${floorY}" width="800" height="4" fill="#c9c6ba"/>`);
+  const scatter=(n,x0,x1,poseF,sMin,sMax)=>{for(let i=0;i<n;i++){const x=x0+R()*(x1-x0),d=.72+R()*.18;el.push(_prsn(x,floorY-(1-d)*130,(sMin||1.1)+(d-.72)*((sMax||1.5)-(sMin||1.1))/.18,poseF?poseF(i):(R()<.25?'walk':'stand')));}};
+
+  if(key==='lobby'){
+    title='CAM 01 — GROUND FLOOR LOBBY';sub='Entrance · Reception · Waiting';
+    el.push(`<rect x="18" y="120" width="86" height="252" ${_FUR}/><line x1="61" y1="120" x2="61" y2="372" stroke="#c4c1b4" stroke-width="1.4"/>`); // entrance doors
+    el.push(`<rect x="560" y="270" width="190" height="26" ${_FUR}/><rect x="566" y="296" width="178" height="76" ${_FUR2}/>`); // reception counter
+    el.push(`<rect x="700" y="128" width="52" height="196" ${_FUR}/><line x1="726" y1="128" x2="726" y2="324" stroke="#c4c1b4" stroke-width="1.4"/>`); // lifts
+    el.push(`<rect x="250" y="330" width="120" height="14" rx="3" ${_FUR2}/><rect x="258" y="300" width="104" height="30" rx="3" ${_FUR}/>`); // sofa
+    el.push(`<rect x="410" y="336" width="70" height="10" rx="2" ${_FUR2}/>`); // low table
+    el.push(_plant(200,372));el.push(_plant(680,372));
+    const deskN=Math.min(fd,3);
+    for(let i=0;i<deskN;i++)el.push(_prsn(600+i*44,296,1.2,'desk'));
+    const q=Math.max(0,arrDue+Math.round(depNow*.6)-deskN*2);
+    const ciQ=Math.min(5,arrDue+q);
+    for(let i=0;i<ciQ;i++){el.push(_prsn(505-i*30,352,1.3,'stand'));if(R()<.6)el.push(_lugg(505-i*30+14,352,1));}
+    const lounging=clamp(Math.round(occ*(night?.05:h>=17?.22:.12)+(rainy?2:0)),0,7);
+    for(let i=0;i<Math.min(lounging,4);i++)el.push(_prsn(272+i*26,340,1.15,'sit'));
+    for(let i=0;i<Math.max(0,lounging-4);i++)el.push(_prsn(420+i*34,354,1.25,'stand'));
+    const walkers=clamp(Math.round(occ*.08)+(arrSoon?1:0),night?0:1,4);
+    for(let i=0;i<walkers;i++)el.push(_prsn(-40-R()*120,354,1.3,'walk',34+R()*30));
+    if(p.facilities.includes('parking')&&(arrDue>0||R()<.3)){el.push(_prsn(150,356,1.3,'stand'));el.push(_cart(184,362));}
+    if(hk>0&&dirty>0&&!night)el.push(_prsn(660,352,1.25,'carry'));
+    if(sec>0)el.push(_prsn(60+R()*40,356,1.28,night?'walk':'stand'));
+    const vis=deskN+ciQ+lounging+walkers+(sec>0?1:0);
+    info=[['Guests visible',vis],['Check-ins active',arrDue],['Check-outs active',depNow],['Waiting',q]];
+  }
+  else if(key.startsWith('floor:')){
+    const f=+key.split(':')[1];
+    title='CAM F'+f+' — FLOOR '+f+' CORRIDOR';sub='Rooms · Lifts · Service';
+    for(let i=0;i<5;i++)el.push(`<rect x="${70+i*140}" y="170" width="66" height="202" ${_FUR}/><circle cx="${127+i*140}" cy="276" r="3" fill="#c4c1b4"/>`);
+    el.push(`<rect x="10" y="180" width="44" height="192" ${_FUR2}/>`);
+    const fRooms=p.rooms.filter(r=>r.floor===f),fOcc=fRooms.filter(r=>r.status==='occupied').length,fDirty=fRooms.filter(r=>r.status==='dirty').length;
+    const gWalk=clamp(Math.round(fOcc*(night?.06:.28)),0,4);
+    for(let i=0;i<gWalk;i++)el.push(_prsn(-30-R()*200,354,1.28,'walk',40+R()*34));
+    let hkHere=0;if(hk>0&&fDirty>0){hkHere=Math.min(2,hk,fDirty);for(let i=0;i<hkHere;i++){el.push(_prsn(240+i*180+R()*60,352,1.26,'carry'));el.push(_cart(210+i*180+R()*60,364));}}
+    const mHere=(mt>0&&(p.maintBacklog||[]).some(m=>{const r=m.roomId&&p.rooms.find(x=>x.id===m.roomId);return r&&r.floor===f;}))?1:0;
+    if(mHere)el.push(_prsn(560,352,1.26,'carry'));
+    const sHere=(sec>0&&night)?1:0;if(sHere)el.push(_prsn(680,354,1.28,'walk',52));
+    const waitLift=clamp(Math.round(fOcc*.1),0,2);for(let i=0;i<waitLift;i++)el.push(_prsn(70+i*20,356,1.24,'stand'));
+    info=[['Rooms occupied',fOcc+'/'+fRooms.length],['Housekeeping',hkHere],['Maintenance',mHere],['Patrol',sHere?'on floor':'—']];
+  }
+  else if(key==='fac:restaurant'||key==='fac:breakfast'){
+    const bk=key==='fac:breakfast';
+    title=bk?'CAM 12 — BREAKFAST HALL':'CAM 11 — RESTAURANT';sub=bk?'Buffet · Seating':'Dining Room · Service';
+    const open=bk?(h>=6&&h<=11):(h>=7&&h<=23);
+    const dRest=(p.dept&&p.dept.restaurant)||{};
+    const mult=bk?((h>=7&&h<=10)?1:.25):(meal?1:.3);
+    const covers=open?clamp(Math.round(occ*(bk?.5:.38)*mult+(dRest.service==='external'?3:0)+R()*2),0,26):0;
+    el.push(`<rect x="620" y="240" width="150" height="132" ${_FUR}/><rect x="632" y="228" width="126" height="12" ${_FUR2}/>`); // buffet/pass
+    let seated=0;
+    for(let t=0;t<6;t++){const tx=90+(t%3)*180,ty=t<3?300:352;
+      el.push(`<ellipse cx="${tx}" cy="${ty}" rx="30" ry="9" ${_FUR}/><rect x="${tx-4}" y="${ty}" width="8" height="${floorY-ty}" ${_FUR2}/>`);
+      const at=Math.min(Math.max(0,covers-seated),t<3?2:3);
+      for(let i=0;i<at;i++)el.push(_prsn(tx-26+i*26,ty+16,1.12,'sit'));
+      seated+=at;}
+    const waiters=open?Math.min(fnb,3):0;
+    for(let i=0;i<waiters;i++)el.push(_prsn(600-i*50,350,1.24,i===0?'carry':'walk',i===0?0:46+R()*20));
+    if(open&&covers>seated)for(let i=0;i<Math.min(3,covers-seated);i++)el.push(_prsn(700+i*24,352,1.22,'stand'));
+    const wait=Math.max(0,covers-seated-3);
+    info=[['Guests dining',seated],['Waiting',open?wait:0],['Staff on floor',waiters],['Kitchen',open?'open':'closed']];
+  }
+  else if(key==='fac:pool'){
+    title='CAM 21 — SWIMMING POOL';sub='Pool Deck';
+    el.push(`<path d="M120,270 L560,270 Q600,270 600,306 L600,340 Q600,372 560,372 L120,372 Q90,372 90,338 L90,304 Q90,270 120,270 Z" fill="#dde3e0" stroke="#b7bdb9" stroke-width="1.6"/>`);
+    for(let i=0;i<4;i++)el.push(`<path d="M${140+i*110},${300+(i%2)*26} q14,-6 28,0 q14,6 28,0" fill="none" stroke="#b7bdb9" stroke-width="1.6"/>`);
+    el.push(`<rect x="596" y="266" width="4" height="40" fill="#9a978a"/><rect x="612" y="266" width="4" height="40" fill="#9a978a"/><rect x="592" y="264" width="28" height="4" fill="#9a978a"/>`);
+    const open=h>=6&&h<=21&&!rainy;
+    const swimN=open?clamp(Math.round(occ*((h>=7&&h<=10)||(h>=16&&h<=19)?.16:.07)),0,8):0;
+    for(let i=0;i<swimN;i++)el.push(_prsn(150+R()*400,300+R()*54,1.15,'swim'));
+    const deckN=open?clamp(Math.round(swimN*.7+R()*2),0,6):0;
+    for(let i=0;i<deckN;i++){const bx=650+((i%2)*70),by=300+Math.floor(i/2)*36;el.push(`<rect x="${bx-30}" y="${by}" width="60" height="8" rx="3" ${_FUR2}/>`);el.push(_prsn(bx,by+2,1.05,'sit'));}
+    const lifeg=(p.staff.fnb||[]).length||(p.staff.security||[]).length?1:0;
+    if(open&&lifeg)el.push(_prsn(60,352,1.26,'stand'));
+    info=[['In the pool',swimN],['On the deck',deckN],['Capacity',Math.min(40,rooms*2)],['Status',open?(rainy?'rain hold':'open'):'closed']];
+  }
+  else if(key==='fac:gym'){
+    title='CAM 22 — FITNESS CENTRE';sub='Cardio · Weights';
+    for(let i=0;i<3;i++)el.push(`<path d="M${110+i*120},372 L${110+i*120},330 L${170+i*120},322 L${170+i*120},372 Z" ${_FUR}/>`);
+    el.push(`<rect x="520" y="344" width="150" height="8" ${_FUR2}/><circle cx="530" cy="348" r="12" ${_FUR}/><circle cx="660" cy="348" r="12" ${_FUR}/>`);
+    const bizShare=p.rooms.filter(r=>r.guest&&['business','corporate','premium','vip'].includes(r.guest.type)).length;
+    const open=h>=5&&h<=22;
+    const n=open?clamp(Math.round(bizShare*((h>=6&&h<=9)||(h>=17&&h<=20)?.5:.15)+R()),0,6):0;
+    for(let i=0;i<n;i++)el.push(_prsn(130+i*105,i%2?352:338,1.15,i%3===0?'carry':'stand'));
+    info=[['Training now',n],['In-house fit guests',bizShare],['Hours','05–22'],['Status',open?'open':'closed']];
+  }
+  else if(key==='fac:spa'){
+    title='CAM 23 — SPA & WELLNESS';sub='Treatment · Relaxation';
+    for(let i=0;i<3;i++)el.push(`<rect x="${120+i*190}" y="330" width="110" height="12" rx="4" ${_FUR}/><rect x="${120+i*190}" y="342" width="110" height="30" ${_FUR2}/>`);
+    const prem=p.rooms.filter(r=>r.guest&&['premium','vip','wedding'].includes(r.guest.type)).length;
+    const open=h>=9&&h<=20;
+    const n=open?clamp(Math.round(prem*.4+occ*.03+R()),0,4):0;
+    for(let i=0;i<n;i++)el.push(_prsn(150+i*190,330,1.1,'sit'));
+    const th=open?Math.min((p.staff.fnb||[]).length+(p.staff.housekeeping||[]).length?2:0,n+1):0;
+    for(let i=0;i<th;i++)el.push(_prsn(240+i*190,352,1.22,'stand'));
+    info=[['In treatment',n],['Therapists',th],['Premium in-house',prem],['Status',open?'open':'closed']];
+  }
+  else if(key==='fac:laundry'){
+    title='CAM 31 — LAUNDRY ROOM';sub='Back of House';
+    for(let i=0;i<5;i++)el.push(`<rect x="${560+i*46}" y="286" width="40" height="86" ${_FUR}/><circle cx="${580+i*46}" cy="326" r="13" fill="#f2f0e8" stroke="#c4c1b4" stroke-width="1.4"/>`);
+    const loads=clamp(Math.round(occ*.35+dirty*.4),0,20);
+    const staffN=Math.min(hk+((p.staff.fnb||[]).length?1:0),3);
+    const busy=loads>8;
+    for(let i=0;i<Math.min(staffN,3);i++){el.push(_prsn(160+i*150,352,1.24,busy?'carry':'stand'));el.push(_cart(120+i*150,364));}
+    el.push(`<rect x="60" y="330" width="90" height="42" ${_FUR2}/>`);
+    info=[['Loads today',loads],['Staff working',staffN],['Backlog',busy?'heavy':'normal'],['Linen state',dirty>rooms*.3?'stretched':'ok']];
+  }
+  else if(key==='fac:traveldesk'){
+    title='CAM 41 — TRAVEL DESK';sub='Concierge · Excursions';
+    el.push(`<rect x="540" y="280" width="180" height="22" ${_FUR}/><rect x="548" y="302" width="164" height="70" ${_FUR2}/>`);
+    const open=h>=8&&h<=20;
+    const tour=(p.city&&p.city.tour)||.3;
+    const vis=open?clamp(Math.round(occ*tour*.35+(h>=9&&h<=13?2:0)+R()*2),0,8):0;
+    if(open)el.push(_prsn(600,302,1.2,'desk'));
+    for(let i=0;i<Math.min(vis,4);i++)el.push(_prsn(500-i*34,352,1.26,'stand'));
+    for(let i=0;i<Math.max(0,Math.min(vis-4,3));i++)el.push(_prsn(220+i*60,350,1.2,'sit'));
+    el.push(_plant(140,372));
+    const bookings=clamp(Math.round(occ*tour*.5),0,20);
+    info=[['Visitors',vis],['Bookings today',bookings],['Queue',Math.max(0,vis-2)],['Status',open?'open':'closed']];
+  }
+  else if(key==='fac:parking'){
+    title='CAM 51 — PARKING & VALET';sub='Basement Level';
+    for(let i=0;i<4;i++)el.push(`<rect x="${90+i*180}" y="150" width="16" height="222" ${_FUR2}/>`);
+    for(let i=0;i<6;i++)el.push(`<line x1="${60+i*125}" y1="372" x2="${86+i*125}" y2="300" stroke="#c4c1b4" stroke-width="1.4"/>`);
+    const veh=(p.policies&&p.parking)?clamp(Math.round(occ*.38),0,14):clamp(Math.round(occ*.3),0,12);
+    for(let i=0;i<Math.min(veh,6);i++)el.push(_car(120+i*118,364,1));
+    const moving=arrDue>0||depNow>0;
+    if(moving)el.push(`<g class="camWalk" style="--dur:26s">${_car(-80,352,1.05)}</g>`);
+    const valet=p.facilities.includes('parking')&&fd+fnb>0?1:0;
+    if(valet)el.push(_prsn(400,350,1.26,moving?'walk':'stand',moving?30:0));
+    if(sec>0&&night)el.push(_prsn(660,352,1.26,'walk',56));
+    info=[['Vehicles parked',veh],['Arrivals moving',arrDue],['Valet',valet?'on post':'—'],['Patrol',sec>0&&night?'active':'—']];
+  }
+  else if(key==='fac:conf'||key==='fac:banquet'){
+    const bq=key==='fac:banquet';
+    title=bq?'CAM 61 — BANQUET HALL':'CAM 62 — CONFERENCE HALL';sub=bq?'Events':'Meetings';
+    const wd=G.dow>=1&&G.dow<=5;
+    const busy=bq?(h>=18&&h<=23&&R()<.5):(wd&&h>=9&&h<=17);
+    if(bq){el.push(`<rect x="620" y="250" width="140" height="122" ${_FUR}/>`);for(let t=0;t<4;t++)el.push(`<ellipse cx="${120+t*130}" cy="330" rx="34" ry="10" ${_FUR}/>`);}
+    else{for(let r2=0;r2<3;r2++)for(let c=0;c<6;c++)el.push(`<rect x="${110+c*90}" y="${280+r2*34}" width="40" height="8" rx="2" ${_FUR2}/>`);}
+    const corp=p.rooms.filter(r=>r.guest&&['corporate','business'].includes(r.guest.type)).length;
+    const n=busy?clamp(Math.round(corp*(bq?1.6:.9)+(bq?6:4)+R()*3),0,bq?18:14):0;
+    let placed=0;
+    if(busy){if(bq){for(let t=0;t<4&&placed<n;t++)for(let i=0;i<5&&placed<n;i++){el.push(_prsn(92+t*130+i*15,344,1.05,'sit'));placed++;}}
+      else{for(let r2=0;r2<3&&placed<n;r2++)for(let c=0;c<6&&placed<n;c++){if(R()<.75){el.push(_prsn(130+c*90,292+r2*34,0.95,'sit'));placed++;}}}
+      el.push(_prsn(700,350,1.24,'stand'));}
+    info=[[bq?'Event guests':'Attendees',placed],['Corporate in-house',corp],['Booked',busy?'in session':'—'],['Setup',bq?'rounds of 8':'theatre']];
+  }
+  else if(key==='fac:lounge'){
+    title='CAM 71 — EXECUTIVE LOUNGE';sub='Club Floor';
+    el.push(`<rect x="580" y="270" width="180" height="24" ${_FUR}/><rect x="588" y="294" width="164" height="78" ${_FUR2}/>`);
+    for(let i=0;i<4;i++)el.push(`<rect x="${110+i*110}" y="326" width="66" height="12" rx="3" ${_FUR}/>`);
+    const elig=p.rooms.filter(r=>r.guest&&['vip','premium','corporate','business'].includes(r.guest.type)).length;
+    const open=h>=6&&h<=23;
+    const n=open?clamp(Math.round(elig*((h>=17&&h<=21)?.5:.2)+R()),0,8):0;
+    for(let i=0;i<n;i++)el.push(_prsn(126+(i%4)*110+Math.floor(i/4)*30,326,1.1,'sit'));
+    const host=open&&fnb>0?1:0;if(host)el.push(_prsn(640,294,1.2,'desk'));
+    info=[['In the lounge',n],['Eligible guests',elig],['Host',host?'on duty':'—'],['Peak','17–21']];
+  }
+  else{title='CAM — '+key;info=[['Signal','—']];}
+  return {title,sub,el:el.join(''),info};
+}
+
+/* frame chrome + info strip */
+function camFrame(p,key,big){
+  ensureCams(p);
+  const sc=camScene(p,key);
+  const hh=String(G.hour).padStart(2,'0');
+  const wIc=/rain/i.test(G.weather||'')?'RAIN':/heat/i.test(G.weather||'')?'HEAT':/cold|fog/i.test(G.weather||'')?'FOG':'CLR';
+  return `<div class="camfeed ${big?'cambig':''}">
+    <div class="camhead"><span class="camlive"><i></i>LIVE</span><span class="camtitle">${sc.title}</span><span class="camtime">DAY ${G.day} · ${hh}:00 · ${wIc}</span></div>
+    <div class="camview"><svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMax slice">
+      <rect x="0" y="0" width="800" height="400" fill="#efeee8"/>
+      <rect x="0" y="0" width="800" height="130" fill="#e8e7e0"/>
+      ${sc.el}
+      <rect x="0" y="0" width="800" height="400" fill="none" stroke="#d4d2c6" stroke-width="2"/>
+    </svg></div>
+    <div class="caminfo">${sc.info.map(([k,v])=>`<span><b>${v}</b> ${k}</span>`).join('')}</div>
+  </div>`;
+}
+
+/* ---------------- (D) CAMERAS TAB ---------------- */
+function camOptions(p,current){
+  ensureCams(p);
+  const opts=[];
+  for(let f=1;f<=p.floors;f++)if(p.rooms.some(r=>r.floor===f))opts.push(['floor:'+f,'Floor '+f+' Corridor']);
+  camFacsBuilt(p).filter(k=>p.sec.camFac[k]).forEach(k=>opts.push(['fac:'+k,CAM_FACS[k].n]));
+  return `<option value="">— no feed —</option>`+opts.map(([v,n])=>`<option value="${v}" ${current===v?'selected':''}>${n}</option>`).join('');
+}
+function tabCameras(p){
+  ensureCams(p);
+  if(!p.sec.camCore){
+    const built=camFacsBuilt(p);
+    return `<div class="page-head"><div><h2>CCTV Control Room</h2><div class="desc">Live monitoring of the property — a security investment, not a given.</div></div></div>
+    <div class="card" style="max-width:640px;margin:40px auto;text-align:center;padding:38px 30px">
+      <div style="font-size:34px;margin-bottom:10px">▣</div>
+      <h3 style="border-bottom:none">Install CCTV System to unlock live monitoring</h3>
+      <div class="muted sm" style="margin:10px 0 18px">The core package covers the ground-floor lobby, every floor corridor, the entrance, reception and waiting areas. Facility cameras can be added individually afterwards.</div>
+      <button class="btn primary" onclick="buyCamCore()" style="padding:10px 22px">Install CCTV core package — ${cr(camCoreCost())}</button>
+      <div class="muted sm" style="margin-top:14px">${built.length?built.length+' facility feed(s) will become available to add.':''}</div>
+    </div>`;
+  }
+  const purchasable=camFacsBuilt(p).filter(k=>!p.sec.camFac[k]);
+  const validKeys=new Set();for(let f=1;f<=p.floors;f++)validKeys.add('floor:'+f);camFacsBuilt(p).filter(k=>p.sec.camFac[k]).forEach(k=>validKeys.add('fac:'+k));
+  p.camSlots=p.camSlots.map(s=>validKeys.has(s)?s:null);
+  return `<div class="page-head"><div><h2>CCTV Control Room</h2><div class="desc">One frame per hour, generated from the live operation — occupancy, arrivals, rosters, weather and demand.</div></div>
+    <div class="wrapf"><span class="pill green">● ${Object.keys(p.sec.camFac).filter(k=>p.sec.camFac[k]).length+1+p.floors} feeds</span></div></div>
+  ${camFrame(p,'lobby',true)}
+  <div class="camgrid">
+    ${p.camSlots.map((slot,i)=>`<div class="camslot">
+      <div class="camsel"><span class="muted sm">FEED ${i+2}</span><select onchange="camSlotSet(${i},this.value)">${camOptions(p,slot)}</select></div>
+      ${slot?camFrame(p,slot,false):'<div class="camoff"><span>NO FEED SELECTED</span></div>'}
+    </div>`).join('')}
+  </div>
+  ${purchasable.length?`<div class="card" style="margin-top:14px"><h3>Extend coverage</h3>
+    <div class="muted sm" style="margin-bottom:8px">Each facility camera is a one-time installation — ${cr(camFacCost())} per feed. Only built facilities can be wired.</div>
+    <div class="wrapf">${purchasable.map(k=>`<button class="btn" onclick="buyCamFac('${k}')">＋ ${CAM_FACS[k].n} — ${cr(camFacCost())}</button>`).join('')}</div>
+  </div>`:''}
+  <div class="muted sm" style="margin-top:10px">Silhouettes are generated from simulation state each in-game hour — nothing here is decorative.</div>`;
+}
+
+/* camera styles */
+(function(){try{
+const css=`
+.camfeed{background:#fff;border:1px solid var(--line,#e3e3db);margin-bottom:12px}
+body:not(.light) .camfeed{background:var(--panel);border-color:var(--line)}
+.camhead{display:flex;align-items:center;gap:12px;padding:7px 12px;border-bottom:1px solid var(--line,#e3e3db);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px;letter-spacing:.8px;color:var(--mut,#5c5c55)}
+.camtitle{font-weight:700;color:var(--ink,#151513)}
+.camtime{margin-left:auto}
+.camlive{display:inline-flex;align-items:center;gap:5px;color:#1e5c3a;font-weight:700}
+.camlive i{width:7px;height:7px;border-radius:50%;background:#1e5c3a;display:inline-block;animation:camblink 2.2s infinite}
+@keyframes camblink{0%,100%{opacity:1}50%{opacity:.25}}
+.camview{position:relative;overflow:hidden}
+.camview svg{display:block;width:100%;height:auto}
+.cambig .camview svg{max-height:420px}
+.caminfo{display:flex;gap:18px;flex-wrap:wrap;padding:7px 12px;border-top:1px solid var(--line,#e3e3db);font-size:11.5px;color:var(--mut,#5c5c55)}
+.caminfo b{color:var(--ink,#151513);font-variant-numeric:tabular-nums}
+.camgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.camslot .camsel{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.camslot .camsel select{flex:1;padding:5px 8px;font-size:12px}
+.camoff{border:1px dashed var(--line2,#d4d4ca);background:var(--panel2,#f3f3ee);height:180px;display:flex;align-items:center;justify-content:center;color:var(--mut2,#8e8e85);font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:1.5px}
+.camWalk{animation:camwalk var(--dur,60s) linear infinite}
+@keyframes camwalk{from{transform:translateX(0)}to{transform:translateX(900px)}}
+body.reduce-motion .camWalk,body.reduce-motion .camlive i{animation:none}
+@media(max-width:900px){.camgrid{grid-template-columns:1fr}.caminfo{gap:12px}}
+`;
+const st=document.createElement('style');st.id='v24Cams';st.textContent=css;(document.head||document.body).appendChild(st);
+}catch(e){}})();
+
+/* nav + dispatch + hourly regeneration */
+(function(){try{const side=document.getElementById('side');if(!side)return;
+  if(!side.querySelector('[data-tab="cameras"]')){
+    const el=document.createElement('div');el.className='nav';el.dataset.tab='cameras';el.innerHTML='<span class="ic"></span>Cameras';
+    el.onclick=()=>{go('cameras');const a=document.getElementById('app');if(a)a.classList.remove('navopen');};
+    const ref=side.querySelector('[data-tab="operations"]');
+    if(ref&&ref.nextSibling)side.insertBefore(el,ref.nextSibling);else side.appendChild(el);
+  }
+}catch(e){}})();
+{const _v24RT=renderTab;renderTab=function(){
+  if(G.tab==='cameras'){try{const p=P();ensureCams(p);const m=$('#main');
+    if(m){m.innerHTML=tabCameras(p);if(typeof wireTab==='function')wireTab();}
+    $$('#side .nav').forEach(n=>n.classList.toggle('on',n.dataset.tab===G.tab));
+    return;}catch(e){}}
+  _v24RT();
+};}
+{const _v24RL=refreshLive;refreshLive=function(){_v24RL();try{
+  if(G.tab==='cameras'){const ae=document.activeElement;
+    if(ae&&(ae.tagName==='SELECT'||ae.tagName==='INPUT'))return;
+    const m=$('#main');if(m)m.innerHTML=tabCameras(P());}
+}catch(e){}};}
+
+/* security department card: surface the CCTV control room from Operations */
+{const _v24Ops=tabOperations;tabOperations=function(p){let h=_v24Ops(p);try{
+  ensureCams(p);
+  const facN=Object.keys(p.sec.camFac).filter(k=>p.sec.camFac[k]).length;
+  h+=`<div class="card" style="margin-top:12px"><h3>▣ CCTV Control Room</h3>
+   ${p.sec.camCore
+     ?row('Coverage','Lobby + '+p.floors+' floor corridor(s) + '+facN+' facility feed(s)')+row('Dashboard','<button class="btn" style="padding:3px 10px;font-size:11px" onclick="go(\'cameras\')">Open Cameras</button>')
+     :row('Status','<span class="pill red">not installed</span>')+row('Core package — lobby, corridors, entrance, reception','<button class="btn primary" style="padding:3px 10px;font-size:11px" onclick="buyCamCore()">Install '+cr(camCoreCost())+'</button>')}
+   <div class="muted sm" style="margin-top:4px">Live silhouette monitoring of the whole property, one frame per hour. Facility cameras are added from the dashboard.</div></div>`;
+}catch(e){}return h;};}
+
+try{Object.assign(TIPS,{cameras:{t:'CCTV Control Room',d:'One silhouette frame per in-game hour, generated from live simulation state: occupancy, arrivals and departures, rosters on duty, weather, meal periods and demand. Install the core package under Security, then wire individual facilities.'}});}catch(e){}
 
 renderWiz();
 </script>
