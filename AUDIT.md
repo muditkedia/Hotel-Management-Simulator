@@ -295,3 +295,23 @@ Settings verification: severance charges exactly ₹sal/2; the night room-servic
 - **Workforce analytics**: per-department coverage gaps, weekly hours, overtime, labour ₹/day and labour per occupied room — on the Roster page and in the Daily Report.
 
 Verified end-to-end headless: a pitched contract signs, injects corporate reservations, delivers nights and tracks traveller satisfaction; three awards earn after exactly two monthly reviews and measurably raise demand; auto-roster fully covers morning need within budget; unrostered maintenance stops repairs and an unstaffed kitchen serves zero lunches; all 28 tabs render; the full regression (deposit ledger exact, chain background sim, policies fees) stays green.
+
+---
+
+## 14. Internationalisation — Grand Stay (`v22`, branch `claude/aatithya-international`)
+
+*Separate branch from the India build (`claude/aatithya-audit-jnh84c`), which is untouched.*
+
+The game is de-localised from India-only into a three-region simulator (India · USA · Europe), Tier 1–2 cities only.
+
+**Architecture** — one balanced base economy, localised at the display layer. All internal money stays in a single base unit (the tuned Indian economy), so gameplay balance is preserved everywhere and every legacy currency literal converts automatically. `cr()`/`cr0()` became currency-aware (symbol, per-country display divisor `k`, Indian lakh/crore vs Western K/M/B grouping). A `locStr()` pass converts static ₹-labels baked into events, objectives and achievements to the active currency; dynamic template literals (loans, valet, loyalty) now route through `cr()`.
+
+**Per-country profile** (`COUNTRIES`): currency + display divisor; construction (`capex`), wage and starting-capital multipliers applied to the captured base constants at `applyCountry()` (re-applied on load, save-safe via `G.country`); tax model (India GST slab · US 15% occupancy/sales · Europe 10% VAT); a curated Tier 1–2 city list with per-city rate/demand/competition/mix/seasonality; local first/last-name pools; local competitor brand pools; local hotel-name generator; country-neutral seasonality (India festivals vs Western summer/year-end peaks).
+
+**Cities** (8 each, Tier 1–2 only): India — Mumbai, Delhi NCR, Bengaluru, Hyderabad, Pune, Ahmedabad, Jaipur, Kochi. USA — New York, San Francisco, Los Angeles, Chicago (T1), Boston, Austin, Denver, Nashville (T2). Europe — Paris, Amsterdam, Frankfurt, Munich (T1), Barcelona, Rome, Vienna, Lisbon (T2).
+
+**Wizard** — step 0 becomes "Choose your market": a country row (flags) above the city grid; picking a country re-applies its economy and swaps the city list live. Difficulty/confirm show capital and rates in the chosen currency.
+
+**Verified** (45–60-day probes per country, headless): India ₹ / GST / Mumbai / 56% margin — **identical to the single-country build**; USA $ / 15% tax / New York / std rate ~$288, housekeeper ~$2,000/mo, build ~$59k, start ~$494k / 46% margin (realistically tighter on higher labour); Europe € / 10% VAT / Paris / ~€327 rate / 53% margin. Guest names, competitor brands, hotel names and taxes all localise; zero ₹ leaks in the USA/Europe UI; all Phase-11 systems (corporate, awards, roster gates) and the full regression stay green in every region.
+
+**Brand** — "Aatithya / आ" retired for the generic international mark **Grand Stay** across title, topbar, wizard and landing plate.

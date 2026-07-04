@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Aatithya — Indian Hotel Empire</title>
+<title>Grand Stay — Hotel Management Simulator</title>
 <style>
 :root{
   --bg:#0c111b; --bg2:#0f1623; --panel:#141c2b; --panel2:#1a2435; --line:#243047;
@@ -224,8 +224,8 @@ label.fl{display:block;font-size:11px;color:var(--mut);margin:10px 0 4px;font-we
 <div id="setup">
   <div class="wiz">
     <div class="brandmark">
-      <div class="logo">आ</div>
-      <div><h1>Aatithya</h1><div class="tag">Indian Hotel Empire · a real-time hospitality simulation</div></div>
+      <div class="logo">GS</div>
+      <div><h1>Grand Stay</h1><div class="tag">An international hotel management simulation</div></div>
     </div>
     <div class="wizstep">
       <div class="steps">
@@ -245,8 +245,8 @@ label.fl{display:block;font-size:11px;color:var(--mut);margin:10px 0 4px;font-we
 <div id="app">
   <div id="topbar">
     <div class="tb-logo">
-      <div class="logo" style="width:32px;height:32px;font-size:16px;border-radius:8px">आ</div>
-      <div><b>Aatithya</b><div class="tb-prop" id="tbProp">—</div></div>
+      <div class="logo" style="width:32px;height:32px;font-size:15px;border-radius:8px">GS</div>
+      <div><b>Grand Stay</b><div class="tb-prop" id="tbProp">—</div></div>
     </div>
     <div class="kpis" id="kpis"></div>
     <div class="clockbox">
@@ -301,13 +301,23 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
 const ri=(a,b)=>Math.floor(rnd(a,b+1));
 const pick=a=>a[Math.floor(Math.random()*a.length)];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const cr=n=>{ // INR formatting
-  n=Math.round(n);
-  if(Math.abs(n)>=1e7) return '₹'+(n/1e7).toFixed(2)+' Cr';
-  if(Math.abs(n)>=1e5) return '₹'+(n/1e5).toFixed(2)+' L';
-  return '₹'+n.toLocaleString('en-IN');
+/* Currency is localized at the display layer (v22). All internal money stays in
+   one base unit; LOC carries the active currency symbol, display divisor k and
+   number style. India: sym '₹', k 1, style 'in' — identical to the original. */
+let LOC={sym:'₹',k:1,style:'in'};
+const cr=n=>{
+  n=Math.round(n)/(LOC.k||1); const s=LOC.sym,a=Math.abs(n);
+  if(LOC.style==='in'){
+    if(a>=1e7) return s+(n/1e7).toFixed(2)+' Cr';
+    if(a>=1e5) return s+(n/1e5).toFixed(2)+' L';
+    return s+Math.round(n).toLocaleString('en-IN');
+  }
+  if(a>=1e9) return s+(n/1e9).toFixed(2)+'B';
+  if(a>=1e6) return s+(n/1e6).toFixed(2)+'M';
+  if(a>=1e4) return s+Math.round(n/1e3)+'K';
+  return s+Math.round(n).toLocaleString('en-US');
 };
-const cr0=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+const cr0=n=>LOC.sym+Math.round(n/(LOC.k||1)).toLocaleString(LOC.style==='in'?'en-IN':'en-US');
 const pct=n=>Math.round(n)+'%';
 
 /* ---------------- DATA: CITIES ---------------- */
@@ -1342,7 +1352,7 @@ function openNewHotel(){
   <div class="mbody">
     <label class="fl">City</label><select id="ncity">${CITIES.map((c,i)=>`<option value="${i}">${c.name} · Tier ${c.tier}</option>`).join('')}</select>
     <label class="fl">Locality</label><select id="nloc">${LOCALITIES.map((l,i)=>`<option value="${i}">${l.name}</option>`).join('')}</select>
-    <label class="fl">Hotel name</label><input type="text" id="nname" placeholder="e.g. Aatithya Residency">
+    <label class="fl">Hotel name</label><input type="text" id="nname" placeholder="e.g. Grand Residency">
     <div class="notice" style="margin-top:12px">Setup cost: <b>${cr(15000000)}</b> — 5 starter rooms & basic staff. Runs on the same live engine; switch anytime.</div>
     <button class="btn primary" id="confirmNew" style="width:100%;margin-top:6px">Open Hotel — ${cr(15000000)}</button>
   </div>`;
@@ -1350,7 +1360,7 @@ function openNewHotel(){
   $('#confirmNew').onclick=()=>{
     const ci=+$('#ncity').value,li=+$('#nloc').value,city=CITIES[ci],loc=LOCALITIES[li];
     G.cash-=15000000;
-    const prop={name:$('#nname').value||('Aatithya '+city.name),city,loc,floors:1,capPerFloor:10,
+    const prop={name:$('#nname').value||('Grand '+city.name),city,loc,floors:1,capPerFloor:10,
       rooms:[],staff:{},facilities:[],prices:{},rating:0,reviews:[],reputation:40,
       policies:Object.assign({},P().policies),incidents:0,lifetimeGuests:0,lifetimeRev:0,revToday:0,revYest:0,expToday:0,expYest:0};
     RT_ORDER.forEach(rt=>prop.prices[rt]=Math.round(city.baseRate*city.spend*loc.rate*ROOMTYPES[rt].rateF/100)*100);
@@ -2275,10 +2285,10 @@ function tabFinance(p){
     <div class="card"><h3>Financing</h3>
       <div class="muted sm" style="margin-bottom:6px">Credit rating <b>${creditRating()}</b> · borrowing capacity <b>${cr(maxLoan())}</b></div>
       <div class="wrapf" style="margin-bottom:8px">
-        <button class="btn" onclick="takeLoan(2000000,24)">Loan ₹20L / 24mo</button>
-        <button class="btn" onclick="takeLoan(5000000,36)">Loan ₹50L / 36mo</button>
-        <button class="btn" onclick="takeLoan(15000000,60)">Loan ₹1.5Cr / 60mo</button>
-        <button class="btn" onclick="investorRaise(10000000)">Investor ₹1Cr</button>
+        <button class="btn" onclick="takeLoan(2000000,24)">Loan ${cr(2000000)} / 24mo</button>
+        <button class="btn" onclick="takeLoan(5000000,36)">Loan ${cr(5000000)} / 36mo</button>
+        <button class="btn" onclick="takeLoan(15000000,60)">Loan ${cr(15000000)} / 60mo</button>
+        <button class="btn" onclick="investorRaise(10000000)">Investor ${cr(10000000)}</button>
       </div>
       ${G.loans.length?G.loans.map(l=>`<div class="row"><span class="lab">Loan ${cr0(l.principal)} @ ${(l.annual*100).toFixed(1)}%</span><span class="val">EMI ${cr0(l.emi)} · ${l.termLeft}mo · bal ${cr0(l.balance)}</span></div>`).join(''):'<div class="muted sm">No active loans.</div>'}
       ${G.investorShare>0?`<div class="row"><span class="lab">Investor profit share</span><span class="val">${Math.round(G.investorShare*100)}%</span></div>`:''}
@@ -2636,7 +2646,7 @@ tabFinance=function(p){const u=p._usaliToday||(p.lastReport&&p.lastReport.usali)
 const _v5Mkt=tabMarket;
 tabMarket=function(p){const b=p._demandBreak,m=G.macro||{},cls=hotelClass(p);return _v5Mkt(p)+`<div class="cards cols-2" style="margin-top:12px">
   <div class="card"><h3>Demand Engine — why todays demand</h3>${b?`${row('Base (city × locality)',b.base.toFixed(2))}${row('Season',b.season.toFixed(2)+'×')}${row('Festival / wedding',b.festival.toFixed(2)+'×')}${row('Weather ('+G.weather+')',b.weather.toFixed(2)+'×')}${row('Reputation',b.reputation.toFixed(2)+'×')}${row('Competition',b.competition.toFixed(2)+'×')}${row('Macro (air traffic ÷ supply)',b.macro.toFixed(2)+'×')}<div class="row" style="border-top:1px solid var(--line2);margin-top:4px"><span class="b">Composite demand index</span><span class="b gold">${b.total.toFixed(2)}</span></div>`:'<div class="muted sm">Available after day 1.</div>'}<div class="muted sm" style="margin-top:4px">Every driver here is an operational cause — no arbitrary spikes.</div></div>
-  <div class="card"><h3>Economy & Positioning</h3>${row('Hotel class',cls.name)}${row('Guest expectation multiplier','×'+cls.exp.toFixed(2))}${row('Price elasticity',cls.elast.toFixed(2)+(cls.elast>1?' (price-sensitive)':' (rate-tolerant)'))}${row('Inflation (annualised)',((m.inflation||0)*100).toFixed(1)+'%')}${row('Salary index',(m.salary||1).toFixed(3))}${row('Air-traffic index',(m.airTraffic||1).toFixed(2))}${row('Market supply index',(m.supply||1).toFixed(2))}${row('GST slab','≤₹7,500 → 5% · >₹7,500 → 18%')}<div class="muted sm" style="margin-top:4px">Rooms priced above ₹7,500 jump to 18% GST — a real pricing fence guests feel in their total.</div></div>
+  <div class="card"><h3>Economy & Positioning</h3>${row('Hotel class',cls.name)}${row('Guest expectation multiplier','×'+cls.exp.toFixed(2))}${row('Price elasticity',cls.elast.toFixed(2)+(cls.elast>1?' (price-sensitive)':' (rate-tolerant)'))}${row('Inflation (annualised)',((m.inflation||0)*100).toFixed(1)+'%')}${row('Salary index',(m.salary||1).toFixed(3))}${row('Air-traffic index',(m.airTraffic||1).toFixed(2))}${row('Market supply index',(m.supply||1).toFixed(2))}${row('Room tax',(typeof taxNote==='function'?taxNote():'—'))}<div class="muted sm" style="margin-top:4px">${(typeof taxDesc==='function'?taxDesc():'')}</div></div>
 </div>`;};
 
 /* ---------------- WRAP: tabReviews (weighted satisfaction drivers) ---------------- */
@@ -3576,7 +3586,7 @@ window.setSetting=(k,v)=>{if(!G.settings)G.settings={};G.settings[k]=(v==='true'
 /* ---------------- ONBOARDING ---------------- */
 function showOnboarding(){const p=P();if(!p)return;const step=(done,txt)=>`<div class="row"><span class="lab" style="font-size:13px">${done?'✅':'⬜'} ${txt}</span></div>`;
   const staffN=Object.values(p.staff).flat().length;
-  v8Modal(`<div class="mhead"><div class="mic" style="background:#d8a24a22;color:#d8a24a">🎓</div><div><h3>Welcome to Aatithya</h3><div class="ms">Build and run your Indian hotel</div></div></div>
+  v8Modal(`<div class="mhead"><div class="mic" style="background:#d8a24a22;color:#d8a24a">🎓</div><div><h3>Welcome to Grand Stay</h3><div class="ms">Build and run your hotel</div></div></div>
   <div class="mbody"><div class="desc">You begin with land and capital — everything else you build. Your first steps:</div>
    ${step(p.rooms.length>0,'Build rooms in the <b>Expansion</b> tab (they take days to construct)')}
    ${step(staffN>0,'Hire staff — start with <b>Housekeeping</b> and a <b>Receptionist</b> (Front Office / Staff)')}
@@ -3797,9 +3807,9 @@ tabSettings=function(p){let html=_v9Set(p);const s=G.settings||{};
   const d=document.createElement('div');d.id='v9landing';
   d.style.cssText='position:fixed;inset:0;z-index:130;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 800px at 50% -10%,#1c2c4a,#0a0f18);padding:28px;text-align:center';
   d.innerHTML=`<div style="max-width:600px">
-    <div style="width:74px;height:74px;border-radius:18px;margin:0 auto 18px;background:linear-gradient(145deg,#eebd6a,#9c6f24);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:36px;color:#1a1206;box-shadow:0 10px 30px rgba(216,162,74,.4)">आ</div>
-    <div style="font-size:40px;font-weight:800;letter-spacing:1px;color:#f3f6fc;margin-bottom:6px">Aatithya</div>
-    <div style="color:#9fb0cc;font-size:15px;letter-spacing:.4px;margin-bottom:4px">The Indian Hotel Management Simulation</div>
+    <div style="width:74px;height:74px;border-radius:18px;margin:0 auto 18px;background:linear-gradient(145deg,#eebd6a,#9c6f24);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:36px;color:#1a1206;box-shadow:0 10px 30px rgba(216,162,74,.4)">GS</div>
+    <div style="font-size:40px;font-weight:800;letter-spacing:1px;color:#f3f6fc;margin-bottom:6px">Grand Stay</div>
+    <div style="color:#9fb0cc;font-size:15px;letter-spacing:.4px;margin-bottom:4px">An International Hotel Management Simulation</div>
     <div style="color:#6b7c99;font-size:12.5px;margin-bottom:26px">Build from bare land into a legendary hospitality empire — pricing, people, departments and reputation, all in your hands.</div>
     <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
       <button onclick="v9StartNew()" style="padding:13px 30px;border:0;border-radius:11px;background:linear-gradient(145deg,#eebd6a,#c8922f);color:#1a1206;font-weight:700;font-size:15px;cursor:pointer;box-shadow:0 8px 22px rgba(216,162,74,.35)">Start New Hotel</button>
@@ -3950,7 +3960,7 @@ function tabLoyalty(p){
   <div class="card" style="margin-bottom:12px"><h3>Programme Settings</h3>
     ${row('Points earned (% of stay spend)',`<input type="number" min="0" max="15" value="${G.loyal.earnPct}" style="width:70px" onchange="loyalSet('earnPct',this.value)"> %`)}
     ${row('Redemption value per point',`₹ <input type="number" step="0.1" min="0" max="2" value="${G.loyal.redeemVal}" style="width:70px" onchange="loyalSet('redeemVal',this.value)">`)}
-    <div class="toggle" style="margin-top:8px"><span>Welcome amenity for members (₹180/stay, satisfaction lift)</span><div class="sw ${G.loyal.welcome?'on':''}" onclick="loyalSet('welcome',1)"><i></i></div></div>
+    <div class="toggle" style="margin-top:8px"><span>Welcome amenity for members (${cr(180)}/stay, satisfaction lift)</span><div class="sw ${G.loyal.welcome?'on':''}" onclick="loyalSet('welcome',1)"><i></i></div></div>
     <div class="muted sm" style="margin-top:6px">Richer earn rates and perks raise repeat demand and value-for-money perception — and cost real money.</div>
   </div>
   <div class="card"><h3>Tiers</h3>
@@ -4144,7 +4154,7 @@ window.renovateRoom=(id,kind)=>{const p=P(),r=p.rooms.find(x=>x.id===id);if(!r)r
    ======================================================================= */
 window.setValet=i=>{const p=P();if(!p.parking||!p.parking.spaces){toast('Build parking first (Expansion).','warn');return;}p.valet=i;renderTab();};
 {const _v10TE=tabExpand;tabExpand=function(p){let html=_v10TE(p);try{
-  const tiers=[['No valet',0],['Valet driver · ₹900/day',900],['Premium valet co. · ₹2,200/day',2200]];
+  const tiers=[['No valet',0],['Valet driver · '+cr(900)+'/day',900],['Premium valet co. · '+cr(2200)+'/day',2200]];
   html+=`<div class="card" style="margin-top:12px"><h3>Valet Parking</h3>
     ${p.parking&&p.parking.spaces?`<div class="wrapf">${tiers.map((t,i)=>`<button class="tag ${(p.valet||0)===i?'on':''}" onclick="setValet(${i})">${t[0]}</button>`).join('')}</div>
     <div class="muted sm" style="margin-top:6px">Valet lifts arrival experience and reputation for driving guests — a premium signal with a daily cost.</div>`:'<div class="muted sm">Build parking spaces first to offer valet.</div>'}
@@ -4398,11 +4408,11 @@ tabLoyalty=function(p){
     ${row('Points earned (% of stay spend)',`<input type="number" min="0" max="15" value="${G.loyal.earnPct}" style="width:70px" onchange="loyalSet('earnPct',this.value)"> %`)}
     ${row('Redemption value per point',`₹ <input type="number" step="0.1" min="0" max="2" value="${G.loyal.redeemVal}" style="width:70px" onchange="loyalSet('redeemVal',this.value)">`)}
     <div class="toggle" style="margin-top:6px"><span>Allow point redemption at checkout (up to 20% of bill)</span><div class="sw ${G.loyal.allowRedeem?'on':''}" onclick="loyalRedeemT()"><i></i></div></div>
-    <div class="toggle" style="margin-top:6px"><span>Welcome drink for all members (₹180/stay)</span><div class="sw ${G.loyal.welcome?'on':''}" onclick="loyalSet('welcome',1)"><i></i></div></div>
+    <div class="toggle" style="margin-top:6px"><span>Welcome drink for all members (${cr(180)}/stay)</span><div class="sw ${G.loyal.welcome?'on':''}" onclick="loyalSet('welcome',1)"><i></i></div></div>
    </div>
    <div class="card"><h3>Tier Perks</h3>
     ${LOYALTY.map((L,i)=>{const t=(G.loyal.tierPerks||{})[i]||{};return `<div class="row" style="flex-wrap:wrap"><span class="lab"><b>${L.name}</b></span>
-      <span class="val"><button class="tag ${t.amen?'on':''}" onclick="loyalPerk(${i},'amen')">Amenity ₹180</button>
+      <span class="val"><button class="tag ${t.amen?'on':''}" onclick="loyalPerk(${i},'amen')">Amenity ${cr(180)}</button>
       <button class="tag ${t.late?'on':''}" onclick="loyalPerk(${i},'late')">Late checkout</button></span></div>`;}).join('')}
     <div class="muted sm" style="margin-top:6px">Perks cost per stay but lift satisfaction and return probability.</div>
    </div>
@@ -5804,7 +5814,7 @@ tabLoyalty=function(p){
   Object.values(G.guestDB).forEach(e=>{const T=loyaltyTier(e.stays||0);if(T)tierCount[LOYALTY.indexOf(T)]++;});
   const members=Object.entries(G.guestDB).filter(([k,e])=>(e.stays||0)>=LOYALTY[0].min)
     .sort((a,b)=>(b[1].stays||0)-(a[1].stays||0)).slice(0,10);
-  const PERKS=[['amen','Welcome amenity ₹180'],['late','Late checkout'],['early','Priority check-in'],['bday','Milestone bonus (200 pts every 5th stay)']];
+  const PERKS=[['amen','Welcome amenity '+cr(180)],['late','Late checkout'],['early','Priority check-in'],['bday','Milestone bonus (200 pts every 5th stay)']];
   return `<div class="page-head"><div><h2>Loyalty Programme ${tip('earnrate')}</h2><div class="desc">Reward repeat guests. Every perk costs money per stay — and pays back in return visits and better reviews.</div></div></div>
   <div class="cards cols-4" style="margin-bottom:12px">
     ${ovCard('Members',m,'across all tiers','')}
@@ -7137,10 +7147,10 @@ document.body.appendChild(st); // last in the cascade — wins every earlier ski
   const has=(function(){try{return !!localStorage.getItem('aatithya');}catch(e){return false;}})();
   d.style.cssText='position:fixed;inset:0;z-index:130;display:flex;align-items:center;justify-content:center;background:#10150f;padding:28px';
   d.innerHTML=`<div style="max-width:560px;width:100%;border:1px solid #3a4a3c;outline:3px double #2a372c;outline-offset:6px;padding:52px 44px 40px;text-align:center;background:linear-gradient(175deg,#141b14,#0f150f)">
-    <div style="font-size:11px;letter-spacing:.42em;color:#8fa08b;margin-bottom:22px">GRAND REGISTER OF</div>
-    <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;font-size:56px;font-weight:500;letter-spacing:.06em;color:#ecd9ab;line-height:1">AATITHYA</div>
+    <div style="font-size:11px;letter-spacing:.42em;color:#8fa08b;margin-bottom:22px">THE HOTELIER’S REGISTER</div>
+    <div style="font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;font-size:56px;font-weight:500;letter-spacing:.06em;color:#ecd9ab;line-height:1">GRAND STAY</div>
     <div style="width:64px;height:1px;background:#c99a4b;margin:20px auto"></div>
-    <div style="font-size:13px;color:#b6bfa9;letter-spacing:.04em;margin-bottom:6px">The Indian Hotel Management Simulation</div>
+    <div style="font-size:13px;color:#b6bfa9;letter-spacing:.04em;margin-bottom:6px">An International Hotel Management Simulation</div>
     <div style="font-size:11.5px;color:#6c7a67;max-width:380px;margin:0 auto 34px;line-height:1.6">Bare land, borrowed capital, and a city full of rivals. Rates, rosters, reputation — every entry in this ledger is yours to write.</div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
       <button onclick="v9StartNew()" style="padding:12px 32px;border:1px solid #a67c34;border-radius:3px;background:#c99a4b;color:#241a08;font-weight:700;font-size:13px;letter-spacing:.08em;cursor:pointer">OPEN THE REGISTER</button>
@@ -7613,6 +7623,240 @@ try{Object.assign(TIPS,{
  corporate:{t:'Corporate Sales',d:'Negotiated company accounts deliver steady weekday room-nights through the reservation book. Win them on rate vs budget, rating, reputation and business facilities; renewals hinge on how their travellers were treated.'},
  capex:{t:'Capital Planning',d:'Investments with a life beyond the month: what they cost, what they return each year, and how long until they pay back. Finance big ones with loans.'},
  awards:{t:'Awards',d:'Earned by meeting a published standard on two consecutive monthly reviews; lapse if the standard slips. Each held award adds demand and corporate credibility.'}});}catch(e){}
+
+
+/* =======================================================================
+   AATITHYA → GRAND STAY v22 — Internationalisation.
+   The simulation stays in one balanced base economy; a display layer
+   localises currency, and per-country data swaps cities, taxes, names,
+   brands and seasonality. India plays identically to the single-country
+   build; USA and Europe layer on a currency divisor, believable labour
+   and construction multipliers, and their own Tier 1–2 markets.
+   ======================================================================= */
+
+/* ---------------- capture the base (Indian-tuned) economy once ---------------- */
+const _BASE={
+  build:{}, qcost:[], fbuild:{}, fdaily:{}, comp:{}, invc:{}, sal:{},
+  evc:[], evd:[], obj:[]
+};
+RT_ORDER.forEach(rt=>_BASE.build[rt]=ROOMTYPES[rt].build);
+QUALITY.forEach((q,i)=>_BASE.qcost[i]=q.cost);
+Object.keys(FACILITIES).forEach(f=>{_BASE.fbuild[f]=FACILITIES[f].build;_BASE.fdaily[f]=FACILITIES[f].daily;});
+for(const k in COMPONENTS)_BASE.comp[k]=COMPONENTS[k].cost;
+for(const k in INV)_BASE.invc[k]=INV[k].cost;
+for(const r in ROLES)_BASE.sal[r]=ROLES[r].sal;
+try{EVENTS.forEach((e,i)=>{_BASE.evd[i]=e.desc;_BASE.evc[i]=e.ch.map(c=>c.c);});}catch(e){}
+try{OBJECTIVES.forEach((o,i)=>_BASE.obj[i]=o.label);}catch(e){}
+try{_BASE.ach=[];ACHIEVEMENTS.forEach((o,i)=>_BASE.ach[i]=o.label);}catch(e){}
+
+/* ---------------- country profiles ---------------- */
+const US_F=['James','Michael','David','John','Robert','William','Emma','Olivia','Sophia','Ava','Mia','Isabella','Ethan','Noah','Liam','Mason','Charlotte','Amelia','Harper','Daniel','Grace','Chloe','Jackson','Aiden','Lucas','Henry','Ella','Lily','Zoe','Nathan','Samuel','Benjamin','Victoria','Hannah','Andrew','Joseph','Ryan','Natalie','Brandon','Kevin'];
+const US_L=['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Rodriguez','Martinez','Wilson','Anderson','Taylor','Thomas','Moore','Jackson','Martin','Lee','Thompson','White','Harris','Clark','Lewis','Walker','Hall','Young','King','Wright','Hill','Green','Adams','Nelson','Baker','Carter','Mitchell','Perez','Roberts','Turner','Phillips','Campbell'];
+const US_BR=['Summit Suites','Liberty Inn','Grandview Hotel','The Beacon','Parkside Hotel','Cornerstone Inn','旗 removed','Hotel Vantage','The Lexington','Meadow Court','Union Square Hotel','Riverside Inn','The Franklin','Skyline Suites','Harbor View','The Presidential','Cedar & Oak','Maplewood Hotel','The Metropolitan','Gateway Inn','The Clarendon','Sterling Court'].filter(b=>!b.includes('removed'));
+const EU_F=['Lukas','Jonas','Felix','Matteo','Luca','Hugo','Louis','Émile','Sofia','Emma','Léa','Chloé','Giulia','Marta','Elena','Anna','Nils','Sven','Pieter','Jan','Marie','Clara','Isabelle','Francesca','Alessandro','Sebastián','Mateo','Lucía','Valentina','Hannah','Julia','Fionn','Sofía','Noé','Théo','Greta','Ingrid','Katarina','Petra','Bruno'];
+const EU_L=['Müller','Schmidt','Rossi','Ferrari','Dubois','Martin','Bernard','García','López','Fernández','De Vries','Jansen','Bakker','Novak','Kowalski','Nowak','Andersson','Nielsen','Weber','Fischer','Romano','Ricci','Moreau','Laurent','Sánchez','Ruiz','Schneider','Meyer','Bianchi','Conti','Lefebvre','Girard','Costa','Silva','Hansen','Larsen','Wagner','Becker','Marchetti','Blanc'];
+const EU_BR=['Hôtel Bellevue','Grand Europa','The Continental','Hotel Adlon-style','Résidence du Parc','Albergo Centrale','Hotel Metropol','The Savoyard','Kongress Hotel','Villa Fiorenza','Hôtel de la Paix','Am Dom Hotel','The Ambassade','Palazzo Reale','Hotel Esplanade','Le Méridional','Gran Vía Suites','Hotel Kurfürst','The Rijks','Belle Époque'].filter(b=>!b.includes('style'));
+const IN_F=FNAMES.slice(), IN_L=LNAMES.slice(); // whatever the Indian pools became after all layers
+
+const COUNTRIES={
+ india:{name:'India',flag:'🇮🇳',cur:{sym:'₹',code:'INR',style:'in'},k:1,wage:1,capex:1,cap:1,
+   tax:{model:'gst'},fnames:IN_F,lnames:IN_L,brands:_INBRANDS(),
+   core:['Ashoka','Sapphire','Lotus','Orchid','Regent','Horizon','Crown','Marigold','Emerald','Heritage','Coral','Jasmine','Maple','Indigo','Rosewood','Amber'],
+   suf:['Grand','Residency','Suites','Palace','Plaza','Court','Retreat','Manor','Towers'],
+   cities:[
+    {name:'Mumbai',tier:1,spend:1.35,sens:.9,dem:1.25,comp:1.3,biz:.5,tour:.25,prem:.4,seas:.18,baseRate:4200,note:'Financial capital. High rates, fierce competition, strong corporate demand.'},
+    {name:'Delhi NCR',tier:1,spend:1.25,sens:.95,dem:1.2,comp:1.25,biz:.45,tour:.3,prem:.35,seas:.28,baseRate:3800,note:'Capital region. Events & weddings, winter peak, seasonal air-quality dips.'},
+    {name:'Bengaluru',tier:1,spend:1.3,sens:.85,dem:1.18,comp:1.2,biz:.6,tour:.15,prem:.35,seas:.12,baseRate:3900,note:'Tech hub. Steady corporate occupancy, weekday-heavy, mild seasonality.'},
+    {name:'Hyderabad',tier:1,spend:1.15,sens:.95,dem:1.05,comp:1.05,biz:.5,tour:.2,prem:.3,seas:.16,baseRate:3300,note:'Balanced metro. Pharma & IT base, strong value-to-rate ratio.'},
+    {name:'Pune',tier:2,spend:1.05,sens:1.0,dem:1.02,comp:1.0,biz:.5,tour:.2,prem:.25,seas:.14,baseRate:3000,note:'Auto & IT corridor. Reliable weekday corporate demand.'},
+    {name:'Ahmedabad',tier:2,spend:.98,sens:1.1,dem:.95,comp:.9,biz:.45,tour:.2,prem:.2,seas:.2,baseRate:2700,note:'Industry & trade hub. Price-aware, growing business travel.'},
+    {name:'Jaipur',tier:2,spend:1.05,sens:1.05,dem:1.0,comp:.95,biz:.2,tour:.55,prem:.3,seas:.42,baseRate:2900,note:'Tourist magnet. Heavy seasonal & wedding spikes, leisure-led demand.'},
+    {name:'Kochi',tier:2,spend:1.0,sens:1.05,dem:.95,comp:.85,biz:.3,tour:.45,prem:.25,seas:.35,baseRate:2700,note:'Coastal Kerala. Tourism + port business, monsoon-sensitive demand.'}
+   ]},
+ usa:{name:'United States',flag:'🇺🇸',cur:{sym:'$',code:'USD',style:'west'},k:34,wage:3.2,capex:2.8,cap:2.8,
+   tax:{model:'us',rate:.15},fnames:US_F,lnames:US_L,brands:US_BR,
+   core:['Summit','Liberty','Grandview','Beacon','Parkside','Cornerstone','Lexington','Union','Riverside','Franklin','Skyline','Harbor','Cedar','Gateway','Sterling','Madison'],
+   suf:['Suites','Inn','Hotel','Court','Lodge','Plaza','Grand','House','Residences'],
+   cities:[
+    {name:'New York',tier:1,spend:1.4,sens:.85,dem:1.3,comp:1.35,biz:.5,tour:.35,prem:.45,seas:.2,baseRate:5600,note:'Gateway city. Peak rates, relentless competition, mixed corporate & leisure.'},
+    {name:'San Francisco',tier:1,spend:1.45,sens:.8,dem:1.2,comp:1.2,biz:.6,tour:.25,prem:.45,seas:.14,baseRate:5400,note:'Tech capital. Very high rates, conference-driven, weekday-heavy.'},
+    {name:'Los Angeles',tier:1,spend:1.3,sens:.9,dem:1.22,comp:1.25,biz:.4,tour:.45,prem:.4,seas:.16,baseRate:4900,note:'Entertainment & leisure. Strong tourism, spread-out competition.'},
+    {name:'Chicago',tier:1,spend:1.2,sens:.95,dem:1.12,comp:1.15,biz:.55,tour:.3,prem:.3,seas:.3,baseRate:4300,note:'Midwest hub. Big convention calendar, cold-season swings.'},
+    {name:'Boston',tier:2,spend:1.28,sens:.9,dem:1.1,comp:1.1,biz:.55,tour:.3,prem:.35,seas:.26,baseRate:4400,note:'Universities & biotech. Event peaks, seasonal leisure.'},
+    {name:'Austin',tier:2,spend:1.12,sens:1.0,dem:1.08,comp:1.0,biz:.5,tour:.3,prem:.28,seas:.24,baseRate:3600,note:'Fast-growing tech & festivals. Event-driven demand spikes.'},
+    {name:'Denver',tier:2,spend:1.1,sens:1.0,dem:1.02,comp:.95,biz:.45,tour:.35,prem:.28,seas:.28,baseRate:3500,note:'Gateway to the Rockies. Business plus outdoor tourism, seasonal.'},
+    {name:'Nashville',tier:2,spend:1.08,sens:1.05,dem:1.05,comp:.95,biz:.35,tour:.5,prem:.25,seas:.3,baseRate:3400,note:'Music tourism boom. Weekend leisure surges, growing corporate.'}
+   ]},
+ europe:{name:'Europe (Eurozone)',flag:'🇪🇺',cur:{sym:'€',code:'EUR',style:'west'},k:30,wage:3.0,capex:2.6,cap:2.6,
+   tax:{model:'vat',rate:.10},fnames:EU_F,lnames:EU_L,brands:EU_BR,
+   core:['Bellevue','Europa','Continental','Central','Metropol','Esplanade','Impérial','Fiorenza','Kurfürst','Ambassade','Belle Vue','Réal','Savoy','Kongress','Panorama','Rivage'],
+   suf:['Hotel','Grand Hotel','Suites','Résidence','Palace','Palazzo','Hof','Plaza','House'],
+   cities:[
+    {name:'Paris',tier:1,spend:1.4,sens:.85,dem:1.3,comp:1.35,biz:.4,tour:.5,prem:.45,seas:.24,baseRate:5600,note:'Premier tourism & business capital. High rates, intense competition.'},
+    {name:'Amsterdam',tier:1,spend:1.35,sens:.85,dem:1.22,comp:1.25,biz:.45,tour:.45,prem:.4,seas:.26,baseRate:5200,note:'Compact, high-demand, event & leisure heavy; tight room supply.'},
+    {name:'Frankfurt',tier:1,spend:1.3,sens:.9,dem:1.12,comp:1.15,biz:.65,tour:.15,prem:.4,seas:.22,baseRate:4700,note:'Finance & trade-fair hub. Corporate weekday demand, fair-week spikes.'},
+    {name:'Munich',tier:1,spend:1.32,sens:.88,dem:1.15,comp:1.15,biz:.55,tour:.3,prem:.4,seas:.34,baseRate:4800,note:'Business plus strong seasonal tourism (Oktoberfest peak).'},
+    {name:'Barcelona',tier:2,spend:1.18,sens:.95,dem:1.18,comp:1.15,biz:.35,tour:.55,prem:.32,seas:.34,baseRate:4100,note:'Mediterranean tourism magnet. Strong leisure seasonality.'},
+    {name:'Rome',tier:2,spend:1.15,sens:.98,dem:1.15,comp:1.1,biz:.3,tour:.6,prem:.3,seas:.36,baseRate:4000,note:'Year-round heritage tourism with summer peaks.'},
+    {name:'Vienna',tier:2,spend:1.2,sens:.92,dem:1.05,comp:1.0,biz:.45,tour:.4,prem:.35,seas:.28,baseRate:4000,note:'Congress city & culture tourism. Balanced, event-led calendar.'},
+    {name:'Lisbon',tier:2,spend:1.05,sens:1.05,dem:1.1,comp:1.0,biz:.3,tour:.55,prem:.28,seas:.32,baseRate:3400,note:'Value European capital, booming tourism & city breaks.'}
+   ]}
+};
+function _INBRANDS(){return ['Hotel Surya','InnStay','The Regalia','Comfort Suites','Maple Grand','Imperial Court','Ease Inn','Hotel Mayur','Crown Residency','GreenLeaf','Hotel Ashoka','BlueStone Inn','The Meridian','Sunrise Residency','Palm Court','Hotel Rajhans','Silverline Suites','The Verandah','Lotus Grand','Hotel Chandra','Westgate Inn','The Cascade'];}
+
+/* ---------------- currency-literal localiser for static label strings ---------------- */
+function locStr(str){ if(str==null)return str;
+  return (''+str).replace(/₹\s?([\d,]+(?:\.\d+)?)(?:\s*(Crore|Cr|Lakh|L))?/g,(m,num,unit)=>{
+    let v=parseFloat((num||'0').replace(/,/g,''))||0;
+    if(unit){v*= unit.charAt(0)==='C'?1e7:1e5;}
+    return cr(v);
+  });
+}
+
+/* ---------------- tax model (localised) ---------------- */
+function taxNote(){const t=(LOC.tax||{});
+  if(t.model==='gst')return 'GST 5% ≤ '+cr(7500)+' · 18% above';
+  if(t.model==='us')return Math.round((t.rate||.15)*100)+'% occupancy & sales tax';
+  if(t.model==='vat')return Math.round((t.rate||.1)*100)+'% VAT on accommodation';
+  return '—';}
+function taxDesc(){const t=(LOC.tax||{});
+  if(t.model==='gst')return 'India: rooms above '+cr(7500)+'/night jump from 5% to 18% GST — a real pricing fence guests feel in the total.';
+  if(t.model==='us')return 'US: hotel occupancy and sales taxes (~12–17% by city) sit on top of the room rate.';
+  if(t.model==='vat')return 'Europe: a reduced VAT rate applies to accommodation, folded into the displayed total.';
+  return '';}
+
+/* ---------------- apply a country: constants, cities, currency, flavour ---------------- */
+let _cc=null;
+function activeCountry(){return COUNTRIES[(_cc)||(wiz&&wiz.country)||'india']||COUNTRIES.india;}
+function applyCountry(key){
+  const C=COUNTRIES[key]||COUNTRIES.india; _cc=key;
+  LOC={sym:C.cur.sym,code:C.cur.code,style:C.cur.style,k:C.k,tax:C.tax,country:key};
+  // rebuild the shared cost constants from the captured base × this country's multipliers
+  RT_ORDER.forEach(rt=>ROOMTYPES[rt].build=Math.round(_BASE.build[rt]*C.capex));
+  QUALITY.forEach((q,i)=>q.cost=Math.round(_BASE.qcost[i]*C.capex));
+  Object.keys(FACILITIES).forEach(f=>{FACILITIES[f].build=Math.round(_BASE.fbuild[f]*C.capex);FACILITIES[f].daily=Math.round(_BASE.fdaily[f]*(1+(C.capex-1)*.5));});
+  for(const k in COMPONENTS)COMPONENTS[k].cost=Math.round(_BASE.comp[k]*C.capex);
+  for(const k in INV)INV[k].cost=Math.round(_BASE.invc[k]*(1+(C.capex-1)*.6));
+  for(const r in ROLES)ROLES[r].sal=Math.round(_BASE.sal[r]*C.wage/1000)*1000;
+  // localise static currency labels in events & objectives from base
+  try{EVENTS.forEach((e,i)=>{if(_BASE.evd[i]!=null)e.desc=locStr(_BASE.evd[i]);if(_BASE.evc[i])e.ch.forEach((c,j)=>{if(_BASE.evc[i][j]!=null)c.c=locStr(_BASE.evc[i][j]);});});}catch(e){}
+  try{OBJECTIVES.forEach((o,i)=>{if(_BASE.obj[i]!=null)o.label=locStr(_BASE.obj[i]);});}catch(e){}
+  try{ACHIEVEMENTS.forEach((o,i)=>{if(_BASE.ach&&_BASE.ach[i]!=null)o.label=locStr(_BASE.ach[i]);});}catch(e){}
+  // swap the active city list in place (const array — mutate contents)
+  CITIES.length=0; C.cities.forEach(c=>CITIES.push(c));
+}
+applyCountry('india'); // boot default so the first wizard render is coherent
+
+/* ---------------- name / brand / hotel-name generators (localised) ---------------- */
+regionalName=function(prop){const C=activeCountry();return pick(C.fnames)+' '+pick(C.lnames);};
+genHotelName=function(){const C=activeCountry();const r=Math.random();
+  let n;
+  if(r<.4)n='The '+pick(C.core)+' '+pick(C.suf);
+  else if(r<.72)n=pick(C.core)+' '+pick(C.suf);
+  else n='The '+pick(C.core);
+  return n;};
+mkComps=function(city,loc,d){
+  const C=activeCountry();const segs=['Budget chain','Mid-scale','Upscale','Luxury'];
+  const n=Math.round(rnd(9,12)+city.comp*2),out=[],used=new Set();
+  for(let i=0;i<n;i++){let b,g=0;do{b=pick(C.brands);g++;}while(used.has(b)&&g<30);used.add(b);
+    const seg=ri(0,3);
+    out.push({name:b,seg:segs[seg],rating:clamp(rnd(3.2,4.6)-d.compM*.15+seg*.1,2.8,4.8),
+      priceIdx:clamp(.7+seg*.25+rnd(-.1,.1),.6,1.9),strength:rnd(.7,1.25)+seg*.05});}
+  return out;
+};
+
+/* ---------------- tax rate (localised; India keeps the slab) ---------------- */
+gstRate=function(rate){const t=LOC.tax||{model:'gst'};
+  if(t.model==='gst'){const m=G.macro||{};return rate>(m.gstFence||7500)?(m.gstStd||.18):(m.gstLow||.05);}
+  return t.rate||.12;};
+
+/* ---------------- seasonality flavour (country-neutral peaks) ---------------- */
+festivalMultiplier=function(){
+  const doy=((G.day-1)%360),month=Math.floor(doy/30)+1,c=(activeCountry().name||'');
+  let m=1;
+  if(_cc==='india'){ if([10,11,12,1,2].includes(month))m*=1.15; [315,300,250,75].forEach(fd=>{const dist=Math.min(Math.abs(doy-fd),360-Math.abs(doy-fd));if(dist<4)m*=1.5-dist*0.1;}); }
+  else { if([6,7,8].includes(month))m*=1.14; if([12,1].includes(month))m*=1.08; [355,180].forEach(fd=>{const dist=Math.min(Math.abs(doy-fd),360-Math.abs(doy-fd));if(dist<4)m*=1.35-dist*0.09;}); } // summer + year-end peaks
+  return m;};
+
+/* ---------------- wizard: choose country, then city ---------------- */
+renderWiz=function(){
+  $$('.stepdot').forEach(d=>d.classList.toggle('on',+d.dataset.s<=wiz.step));
+  const b=$('#wizbody');if(!b)return;
+  if(wiz.country==null)wiz.country='india';
+  if(wiz.step===0){
+    const C=activeCountry();
+    b.innerHTML=`<div class="wizhead"><h2>Choose your market</h2></div>
+    <div class="muted sm">Pick a country, then a city. Currency, taxes, cost levels, guest names and competitors all follow your choice — only Tier 1 and Tier 2 markets are shown.</div>
+    <div class="wrapf" style="margin:14px 0 4px">${Object.keys(COUNTRIES).map(k=>`<button class="tag ${wiz.country===k?'on':''}" data-ctry="${k}" style="font-size:13px;padding:8px 14px">${COUNTRIES[k].flag} ${COUNTRIES[k].name}</button>`).join('')}</div>
+    <div class="grid-cities">${CITIES.map((c,i)=>`<div class="pick ${wiz.city===i?'sel':''}" data-city="${i}">
+      <div class="ttl">${c.name}<span class="tier t${c.tier}">Tier ${c.tier}</span></div>
+      <div class="sub">${c.note}</div>
+      <div class="barrow"><span class="lbl">Room rate</span><div class="mtr"><i style="width:${clamp(c.baseRate/5600*100,10,100)}%"></i></div></div>
+      <div class="barrow"><span class="lbl">Demand</span><div class="mtr"><i style="width:${c.dem/1.35*100}%"></i></div></div>
+      <div class="barrow"><span class="lbl">Competition</span><div class="mtr"><i style="width:${c.comp/1.35*100}%;background:linear-gradient(90deg,#c66,#e88)"></i></div></div>
+    </div>`).join('')}</div>`;
+    $$('.tag[data-ctry]',b).forEach(el=>el.onclick=()=>{wiz.country=el.dataset.ctry;applyCountry(wiz.country);wiz.city=null;renderWiz();});
+    $$('.pick[data-city]',b).forEach(el=>el.onclick=()=>{wiz.city=+el.dataset.city;renderWiz();});
+  }
+  if(wiz.step===1){
+    const c=CITIES[wiz.city];
+    b.innerHTML=`<div class="wizhead"><h2>Choose a locality in ${c.name}</h2></div>
+    <div class="muted sm">Location within the city shapes your guest mix, rate ceiling, noise risk and demand pattern.</div>
+    <div class="grid-cities">${LOCALITIES.map((l,i)=>`<div class="pick ${wiz.loc===i?'sel':''}" data-loc="${i}">
+      <div class="ttl">${l.name}</div><div class="sub">${l.note}</div>
+      <div class="barrow"><span class="lbl">Rate ceiling</span><div class="mtr"><i style="width:${(l.rate-.7)/.6*100}%"></i></div></div>
+      <div class="barrow"><span class="lbl">Demand</span><div class="mtr"><i style="width:${l.dem/1.2*100}%"></i></div></div>
+      <div class="barrow"><span class="lbl">Noise risk</span><div class="mtr"><i style="width:${l.noise*100}%;background:linear-gradient(90deg,#c66,#e88)"></i></div></div>
+    </div>`).join('')}</div>`;
+    $$('.pick[data-loc]',b).forEach(el=>el.onclick=()=>{wiz.loc=+el.dataset.loc;renderWiz();});
+  }
+  if(wiz.step===2){
+    b.innerHTML=`<div class="wizhead"><h2>Select difficulty</h2></div>
+    <div class="muted sm">Difficulty changes capital, demand, guest expectations, competition, review harshness and operating costs.</div>
+    <div class="diff-grid">${Object.keys(DIFFS).map(k=>{const d=DIFFS[k];return `<div class="pick ${wiz.diff===k?'sel':''}" data-diff="${k}">
+      <div class="ttl">${d.name}<span class="tier ${k==='easy'?'t3':k==='normal'?'t2':'t1'}">${k}</span></div>
+      <div class="sub">${d.note}</div>
+      <div class="row"><span class="lab">Starting capital</span><span class="val gold">${cr(CAP_BASE[k]*activeCountry().cap)}</span></div>
+    </div>`}).join('')}</div>`;
+    $$('.pick[data-diff]',b).forEach(el=>el.onclick=()=>{wiz.diff=el.dataset.diff;renderWiz();});
+  }
+  if(wiz.step===3){
+    const c=CITIES[wiz.city],l=LOCALITIES[wiz.loc],d=DIFFS[wiz.diff],C=activeCountry();
+    b.innerHTML=`<div class="wizhead"><h2>Confirm & name your hotel</h2></div>
+    <div class="cards cols-3" style="margin:14px 0">
+      <div class="card"><h3>Market</h3><div class="b" style="font-size:16px">${c.name}</div><div class="muted sm">${C.flag} ${C.name} · Tier ${c.tier} · ${C.cur.code}</div></div>
+      <div class="card"><h3>Locality</h3><div class="b" style="font-size:16px">${l.name}</div><div class="muted sm">${l.note.slice(0,40)}…</div></div>
+      <div class="card"><h3>Difficulty</h3><div class="b" style="font-size:16px">${d.name}</div><div class="muted sm gold">${cr(CAP_BASE[wiz.diff]*C.cap)} capital</div></div>
+    </div>
+    <label class="fl">Hotel name</label>
+    <div style="display:flex;gap:8px"><input type="text" id="hotelName" value="${genHotelName()}" maxlength="40" style="flex:1"><button class="btn" type="button" onclick="rollName()" title="Generate a name" style="flex:none;font-size:16px">🎲</button></div>
+    <div class="notice" style="margin-top:12px">You begin with an <b>empty plot</b> in ${c.name} — land, capital and your chosen market. Build every room, hire every team member and add facilities from scratch. Prices, wages and taxes reflect ${C.name}.</div>`;
+  }
+  $('#wizBack').disabled=wiz.step===0;
+  $('#wizNext').textContent=wiz.step===3?'Found Hotel →':'Continue';
+  $('#wizNext').disabled=(wiz.step===0&&wiz.city==null)||(wiz.step===2&&!wiz.diff);
+};
+
+/* ---------------- newGame: lock in the country, capital & locale ---------------- */
+{const _v22NG=newGame;newGame=function(setup){
+  const key=(wiz&&wiz.country)||'india';
+  applyCountry(key);
+  _v22NG(setup);
+  const C=COUNTRIES[key];
+  G.country=key;
+  G.locale={sym:C.cur.sym,code:C.cur.code,style:C.cur.style,k:C.k,tax:C.tax};
+  G.cash=Math.round(CAP_BASE[setup.diff]*(G.D.cap)*C.cap);
+  feed('Market: '+C.flag+' '+C.name+' — '+CITIES[setup.city].name+'. Currency '+C.cur.code+'.','gold');
+};}
+
+/* ---------------- save / load: re-apply the saved country ---------------- */
+{const _v22AI=augmentInit;augmentInit=function(){
+  try{const key=(G&&G.country)||'india';applyCountry(key);
+    if(G&&!G.locale){const C=COUNTRIES[key];G.locale={sym:C.cur.sym,code:C.cur.code,style:C.cur.style,k:C.k,tax:C.tax};}
+    if(G&&G.locale)LOC=Object.assign({country:key},G.locale);
+  }catch(e){}
+  _v22AI();
+};}
 
 renderWiz();
 </script>
