@@ -9028,6 +9028,172 @@ v12Deliveries=function(p){
 }catch(e){}return h;};}
 try{Object.assign(TIPS,{procurement:{t:'Procurement & Suppliers',d:'A live marketplace per category: price, quality, delivery speed, reliability, credit terms, bulk discounts and minimum orders. Pick suppliers yourself or set a buying strategy and let your procurement manager choose. Supplier quality reaches the kitchen and the workshop; bad suppliers fail deliveries and eventually fold.'}});}catch(e){}
 
+/* =======================================================================
+   v31 — CHAIN HQ DEPTH + LONG-TERM PROGRESSION (spec items #3 & #4)
+   HQ: internal benchmarking with performance ranking, inter-property
+   staff transfers, per-property capital allocation executed monthly by
+   the regional office. Progression: Brand Prestige (0–100) built from
+   nine measurable pillars, a five-tier brand ladder, chain valuation &
+   market share, strategic milestones on the Goals page, and a franchise
+   programme unlocked by prestige. Shared marketing/loyalty/procurement
+   and the IPO layer already exist and are surfaced, not duplicated.
+   ======================================================================= */
+
+function ensureHQ2(){
+  if(!G.hq)G.hq={regional:false,audits:0};
+  if(!G.hq.budgets)G.hq.budgets={};
+  if(!G.franchise)G.franchise={units:0,fees:0};
+}
+/* ---- benchmarking ---- */
+function hqPerf(pp){
+  const a=(pp.analytics||[]).slice(-30);
+  const rev=a.reduce((s,x)=>s+(x.rev||0),0),prof=a.reduce((s,x)=>s+(x.profit||0),0);
+  const occ=a.length?a.reduce((s,x)=>s+(x.occ||0),0)/a.length:0;
+  const revpar=a.length?a.reduce((s,x)=>s+(x.revpar||0),0)/a.length:0;
+  const goppar=pp.rooms.length?prof/30/Math.max(1,pp.rooms.length):0;
+  return {occ:Math.round(occ),revpar,goppar,prof,rev,rating:pp.rating||0,rep:pp.reputation||0,
+    score:Math.round(clamp(occ*.35+(pp.rating||0)*10+(pp.reputation||0)*.2+(prof>0?15:0),0,100))};
+}
+window.hqTransfer=(destIdx,role)=>{
+  const src=P(),dest=G.properties[destIdx];
+  if(!dest||dest===src)return;
+  const pool=(src.staff[role]||[]);
+  if(pool.length<=1){toast('Keep at least one '+ROLES[role].name.toLowerCase()+' at '+src.name+'.','warn');return;}
+  pool.sort((a,b)=>b.skill-a.skill);
+  const s=pool.pop(); // transfer the junior; the A-team stays
+  if(!dest.staff[role])dest.staff[role]=[];
+  dest.staff[role].push(s);
+  logEvent(src,'decision',s.name+' ('+ROLES[role].name+') transferred to '+dest.name+'.');
+  logEvent(dest,'decision',s.name+' ('+ROLES[role].name+') joined from '+src.name+'.');
+  try{ensureV10(dest);rosterTopUp(dest,role);}catch(e){}
+  toast(s.name+' transferred to '+dest.name+'.','pos');renderTab();};
+window.hqBudget=(idx,v)=>{ensureHQ2();G.hq.budgets[idx]=Math.max(0,Math.round((+v||0)*(LOC.k||1)));
+  logDecision('Capital allocation — '+(G.properties[idx]||{}).name,0,'Monthly upkeep budget '+cr(G.hq.budgets[idx]),'Regional office invests it monthly','Condition & stock held up remotely',['expansion']);renderTab();};
+
+/* regional office spends allocated capital monthly: worst rooms first, then stock */
+function hqRunBudgets(){
+  ensureHQ2();
+  if(!G.hq.regional)return;
+  G.properties.forEach((pp,i)=>{
+    if(pp===P())return;
+    let bud=Math.min(G.hq.budgets[i]||0,Math.max(0,G.cash-500000));
+    if(bud<=0)return;
+    let spent=0;
+    const perPt=Math.round(4000*(activeCountry().capex||1));   // cost per condition point
+    pp.rooms.slice().sort((a,b)=>a.cond-b.cond).forEach(r=>{
+      if(spent>=bud||r.cond>=88)return;
+      const pts=Math.min(88-r.cond,Math.floor((bud-spent)/perPt));
+      if(pts<=0)return;
+      r.cond=clamp(r.cond+pts,0,100);spent+=pts*perPt;});
+    if(spent<bud&&pp.inv){INV_ORDER.forEach(k=>{const it=pp.inv[k],I=INV[k];
+      if(spent>=bud||!it||it.stock>I.cap*.5)return;
+      const qty=Math.min(I.cap-it.stock,Math.floor((bud-spent)/I.cost));
+      if(qty<=0)return;it.stock+=qty;spent+=Math.round(qty*I.cost);});}
+    if(spent>0){G.cash-=spent;pp.expToday=(pp.expToday||0)+spent;
+      logEvent(pp,'finance','Regional office invested '+cr0(spent)+' (allocated capital).');}
+  });
+}
+
+/* ---- progression: prestige, tiers, valuation, market share, franchise ---- */
+function chainValuation(){
+  let prof=0;(G.properties||[]).forEach(pp=>{prof+=(pp.analytics||[]).slice(-30).reduce((s,x)=>s+(x.profit||0),0);});
+  return Math.max(0,Math.round(chainAssets()+prof*12*6+(G.cash-((G.loans||[]).reduce((s,l)=>s+l.balance,0)))));
+}
+function marketShare(p){
+  const mine=(G.properties||[]).reduce((s,pp)=>s+pp.rooms.length,0);
+  const comps=(p.comps||[]).length*22; // competitor sets average ~22 keys
+  return clamp(Math.round(mine/Math.max(1,mine+comps)*100),0,100);
+}
+function prestigePillars(p){
+  const morale=(function(){let s=0,n=0;(G.properties||[]).forEach(pp=>{for(const r in pp.staff)pp.staff[r].forEach(x=>{s+=x.morale||70;n++;});});return n?s/n:70;})();
+  const loyal=(typeof loyalMembers==='function')?loyalMembers().m:0;
+  const corpN=(G.properties||[]).reduce((s,pp)=>s+((pp.corp&&pp.corp.contracts)||[]).length,0);
+  const awardsN=(G.properties||[]).reduce((s,pp)=>s+((pp.awards||[]).filter(a=>a.until>=G.day).length),0);
+  const green=(G.properties||[]).some(pp=>(pp.awards||[]).some(a=>a.id==='green'&&a.until>=G.day));
+  const lux=(G.properties||[]).some(pp=>(pp.awards||[]).some(a=>a.id==='lux'&&a.until>=G.day));
+  return [
+   {n:'Guest rating',v:clamp(((p.rating||0)-3)*50,0,100),d:(p.rating||0).toFixed(2)+'★'},
+   {n:'National reputation',v:clamp((G.chain?G.chain.rep:p.reputation),0,100),d:Math.round(G.chain?G.chain.rep:p.reputation)+'/100'},
+   {n:'Brand awareness',v:clamp(G.chain?G.chain.brand:(p.awareness||0),0,100),d:Math.round(G.chain?G.chain.brand:(p.awareness||0))+'/100'},
+   {n:'Awards & certifications',v:clamp(awardsN*18,0,100),d:awardsN+' held'+(green?' · green':'')+(lux?' · luxury':'')},
+   {n:'Corporate accounts',v:clamp(corpN*16,0,100),d:corpN+' under contract'},
+   {n:'Guest loyalty',v:clamp(loyal/3,0,100),d:loyal+' members'},
+   {n:'Employee satisfaction',v:clamp((morale-40)*2,0,100),d:Math.round(morale)+'/100 morale'},
+   {n:'Market share',v:clamp(marketShare(p)*4,0,100),d:marketShare(p)+'% of local keys'},
+   {n:'Estate scale',v:clamp((G.properties||[]).length*18+((G.properties||[]).reduce((s,pp)=>s+pp.rooms.length,0))/2,0,100),d:(G.properties||[]).length+' hotel(s)'}
+  ];
+}
+function brandPrestige(p){const ps=prestigePillars(p);return Math.round(ps.reduce((s,x)=>s+x.v,0)/ps.length);}
+const BRAND_TIERS=[
+ {min:0,n:'Local Guesthouse'},{min:25,n:'City Player'},{min:45,n:'Regional Brand'},
+ {min:65,n:'National Chain'},{min:82,n:'Hospitality Icon'}];
+function brandTier(pr){let t=BRAND_TIERS[0];BRAND_TIERS.forEach(x=>{if(pr>=x.min)t=x;});return t;}
+/* franchising: prestige converts into fee income — and risk to the badge */
+window.sellFranchise=()=>{
+  const p=P();ensureHQ2();
+  const pr=brandPrestige(p);
+  if(pr<65||G.properties.length<2){toast('Franchisees want a National Chain badge — prestige 65+ and 2+ owned hotels.','warn');return;}
+  const fee=Math.round(2000000*(activeCountry().capex||1));
+  G.franchise.units++;G.cash+=fee;p.revToday+=fee;G.franchise.fees+=fee;
+  logDecision('Franchise unit sold',0,'License the brand','Upfront '+cr(fee)+' + monthly royalties','Brand risk if standards slip',['finance','expansion']);
+  feed('🏨 Franchise unit #'+G.franchise.units+' signed — '+cr(fee)+' upfront.','pos');renderTab();};
+{const _v31CM=corpMonthly;corpMonthly=function(p){_v31CM(p);try{
+  ensureHQ2();
+  hqRunBudgets();
+  if(G.franchise.units>0){
+    const roy=Math.round(G.franchise.units*60000*(activeCountry().capex||1));
+    G.cash+=roy;p.revToday+=roy;G.franchise.fees+=roy;
+    logEvent(p,'finance','Franchise royalties: '+cr0(roy)+' ('+G.franchise.units+' unit'+(G.franchise.units>1?'s':'')+').');
+    if((G.chain?G.chain.rep:p.reputation)<45&&Math.random()<.3){
+      G.franchise.units--;feed('📉 A franchisee left the brand — chain reputation is too weak.','neg');}
+  }
+}catch(e){}};}
+
+/* ---- HQ page: benchmarking, transfers, capital allocation, franchise ---- */
+{const _v31HQ=tabHQ;tabHQ=function(p){let h=_v31HQ(p);try{
+  ensureHQ2();
+  if(G.properties.length<2)return h;
+  const perf=G.properties.map((pp,i)=>({i,pp,f:hqPerf(pp)})).sort((a,b)=>b.f.score-a.f.score);
+  const roles=R_ROLES.filter(r=>(P().staff[r]||[]).length>1);
+  h+=`<div class="card" style="margin-top:12px"><h3>Internal Benchmarking — performance ranking</h3>
+   <div class="tbl-wrap"><table><thead><tr><th>#</th><th>Property</th><th>Occ 30d</th><th>RevPAR</th><th>GOPPAR</th><th>Rating</th><th>Score</th><th>Capital / mo</th><th>Staff transfer</th></tr></thead><tbody>
+   ${perf.map((x,rank)=>`<tr${x.pp===P()?' style="outline:1px solid var(--gold);outline-offset:-1px"':''}>
+     <td class="b">${rank+1}${rank===0?' 🏆':rank===perf.length-1&&perf.length>2?' ⚠':''}</td>
+     <td class="b">${x.pp.name}<div class="muted sm">${x.pp.city.name}${x.pp===P()?' · active':''}</div></td>
+     <td>${x.f.occ}%</td><td>${cr0(x.f.revpar)}</td><td>${cr0(x.f.goppar)}</td><td>${(x.f.rating||0).toFixed(2)}★</td>
+     <td>${barInline(x.f.score,x.f.score>60?'#1e5c3a':x.f.score>35?'#b45f14':'#7a2430')} ${x.f.score}</td>
+     <td>${x.pp===P()?'<span class="muted sm">—</span>':`<input type="number" min="0" step="${LOC.k>1?500:25000}" value="${Math.round((G.hq.budgets[x.i]||0)/(LOC.k||1))}" style="width:90px" onchange="hqBudget(${x.i},this.value)">`}</td>
+     <td>${x.pp===P()?'<span class="muted sm">—</span>':(roles.length?`<select id="tr_${x.i}" style="max-width:110px">${roles.map(r=>`<option value="${r}">${ROLES[r].name}</option>`).join('')}</select> <button class="btn" style="padding:3px 8px;font-size:11px" onclick="hqTransfer(${x.i},document.getElementById('tr_${x.i}').value)">Send 1</button>`:'<span class="muted sm">no spare staff</span>')}</td>
+    </tr>`).join('')}
+   </tbody></table></div>
+   <div class="muted sm" style="margin-top:4px">Transfers move the junior of the chosen role from the active hotel (their roster tops up automatically). Allocated capital is invested monthly by the regional office — worst rooms first, then stock — only while a regional manager is appointed.</div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Franchise Programme</h3>
+   ${row('Brand prestige',brandPrestige(p)+'/100 · '+brandTier(brandPrestige(p)).n)}
+   ${row('Franchised units',G.franchise.units+' · lifetime fees '+cr(G.franchise.fees))}
+   ${row('Sell a franchise','<button class="btn primary" style="padding:4px 12px" onclick="sellFranchise()">License the brand — '+cr(Math.round(2000000*(activeCountry().capex||1)))+' upfront</button>')}
+   <div class="muted sm" style="margin-top:4px">Needs prestige 65+ (National Chain). Each unit pays ${cr(Math.round(60000*(activeCountry().capex||1)))}/month in royalties — but franchisees walk if chain reputation slides below 45.</div>
+  </div>`;
+}catch(e){}return h;};}
+
+/* ---- Goals page: Brand Prestige ladder + strategic milestones ---- */
+{const _v31TG=tabGoals;tabGoals=function(p){let h=_v31TG(p);try{
+  const pr=brandPrestige(p),tier=brandTier(pr);
+  const next=BRAND_TIERS.find(t=>t.min>pr);
+  const pillars=prestigePillars(p);
+  const ipoOK=(typeof ipoReqs==='function')?ipoReqs().filter(r=>r[1]).length:0;
+  const ipoAll=(typeof ipoReqs==='function')?ipoReqs().length:0;
+  h+=`<div class="card" style="margin-top:12px"><h3>Brand Prestige — the long game</h3>
+   <div class="row"><span class="lab"><b style="font-size:16px">${tier.n}</b> <span class="muted sm">prestige ${pr}/100${next?' · '+(next.min-pr)+' to '+next.n:' · the summit'}</span></span>
+    <span class="val" style="min-width:160px">${barInline(pr,'#8a6a1e')}</span></div>
+   <div style="margin-top:6px">${pillars.map(x=>`<div class="row"><span class="lab">${x.n} <span class="muted sm">${x.d}</span></span><span class="val" style="min-width:130px">${barInline(Math.round(x.v),x.v>60?'#1e5c3a':x.v>30?'#b45f14':'#8e8e85')}</span></div>`).join('')}</div>
+   ${row('Chain valuation',cr(chainValuation())+' <span class="muted sm">assets + 6× annualised profit − debt</span>')}
+   ${row('IPO readiness',ipoAll?ipoOK+'/'+ipoAll+' listing requirements met (see HQ)':'—')}
+   <div class="muted sm" style="margin-top:4px">Prestige is the average of nine pillars — every operational system feeds one. It unlocks franchising at 65 and marks the road from a single guesthouse to a hospitality icon.</div>
+  </div>`;
+}catch(e){}return h;};}
+try{Object.assign(TIPS,{hq:{t:'Chain Headquarters',d:'Benchmark every hotel on occupancy, RevPAR, GOPPAR and rating; transfer staff between properties; allocate monthly capital that the regional office invests in the weakest rooms and stock; and license the brand as a franchise once prestige reaches National Chain level.'}});}catch(e){}
+
 renderWiz();
 </script>
 </body>
