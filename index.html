@@ -542,106 +542,7 @@ function workload(prop){
 /* [flattened v18] dead ancestor of leaveReview() removed — the last declaration wins by hoisting */
 /* [flattened v18] dead ancestor of reviewText() removed — the last declaration wins by hoisting */
 
-/* ---------------- IN-STAY REQUEST EVENTS ---------------- */
-/* [flattened v18] dead ancestor of maybeRequestEvent() removed — the last declaration wins by hoisting */
-
-/* ---------------- EVENT ENGINE ---------------- */
-const EVENTS=[
- {id:'early',ic:'⏰',cl:'#4fa9c9',cond:p=>occupied(p)<p.rooms.length, title:'Early Check-in Request',
-  sub:'A guest has arrived hours before standard check-in.',
-  desc:'A tired traveler requests to check in early. A room is being cleaned but not quite ready.',
-  ch:[
-   {t:'Rush housekeeping & allow it',c:'-₹600, guest delighted',f:p=>{G.cash-=600;p.expToday+=600;bump(p,4);toast('Guest checked in early, very pleased.');}},
-   {t:'Offer the lounge to wait',c:'Neutral, minor goodwill',f:p=>{bump(p,1);}},
-   {t:'Politely decline — policy',c:'Guest mildly annoyed',f:p=>{bump(p,-3);}}
- ]},
- {id:'noise',ic:'🔊',cl:'#e6b450',cond:p=>occupied(p)>0,title:'Noise Complaint',
-  sub:'A guest reports disturbance from outside / neighbouring room.',
-  desc:'A guest is unable to sleep due to noise. They are visibly upset at the front desk.',
-  ch:[
-   {t:'Move them to a quieter room',c:'-₹400 housekeeping, recovers mood',f:p=>{G.cash-=400;p.expToday+=400;bump(p,5);hitGuest(p,6);}},
-   {t:'Send amenities & apologise',c:'-₹250, partial recovery',f:p=>{G.cash-=250;p.expToday+=250;bump(p,2);}},
-   {t:'Ignore it',c:'Reputation risk',f:p=>{bump(p,-6);p.incidents++;}}
- ]},
- {id:'ac',ic:'❄️',cl:'#4fa9c9',cond:p=>occupied(p)>0,title:'AC / Maintenance Complaint',
-  sub:'A room\u2019s air-conditioning has stopped working.',
-  desc:'A guest complains the AC isn\u2019t cooling. It\u2019s peak summer and they\u2019re uncomfortable.',
-  ch:[
-   {t:'Dispatch maintenance immediately',c:'-₹1,200, fast fix',f:p=>{G.cash-=1200;p.expToday+=1200;bump(p,4);}},
-   {t:'Upgrade them to a better room',c:'Comp upgrade, big goodwill',avail:p=>hasUpgradeRoom(p),noAuto:true,f:p=>{bump(p,7);}},
-   {t:'Tell them to wait till morning',c:'Guest furious',f:p=>{bump(p,-8);p.incidents++;}}
- ]},
- {id:'upg',ic:'⬆️',cl:'#d8a24a',cond:p=>hasUpgradeRoom(p),title:'Upgrade Request',
-  sub:'A guest asks for a complimentary upgrade.',
-  desc:'A polite repeat-style guest asks if a suite upgrade is possible at no charge.',
-  ch:[
-   {t:'Grant the upgrade',c:'Forgo extra rate, loyalty up',avail:p=>hasUpgradeRoom(p),noAuto:true,f:p=>{bump(p,5);}},
-   {t:'Offer paid upgrade at 50%',c:'+₹1,500 if accepted',f:p=>{if(Math.random()<.6){G.cash+=1500;p.revToday+=1500;toast('Guest took the paid upgrade.');bump(p,2);}else bump(p,-1);}},
-   {t:'Decline',c:'Slight disappointment',f:p=>{bump(p,-2);}}
- ]},
- {id:'vip',ic:'⭐',cl:'#b27ad6',cond:p=>true,title:'VIP Arrival',
-  sub:'A high-profile guest is checking in tonight.',
-  desc:'A VIP with strong review influence is arriving. Handling this well could boost reputation significantly.',
-  ch:[
-   {t:'Roll out full red-carpet service',c:'-₹3,000, big rep boost',f:p=>{G.cash-=3000;p.expToday+=3000;p.reputation=clamp(p.reputation+4,0,100);toast('VIP impressed — reputation rising.');}},
-   {t:'Standard premium treatment',c:'-₹800, modest boost',f:p=>{G.cash-=800;p.expToday+=800;p.reputation=clamp(p.reputation+1.5,0,100);}},
-   {t:'Treat as a normal guest',c:'Missed opportunity / risk',f:p=>{if(Math.random()<.5){p.reputation=clamp(p.reputation-2,0,100);toast('VIP felt under-served.','neg');}}}
- ]},
- {id:'overbook',ic:'📋',cl:'#ef6a6a',cond:p=>occupied(p)>=p.rooms.length-1 && p.rooms.length>2,title:'Overbooking Pressure',
-  sub:'Demand exceeds your clean inventory tonight.',
-  desc:'You can squeeze in another booking but risk not having a ready room. Accept the revenue or play safe?',
-  ch:[
-   {t:'Accept the extra booking',c:'+₹ revenue, risk of walkout',f:p=>{if(p.rooms.some(r=>r.status==='clean')){G.cash+=p.prices.standard;p.revToday+=p.prices.standard;toast('Extra booking filled.');}else{p.incidents++;bump(p,-5);toast('No room — guest walked out.','neg');}}},
-   {t:'Decline to protect service',c:'Safe, no revenue',f:p=>{}},
-   {t:'Walk guest to a partner hotel',c:'-₹2,000 goodwill cost',f:p=>{G.cash-=2000;p.expToday+=2000;p.reputation=clamp(p.reputation+1,0,100);}}
- ]},
- {id:'absent',ic:'🚫',cl:'#e6b450',cond:p=>Object.values(p.staff).flat().length>2,title:'Staff Absence',
-  sub:'A staff member has called in sick.',
-  desc:'One of your team is absent today, straining operations during a busy period.',
-  ch:[
-   {t:'Pay overtime to cover',c:'-₹1,800',f:p=>{G.cash-=1800;p.expToday+=1800;}},
-   {t:'Redistribute workload',c:'Morale dip',f:p=>{Object.values(p.staff).flat().forEach(s=>s.morale=clamp(s.morale-5,20,100));}},
-   {t:'Run short-staffed today',c:'Service quality drops',f:p=>{p.rooms.filter(r=>r.status==='occupied').forEach(r=>{if(r.guest)r.guest.sat-=rnd(1,4);});}}
- ]},
- {id:'power',ic:'⚡',cl:'#ef6a6a',cond:p=>true,title:'Power Outage',
-  sub:'A grid failure has hit the locality.',
-  desc:'Electricity is down. Guests are uncomfortable and your generator fuel costs money to run.',
-  ch:[
-   {t:'Run full backup power',c:'-₹2,500, guests fine',f:p=>{G.cash-=2500;p.expToday+=2500;}},
-   {t:'Essential areas only',c:'-₹900, minor complaints',f:p=>{G.cash-=900;p.expToday+=900;hitGuest(p,3);}},
-   {t:'Wait it out',c:'-₹0, satisfaction drop',f:p=>{hitGuest(p,7);p.incidents++;}}
- ]},
- {id:'festival',ic:'🎆',cl:'#d8a24a',cond:p=>true,title:'Festival Demand Surge',
-  sub:'A local festival is driving a booking spike.',
-  desc:'A surge of demand is incoming. You can raise rates to capture it, but risk reputation if you gouge.',
-  ch:[
-   {t:'Raise rates 25% for the surge',c:'Higher revenue, slight rep risk',f:p=>{RT_ORDER.forEach(rt=>p.prices[rt]=Math.round(p.prices[rt]*1.25));toast('Rates raised for the festival.');if(Math.random()<.4)p.reputation=clamp(p.reputation-1,0,100);}},
-   {t:'Modest 10% increase',c:'Balanced upside',f:p=>{RT_ORDER.forEach(rt=>p.prices[rt]=Math.round(p.prices[rt]*1.1));toast('Modest rate rise applied.');}},
-   {t:'Hold rates, build goodwill',c:'Reputation up',f:p=>{p.reputation=clamp(p.reputation+2,0,100);}}
- ]},
- {id:'inspect',ic:'🔍',cl:'#4fa9c9',cond:p=>true,title:'Surprise Inspection',
-  sub:'A hospitality standards inspector has arrived.',
-  desc:'An inspection of hygiene and safety standards is underway. Your cleanliness investment matters now.',
-  ch:[
-   {t:'Cooperate fully & showcase standards',c:'Rep boost if clean',f:p=>{const ok=cleanCapacity(p)/Math.max(1,p.rooms.length)>.6;if(ok){p.reputation=clamp(p.reputation+3,0,100);toast('Passed inspection with praise.');}else{p.reputation=clamp(p.reputation-3,0,100);toast('Inspection flagged issues.','neg');}}},
-   {t:'Offer hospitality & rush a clean-up',c:'-₹1,500',f:p=>{G.cash-=1500;p.expToday+=1500;p.reputation=clamp(p.reputation+1,0,100);}}
- ]},
- {id:'viral',ic:'📱',cl:'#46c06a',cond:p=>p.rating>=3.8,title:'Influencer Visit',
-  sub:'A travel influencer is staying tonight.',
-  desc:'A content creator with reach is here. A great experience could go viral and lift demand.',
-  ch:[
-   {t:'Comp a premium experience',c:'-₹2,500, demand boost if good',f:p=>{G.cash-=2500;p.expToday+=2500;if(p.rating>4){p.reputation=clamp(p.reputation+5,0,100);toast('Viral post! Demand surging.');}else p.reputation=clamp(p.reputation+1,0,100);}},
-   {t:'Treat normally',c:'Neutral',f:p=>{}}
- ]},
- {id:'compd',ic:'🏷️',cl:'#e6b450',cond:p=>true,title:'Competitor Discount Campaign',
-  sub:'A nearby rival has slashed prices aggressively.',
-  desc:'A competitor launched a discount blitz, pulling price-sensitive guests away from you.',
-  ch:[
-   {t:'Match with a tactical discount',c:'Protect occupancy, lower margin',f:p=>{RT_ORDER.forEach(rt=>p.prices[rt]=Math.round(p.prices[rt]*.92));toast('You matched the discount.');}},
-   {t:'Hold rates, compete on quality',c:'Risk losing budget guests',f:p=>{}},
-   {t:'Invest in a service push',c:'-₹2,000, satisfaction up',f:p=>{G.cash-=2000;p.expToday+=2000;p.rooms.filter(r=>r.status==='occupied').forEach(r=>{if(r.guest)r.guest.sat+=rnd(2,5);});}}
- ]}
-];
+/* [v28 hygiene] EVENTS array removed — random events retired (spec §5) */
 function occupied(p){return p.rooms.filter(r=>r.status==='occupied').length;}
 function bump(p,amt){ // affect a random in-house guest's sat & small rep
   const occ=p.rooms.filter(r=>r.status==='occupied'&&r.guest);
@@ -885,12 +786,12 @@ function tabStaff(p){
   </div>`;
 }
 function roleIcon(r){return {frontdesk:'🛎️',housekeeping:'🧹',maintenance:'🔧',manager:'👔',security:'🛡️',fnb:'🍽️',procurement:'📦'}[r]||'👤';}
-window.hireStaff=(role,tier)=>{const p=P();const s=mkStaff(role,tier);if(G.cash<s.sal){toast('Need at least one month salary in cash.','neg');return;}if(!p.staff[role])p.staff[role]=[];p.staff[role].push(s);toast('Hired '+s.name+' as '+ROLES[role].name+'.');renderAll();};
-window.fireStaff=id=>{const p=P();for(const role in p.staff){const i=p.staff[role].findIndex(s=>s.id===id);if(i>=0){const s=p.staff[role][i];p.staff[role].splice(i,1);toast('Dismissed '+s.name+'.','warn');break;}}renderAll();};
+/* [v28 hygiene] dead superseded assignment of hireStaff removed */
+/* [v28 hygiene] dead superseded assignment of fireStaff removed */
 
 /* ---- FACILITIES ---- */
 /* [flattened v18] dead ancestor of tabFacilities() removed — the last declaration wins by hoisting */
-window.buyFac=f=>{const p=P();const fc=FACILITIES[f];if(G.cash<fc.build){toast('Not enough cash to build '+fc.name+'.','neg');return;}G.cash-=fc.build;p.expToday+=fc.build;p.facilities.push(f);if(fc.staff){if(!p.staff.fnb)p.staff.fnb=[];for(let i=0;i<fc.staff;i++)p.staff.fnb.push(mkStaff('fnb',0));}p.reputation=clamp(p.reputation+fc.rep*.4,0,100);toast(fc.name+' built. Demand & guest appeal improved.');renderAll();};
+/* [v28 hygiene] dead superseded assignment of buyFac removed */
 
 /* ---- REVIEWS ---- */
 /* [flattened v18] dead ancestor of tabReviews() removed — the last declaration wins by hoisting */
@@ -905,12 +806,8 @@ function meter(l,v){return `<div class="barrow"><span class="lbl">${l}</span><di
 /* ---- EXPANSION ---- */
 /* [flattened v18] dead ancestor of tabExpand() removed — the last declaration wins by hoisting */
 function milestone(t,done){return `<div class="row"><span class="lab">${done?'✅':'⬜'} ${t}</span><span class="val">${done?'<span class="pill green">done</span>':'<span class="pill gray">pending</span>'}</span></div>`;}
-window.buildRoom=rt=>{const p=P();const qi=+($('#q_'+rt)?.value||0);const q=QUALITY[qi];const cost=ROOMTYPES[rt].build+q.cost;
-  if(p.rooms.filter(r=>r.floor<=p.floors).length>=p.floors*p.capPerFloor){toast('No floor capacity — add a floor first.','warn');return;}
-  if(G.cash<cost){toast('Not enough cash.','neg');return;}
-  let floor=1;for(let f=1;f<=p.floors;f++){if(p.rooms.filter(r=>r.floor===f).length<p.capPerFloor){floor=f;break;}}
-  G.cash-=cost;p.expToday+=cost;p.rooms.push(makeRoom(p,rt,floor,q));toast(ROOMTYPES[rt].name+' room built on floor '+floor+'.');renderAll();};
-window.addFloor=()=>{const p=P();const cost=Math.round((2000000+p.floors*640000)*(activeCountry().capex||1));if(G.cash<cost){toast('Not enough cash for a new floor.','neg');return;}G.cash-=cost;p.expToday+=cost;p.floors++;toast('Floor '+p.floors+' added (+'+p.capPerFloor+' room capacity).');renderAll();};
+/* [v28 hygiene] dead superseded assignment of buildRoom removed */
+/* [v28 hygiene] dead superseded assignment of addFloor removed */
 window.switchProp=i=>{G.active=i;scheduleDay();toast('Now managing '+G.properties[i].name+'.');renderAll();};
 
 /* [flattened v18] dead ancestor of openNewHotel() removed — the last declaration wins by hoisting */
@@ -1333,14 +1230,7 @@ window.renovateRoom=(id,kind)=>{const p=P(),r=p.rooms.find(x=>x.id===id);
   toast('Room '+id+' closed for '+kind+' renovation.');$('#modal').style.display='none';renderAll();};
 
 /* ---------------- FACILITIES BUY (override: discount + parking) ---------------- */
-window.buyFac=f=>{const p=P(),fc=FACILITIES[f];let cost=fc.build;if(G.facDiscount)cost=Math.round(cost*(1-G.facDiscount));
-  if(G.cash<cost){toast('Not enough cash to build '+fc.name+'.','neg');return;}
-  G.cash-=cost;p.expToday+=cost;p.facilities.push(f);
-  if(f==='parking')p.parking.spaces+=8;if(f==='evcharge')p.parking.ev+=4;
-  if(fc.staff){if(!p.staff.fnb)p.staff.fnb=[];for(let i=0;i<fc.staff;i++)p.staff.fnb.push(mkStaff('fnb',0));}
-  p.reputation=clamp(p.reputation+fc.rep*.4,0,100);
-  if(G.facDiscount){G.facDiscount=0;toast('Central purchasing discount applied.');}
-  logEvent(p,'decision',fc.name+' built.');toast(fc.name+' built.','pos');renderAll();};
+/* [v28 hygiene] dead superseded assignment of buyFac removed */
 
 /* ---------------- EVENT MODAL (override: log decisions) ---------------- */
 /* [flattened v18] dead ancestor of showEvent() removed — the last declaration wins by hoisting */
@@ -1537,7 +1427,7 @@ function buildDailyReport(prop){
 /* [flattened v18] dead ancestor of dayRollover() removed — the last declaration wins by hoisting */
 
 /* triggerEvent override: no events on an empty/idle plot */
-function triggerEvent(prop){if(!prop.rooms.length||occupied(prop)===0)return;const elig=EVENTS.filter(e=>e.cond(prop));if(!elig.length)return;showEvent(pick(elig),prop);}
+/* [v28 hygiene] event trigger removed */
 
 /* ---------------- MANDATORY EVENT MODAL (override) ---------------- */
 /* [flattened v18] dead ancestor of showEvent() removed — the last declaration wins by hoisting */
@@ -1677,20 +1567,9 @@ window.marketDirect=()=>{const p=P();const c=600000;if(G.cash<c){toast('Not enou
 /* ---------------- LOG CATEGORY OVERRIDES (staff / expansion / facilities) ---------------- */
 window.hireStaff=(role,tier)=>{const p=P();const s=mkStaff(role,tier);if(G.cash<s.sal){toast('Need at least one month salary in cash.','neg');return;}if(!p.staff[role])p.staff[role]=[];p.staff[role].push(s);logEvent(p,'staff','Hired '+s.name+' as '+ROLES[role].name+'.');logDecision('Hire '+ROLES[role].name,s.sal,'Add capacity & skill','Service capacity up','Higher payroll',['staff','costs']);toast('Hired '+s.name+'.');renderAll();};
 window.fireStaff=id=>{const p=P();for(const role in p.staff){const i=p.staff[role].findIndex(s=>s.id===id);if(i>=0){const s=p.staff[role][i];p.staff[role].splice(i,1);logEvent(p,'staff','Dismissed '+s.name+'.');toast('Dismissed '+s.name+'.','warn');break;}}renderAll();};
-window.buildRoom=rt=>{const p=P();const el=document.getElementById('q_'+rt);const qi=+((el&&el.value)||0);const q=QUALITY[qi];const cost=ROOMTYPES[rt].build+q.cost;
-  if(p.rooms.filter(r=>r.floor<=p.floors).length>=p.floors*p.capPerFloor){toast('No floor capacity — add a floor first.','warn');return;}
-  if(G.cash<cost){toast('Not enough cash.','neg');return;}
-  let floor=1;for(let f=1;f<=p.floors;f++){if(p.rooms.filter(r=>r.floor===f).length<p.capPerFloor){floor=f;break;}}
-  G.cash-=cost;p.expToday+=cost;p.rooms.push(makeRoom(p,rt,floor,q));logEvent(p,'expansion',ROOMTYPES[rt].name+' room built on floor '+floor+'.');logDecision('Build '+ROOMTYPES[rt].name+' room',cost,'Add sellable inventory','+1 room','More revenue capacity',['occupancy','revenue']);toast(ROOMTYPES[rt].name+' room built on floor '+floor+'.');renderAll();};
-window.addFloor=()=>{const p=P();const cost=Math.round((2000000+p.floors*640000)*(activeCountry().capex||1));if(G.cash<cost){toast('Not enough cash for a new floor.','neg');return;}G.cash-=cost;p.expToday+=cost;p.floors++;logEvent(p,'expansion','Floor '+p.floors+' added.');logDecision('Add floor',cost,'Raise build capacity','+'+p.capPerFloor+' capacity','Room to grow',['expansion']);toast('Floor '+p.floors+' added.');renderAll();};
-window.buyFac=f=>{const p=P(),fc=FACILITIES[f];let cost=fc.build;if(G.facDiscount)cost=Math.round(cost*(1-G.facDiscount));
-  if(G.cash<cost){toast('Not enough cash to build '+fc.name+'.','neg');return;}
-  G.cash-=cost;p.expToday+=cost;p.facilities.push(f);
-  if(f==='parking')p.parking.spaces+=8;if(f==='evcharge')p.parking.ev+=4;
-  if(fc.staff){if(!p.staff.fnb)p.staff.fnb=[];for(let i=0;i<fc.staff;i++)p.staff.fnb.push(mkStaff('fnb',0));}
-  p.reputation=clamp(p.reputation+fc.rep*.4,0,100);
-  if(G.facDiscount){G.facDiscount=0;toast('Central purchasing discount applied.');}
-  logEvent(p,'facilities',fc.name+' built.');logDecision('Build '+fc.name,cost,'Expand amenities','Guest appeal up','Higher demand & rate',['demand','satisfaction','reputation']);toast(fc.name+' built.','pos');renderAll();};
+/* [v28 hygiene] dead superseded assignment of buildRoom removed */
+/* [v28 hygiene] dead superseded assignment of addFloor removed */
+/* [v28 hygiene] dead superseded assignment of buyFac removed */
 
 /* ---------------- WIZARD (override: dice + empty-start copy) ---------------- */
 function renderWiz(){
@@ -1988,8 +1867,6 @@ function tickHour(){
     guestRoutine(prop,r,g);
   });
   // events
-  G.eventCooldown--;
-  if(G.eventCooldown<=0&&!G.paused){if(Math.random()<.14){triggerEvent(prop);G.eventCooldown=ri(8,18);}else G.eventCooldown=ri(3,7);}
   accrueHourlyCost(prop);
 }
 
@@ -2169,8 +2046,8 @@ function competitorAI(prop){
 /* ---------------- AUTOMATION RULES ---------------- */
 /* [flattened v18] dead ancestor of autoResolveEvent() removed — the last declaration wins by hoisting */
 /* [flattened v18] dead ancestor of showEvent() removed — the last declaration wins by hoisting */
-window.autoRuleFromEvent=(id,choice)=>{G.autoRules[id]={choice,cond:'always'};const ev=EVENTS.find(e=>e.id===id);if(ev){ev.ch[choice].f(P());G.autoLog.unshift({d:G.day,h:G.hour,event:ev.title,choice:ev.ch[choice].t});logEvent(P(),'decision','Automation rule set: '+ev.title+' → always '+ev.ch[choice].t);}$('#modal').style.display='none';$('#modal').onclick=e=>{if(e.target.id==='modal')$('#modal').style.display='none';};if(G.autoResume)setPause(false);toast('Automation rule saved.','pos');renderAll();};
-window.setAutoRule=(id,choice,cond,val)=>{if(choice===null||choice==='null'){delete G.autoRules[id];}else{G.autoRules[id]={choice:+choice,cond:cond||'always',val:+val||50};}logEvent(P(),'decision','Automation updated for '+(EVENTS.find(e=>e.id===id)||{}).title);renderTab();};
+/* [v28 hygiene] event-automation rule-from-modal removed */
+/* [v28 hygiene] event-automation setter removed */
 
 /* ---------------- RENDER DISPATCH (override: + automation/procurement/marketing) ---------------- */
 function renderTab(){
@@ -2178,31 +2055,13 @@ function renderTab(){
   const T={overview:tabOverview,rooms:tabRooms,guests:tabGuests,pricing:tabPricing,policies:tabPolicies,
     staff:tabStaff,facilities:tabFacilities,reviews:tabReviews,market:tabMarket,finance:tabFinance,
     analytics:tabAnalytics,reports:tabReports,log:tabLog,expand:tabExpand,hq:tabHQ,operations:tabOperations,
-    automation:tabAutomation,procurement:tabProcurement,marketing:tabMarketing};
+    procurement:tabProcurement,marketing:tabMarketing}; // [v28] event-automation retired
   if(!T[G.tab]||(G.tab==='hq'&&G.properties.length<2))G.tab='overview';
   m.innerHTML=T[G.tab](p);
   wireTab();updateBadges();
 }
 
-/* ---------------- TAB: AUTOMATION ---------------- */
-function tabAutomation(p){
-  return `<div class="page-head"><div><h2>Automation Rules</h2><div class="desc">Let your managers handle routine events. Set a standing decision per event type; future occurrences resolve automatically and are logged.</div></div></div>
-  <div class="cards cols-2">
-    ${EVENTS.map(ev=>{const r=G.autoRules[ev.id];return `<div class="card"><h3>${ev.ic} ${ev.title}</h3>
-      <div class="muted sm" style="margin-bottom:8px">${ev.sub}</div>
-      <div class="row"><span class="lab">Current rule</span><span class="val">${r?(r.cond==='occLow'?'If occ < '+(r.val||50)+'% → ':'')+'<span class="pill gold">'+ev.ch[clamp(r.choice,0,ev.ch.length-1)].t.slice(0,26)+'</span>':'<span class="pill gray">Ask me each time</span>'}</span></div>
-      <div class="wrapf" style="margin-top:8px">
-        <button class="tag ${!r?'on':''}" onclick="setAutoRule('${ev.id}',null)">Ask me</button>
-        ${ev.ch.map((c,i)=>`<button class="tag ${r&&r.cond==='always'&&r.choice===i?'on':''}" onclick="setAutoRule('${ev.id}',${i},'always')">Always: ${c.t.length>16?c.t.slice(0,14)+'…':c.t}</button>`).join('')}
-        <button class="tag ${r&&r.cond==='occLow'?'on':''}" onclick="setAutoRule('${ev.id}',0,'occLow',50)">Approve if occ &lt; 50%</button>
-      </div>
-      <div class="muted sm" style="margin-top:6px">Per occurrence: ${ev.ch[r?clamp(r.choice,0,ev.ch.length-1):0].c}</div>
-    </div>`;}).join('')}
-  </div>
-  <div class="card" style="margin-top:12px"><h3>Automation Log</h3><div style="max-height:240px;overflow:auto">
-    ${G.autoLog.length?G.autoLog.slice(0,40).map(a=>`<div class="fitem"><span class="dot" style="background:#b27ad6"></span><span class="txt">${a.event} — ${a.choice}</span><span class="ft">D${a.d} ${String(a.h).padStart(2,'0')}h</span></div>`).join(''):'<div class="muted sm">No automated actions yet. Set a rule above or pick "Always…" inside an event.</div>'}
-  </div></div>`;
-}
+/* [v28 hygiene] event-automation tab removed */
 
 /* ---------------- TAB: PROCUREMENT ---------------- */
 function tabProcurement(p){
@@ -2366,54 +2225,12 @@ function tabOperations(p){
   </div>`;
 }
 
-/* ---------------- EXTRA EVENTS (Phase 5 polish) ---------------- */
-EVENTS.push(
- {id:'health',ic:'🧪',cl:'#6fc6df',cond:p=>p.rooms.length>=4,title:'Health & Hygiene Inspection',sub:'An inspector has arrived to audit kitchen and rooms.',desc:'A surprise health inspection. Your housekeeping and F&B standards are under review.',ch:[
-   {t:'Cooperate fully & showcase standards',c:'-₹3,000, reputation if clean',f:p=>{G.cash-=3000;p.expToday+=3000;if((p.hk&&p.hk.inspection)||fnbQuality(p)>65){bump(p,3);}else{bump(p,-3);p.incidents++;}}},
-   {t:'Rush a quick clean-up first',c:'-₹8,000, safer',f:p=>{G.cash-=8000;p.expToday+=8000;bump(p,1);}},
-   {t:'Downplay it',c:'Risk of penalty',f:p=>{if(Math.random()<.5){bump(p,-6);p.incidents++;G.cash-=20000;p.expToday+=20000;}else bump(p,-1);}}
- ]},
- {id:'water',ic:'🚿',cl:'#4fa9c9',cond:p=>occupied(p)>2,title:'Water Shortage',sub:'Municipal supply has been disrupted.',desc:'A water shortage threatens housekeeping and guest comfort.',ch:[
-   {t:'Order tankers immediately',c:'-₹15,000, comfort maintained',f:p=>{G.cash-=15000;p.expToday+=15000;bump(p,1);}},
-   {t:'Ration usage & inform guests',c:'Minor dissatisfaction',f:p=>{bump(p,-2);hitGuest(p,4);}},
-   {t:'Do nothing',c:'Guests upset',f:p=>{bump(p,-6);p.incidents++;hitGuest(p,10);}}
- ]},
- {id:'internet',ic:'📡',cl:'#b27ad6',cond:p=>p.facilities.includes('wifi')&&occupied(p)>0,title:'Internet Outage',sub:'Hotel-wide Wi-Fi has gone down.',desc:'Business guests are particularly affected by the connectivity failure.',ch:[
-   {t:'Emergency ISP callout',c:'-₹6,000, quick fix',f:p=>{G.cash-=6000;p.expToday+=6000;bump(p,1);}},
-   {t:'Offer 4G hotspots to key guests',c:'-₹2,500, goodwill',f:p=>{G.cash-=2500;p.expToday+=2500;bump(p,0);}},
-   {t:'Wait for it to resolve',c:'Business guests annoyed',f:p=>{bump(p,-4);hitGuest(p,6);}}
- ]},
- {id:'celebrity',ic:'⭐',cl:'#d8a24a',cond:p=>p.reputation>55&&occupied(p)>0,title:'Celebrity Booking Enquiry',sub:'A public figure wants a discreet stay.',desc:'A celebrity requests a suite with privacy and security guarantees.',ch:[
-   {t:'Roll out the red carpet',c:'-₹20,000, big reputation & buzz',f:p=>{G.cash-=20000;p.expToday+=20000;bump(p,7);p.awareness=clamp((p.awareness||0)+8,0,100);}},
-   {t:'Accommodate normally',c:'Modest goodwill',f:p=>{bump(p,2);}},
-   {t:'Decline — too much hassle',c:'Missed exposure',f:p=>{bump(p,-1);}}
- ]},
- {id:'resign',ic:'📄',cl:'#ef6a6a',cond:p=>Object.values(p.staff).reduce((s,a)=>s+a.length,0)>3,title:'Key Staff Resignation',sub:'An experienced team member is leaving.',desc:'A valued employee has handed in their resignation, citing a better offer.',ch:[
-   {t:'Counter-offer to retain',c:'-₹12,000/mo cost, morale up',f:p=>{const roles=Object.keys(p.staff).filter(r=>p.staff[r].length);if(roles.length){const r=pick(roles);const s=pick(p.staff[r]);s.sal=Math.round(s.sal*1.1);s.morale=clamp(s.morale+12,0,100);}bump(p,1);}},
-   {t:'Let them go & hire fresh',c:'Temporary capacity dip',f:p=>{const roles=Object.keys(p.staff).filter(r=>p.staff[r].length>1);if(roles.length){const r=pick(roles);p.staff[r].pop();}bump(p,-2);}},
-   {t:'Promote from within',c:'Morale boost',f:p=>{Object.values(p.staff).flat().forEach(s=>s.morale=clamp(s.morale+3,0,100));bump(p,1);}}
- ]},
- {id:'anniv',ic:'🎂',cl:'#eebd6a',cond:p=>(G.day-(p.bornDay||1))>180&&Math.random()<.5,title:'Hotel Anniversary',sub:'Your property marks another year.',desc:'A chance to celebrate with guests and generate goodwill.',ch:[
-   {t:'Host a celebration for guests',c:'-₹25,000, reputation & buzz',f:p=>{G.cash-=25000;p.expToday+=25000;bump(p,5);p.awareness=clamp((p.awareness||0)+6,0,100);}},
-   {t:'Small gesture — cake & cards',c:'-₹5,000, warm goodwill',f:p=>{G.cash-=5000;p.expToday+=5000;bump(p,2);}},
-   {t:'Let it pass quietly',c:'Neutral',f:p=>{}}
- ]},
- {id:'award',ic:'🏆',cl:'#d8a24a',cond:p=>(p.rating||0)>=4.2&&p.reviews.length>20,title:'Award Nomination',sub:'You have been shortlisted for a hospitality award.',desc:'An industry body has nominated your hotel. Campaigning could secure the win.',ch:[
-   {t:'Invest in the campaign',c:'-₹40,000, strong reputation if won',f:p=>{G.cash-=40000;p.expToday+=40000;if(Math.random()<.6){bump(p,8);p.awareness=clamp((p.awareness||0)+12,0,100);feed('🏆 Your hotel won the award!','pos');}else bump(p,1);}},
-   {t:'Accept nomination only',c:'Modest goodwill',f:p=>{bump(p,2);}},
-   {t:'Decline',c:'Neutral',f:p=>{}}
- ]},
- {id:'firedrill',ic:'🚒',cl:'#ef6a6a',cond:p=>p.rooms.length>=6,title:'Mandatory Fire Drill',sub:'Safety regulations require a scheduled drill.',desc:'Conducting the drill disrupts guests but ensures compliance and safety.',ch:[
-   {t:'Run a full, well-communicated drill',c:'Minor disruption, safety assured',f:p=>{bump(p,1);}},
-   {t:'Quick token drill',c:'Compliance only',f:p=>{bump(p,0);}},
-   {t:'Skip it',c:'Compliance risk',f:p=>{if(Math.random()<.4){bump(p,-5);p.incidents++;}}}
- ]}
-);
+/* [v28 hygiene] extra EVENTS removed */
 
 /* ---------------- RESPONSIVE NAV ITEMS for new tabs ---------------- */
 (function(){
   const side=document.getElementById('side');if(!side)return;
-  const want=[['operations'],['automation'],['procurement'],['marketing']];
+  const want=[['operations'],['procurement'],['marketing']];
   // ensure automation/procurement/marketing nav entries exist (operations added in HTML)
   const add=(tab,label,ic,after)=>{ if(side.querySelector('[data-tab="'+tab+'"]'))return;
     const el=document.createElement('div');el.className='nav';el.dataset.tab=tab;el.innerHTML='<span class="ic">'+ic+'</span>'+label;
@@ -2423,7 +2240,7 @@ EVENTS.push(
   add('operations','Operations','⚙','facilities');
   add('procurement','Procurement','📦','operations');
   add('marketing','Marketing','📣','finance');
-  add('automation','Automation','🤖','reports');
+
 })();
 
 
@@ -3604,7 +3421,7 @@ function showOnboarding(){const p=P();if(!p)return;const step=(done,txt)=>`<div 
    <button class="btn primary" style="margin-top:12px;width:100%" onclick="dismissOnboarding()">Got it — let's begin</button>
   </div>`);}
 window.showOnboarding=showOnboarding;
-window.dismissOnboarding=()=>{G._onboarded=true;v8CloseModal();};
+/* [v28 hygiene] dead superseded assignment of dismissOnboarding removed */
 
 /* ---------------- MODAL HELPER ---------------- */
 function v8Modal(html){try{const box=$('#mbox');if(!box)return;box.innerHTML=html;const m=$('#modal');if(m){m.style.display='flex';m.onclick=e=>{if(e.target.id==='modal')m.style.display='none';};}}catch(e){}}
@@ -3668,7 +3485,7 @@ try{
 }catch(e){}
 /* lower leverage + investor caps */
 maxLoan=function(){return Math.max(0,Math.round(assetValue()*.45-totalDebt()));};
-window.investorRaise=amt=>{amt=+amt;if(!amt||amt<=0)return;const share=Math.min(.25,(amt/40000000)*.1);G.investorShare=Math.min(.25,(G.investorShare||0)+share);G.cash+=amt;logEvent(P(),'finance','Investor capital raised: '+cr(amt)+' for '+Math.round(share*100)+'% profit share.');logDecision('Investor raise '+cr(amt),0,'Equity funding','Cash now','Permanent '+Math.round(share*100)+'% profit share',['costs']);toast('Investor capital: '+cr(amt)+'.','pos');renderTab();};
+/* [v28 hygiene] dead superseded assignment of investorRaise removed */
 
 /* ---------------- (10) BUY-BACK SHARES + EARLY LOAN CLOSURE ---------------- */
 window.repayLoan=i=>{const l=(G.loans||[])[i];if(!l)return;if(G.cash<l.balance){toast('Need '+cr(l.balance)+' to close this loan.','neg');return;}G.cash-=l.balance;P().expToday+=l.balance;logEvent(P(),'finance','Loan of '+cr0(l.principal)+' closed early ('+cr(l.balance)+').');G.loans.splice(i,1);toast('Loan closed early — EMI removed.','pos');renderTab();};
@@ -3701,32 +3518,9 @@ window.v9ConfirmRooms=(rt,unit)=>{let n=Math.max(1,Math.floor(+(($('#v9qty')||{}
   (window.v8CloseModal&&window.v8CloseModal());if(built)toast('Queued '+built+' '+ROOMTYPES[rt].name+' room'+(built>1?'s':'')+' for construction.','pos');renderAll();};
 
 /* ---------------- (8) LOGICAL EVENTS (availability + no impossible automation) ---------------- */
-function hasUpgradeRoom(p){const built=[...new Set(p.rooms.map(r=>r.type))];if(built.length<2)return false;const minRank=Math.min(...built.map(t=>RT_ORDER.indexOf(t)));return p.rooms.some(r=>r.status==='clean'&&RT_ORDER.indexOf(r.type)>minRank);}
-function autoResolveEvent(prop,ev){
-  const r=G.autoRules[ev.id];if(!r)return false;
-  let idx=r.choice;
-  if(r.cond==='occLow'){const occN=occupied(prop)/Math.max(1,prop.rooms.length)*100;idx=(occN<(r.val||50))?r.choice:(ev.ch.length-1);}
-  idx=clamp(idx,0,ev.ch.length-1);
-  const ok=c=>c&&(!c.avail||c.avail(prop))&&!c.noAuto;
-  if(!ok(ev.ch[idx])){const alt=ev.ch.findIndex(ok);if(alt<0)return false;idx=alt;}
-  ev.ch[idx].f(prop);
-  G.autoLog.unshift({d:G.day,h:G.hour,event:ev.title,choice:ev.ch[idx].t});if(G.autoLog.length>120)G.autoLog.pop();
-  logEvent(prop,'service','[Auto] '+ev.title+' — '+ev.ch[idx].t);
-  return true;
-}
-function showEvent(ev,prop){
-  if(autoResolveEvent(prop,ev)){renderAll();return;}
-  const wasPaused=G.paused;G.autoResume=!wasPaused;setPause(true);
-  const box=$('#mbox');if(!box)return;
-  const choices=ev.ch.map((c,i)=>({c,i})).filter(o=>!o.c.avail||o.c.avail(prop));
-  box.innerHTML=`<div class="mhead"><div class="mic" style="background:${ev.cl}22;color:${ev.cl}">${ev.ic}</div><div><h3>${ev.title}</h3><div class="ms">${ev.sub}</div></div></div>
-   <div class="mbody"><div class="desc">${ev.desc}</div>
-    ${choices.map(o=>`<button class="choice" data-i="${o.i}"><div class="ct">${o.c.t}</div><div class="cc">${o.c.c}</div></button>`).join('')}
-   </div>`;
-  $('#modal').style.display='flex';
-  $('#modal').onclick=null; // events are decisions — no backdrop dismiss, a choice must be made
-  $$('.choice',box).forEach(b=>b.onclick=()=>{const ci=+b.dataset.i;ev.ch[ci].f(prop);logEvent(prop,'service',ev.title+' — '+ev.ch[ci].t);logDecision(ev.title,0,ev.ch[ci].t,ev.ch[ci].c,'Event outcome',['reputation','satisfaction']);$('#modal').style.display='none';if(G.autoResume)setPause(false);renderAll();});
-}
+/* [v28 hygiene] events-only helper removed */
+/* [v28 hygiene] event auto-resolver removed */
+/* [v28 hygiene] event modal removed */
 
 /* ---------------- (12/11) LAYERED OBJECTIVES + 1000-DAY ULTIMATE (infinite play) ---------------- */
 OBJECTIVES.length=0;
@@ -4194,7 +3988,7 @@ window.setValet=i=>{const p=P();if(!p.parking||!p.parking.spaces){toast('Build p
     ['Operate',['operations','rooms','guests','roster','staff']],
     ['Commercial',['pricing','market','marketing','loyalty','reviews','analytics']],
     ['Property',['facilities','expand','policies','procurement']],
-    ['Money',['finance','reports','automation','log']],
+    ['Money',['finance','reports','log']],
     ['Company',['hq','settings','help']]];
   const foot=side.querySelector('.side-foot');
   Array.from(side.querySelectorAll('.side-sep')).forEach(s=>s.remove());
@@ -4400,44 +4194,7 @@ window.renoBand=(lo,hi)=>{const p=P();let n=0,cost=0;
 if(typeof G!=='undefined'&&G&&!G.loyM)G.loyM={repeats:0,mrev:0,redeem:0,msat:0,msatN:0,osat:0,osatN:0};
 window.loyalPerk=(i,k)=>{G.loyal.tierPerks=G.loyal.tierPerks||{};const t=G.loyal.tierPerks[i]=G.loyal.tierPerks[i]||{};t[k]=!t[k];renderTab();};
 window.loyalRedeemT=()=>{G.loyal.allowRedeem=!G.loyal.allowRedeem;renderTab();};
-tabLoyalty=function(p){
-  const {m,pts}=loyalMembers();const LM=G.loyM||{};
-  const msat=LM.msatN?Math.round(LM.msat/LM.msatN):0, osat=LM.osatN?Math.round(LM.osat/LM.osatN):0;
-  const members=Object.entries(G.guestDB).filter(([k,e])=>(e.stays||0)>=LOYALTY[0].min)
-    .sort((a,b)=>(b[1].stays||0)-(a[1].stays||0)).slice(0,12);
-  return `<div class="page-head"><div><h2>Loyalty Programme</h2><div class="desc">Design the programme, watch it move behaviour — every rupee of perks should return in repeat business.</div></div></div>
-  <div class="cards cols-4" style="margin-bottom:12px">
-    ${ovCard('Members',m,'at '+LOYALTY[0].name+'+','')}
-    ${ovCard('Repeat stays (30d)',LM.repeats||0,'members who came back','')}
-    ${ovCard('Member revenue (30d)',cr(LM.mrev||0),'redeemed: '+cr(LM.redeem||0),'')}
-    ${ovCard('Member vs other sat.',msat+' / '+osat,msat>osat?'programme is working':'—','')}
-  </div>
-  <div class="cards cols-2" style="margin-bottom:12px">
-   <div class="card"><h3>Programme Settings</h3>
-    ${row('Points earned (% of stay spend)',`<input type="number" min="0" max="15" value="${G.loyal.earnPct}" style="width:70px" onchange="loyalSet('earnPct',this.value)"> %`)}
-    ${row('Redemption value per point',`₹ <input type="number" step="0.1" min="0" max="2" value="${G.loyal.redeemVal}" style="width:70px" onchange="loyalSet('redeemVal',this.value)">`)}
-    <div class="toggle" style="margin-top:6px"><span>Allow point redemption at checkout (up to 20% of bill)</span><div class="sw ${G.loyal.allowRedeem?'on':''}" onclick="loyalRedeemT()"><i></i></div></div>
-    <div class="toggle" style="margin-top:6px"><span>Welcome drink for all members (${cr(180)}/stay)</span><div class="sw ${G.loyal.welcome?'on':''}" onclick="loyalSet('welcome',1)"><i></i></div></div>
-   </div>
-   <div class="card"><h3>Tier Perks</h3>
-    ${LOYALTY.map((L,i)=>{const t=(G.loyal.tierPerks||{})[i]||{};return `<div class="row" style="flex-wrap:wrap"><span class="lab"><b>${L.name}</b></span>
-      <span class="val"><button class="tag ${t.amen?'on':''}" onclick="loyalPerk(${i},'amen')">Amenity ${cr(180)}</button>
-      <button class="tag ${t.late?'on':''}" onclick="loyalPerk(${i},'late')">Late checkout</button></span></div>`;}).join('')}
-    <div class="muted sm" style="margin-top:6px">Perks cost per stay but lift satisfaction and return probability.</div>
-   </div>
-  </div>
-  <div class="card" style="margin-bottom:12px"><h3>Tiers</h3>
-    ${LOYALTY.map((L,i)=>`<div class="row" style="flex-wrap:wrap;gap:6px"><span class="lab"><b>${L.name}</b></span>
-      <span class="val">from <input type="number" min="1" max="40" value="${L.min}" style="width:56px" onchange="loyalTier(${i},'min',this.value)"> stays ·
-      <input type="number" min="0" max="30" value="${Math.round(L.disc*100)}" style="width:56px" onchange="loyalTier(${i},'disc',this.value)">% rate discount ·
-      <input type="number" min="0" max="80" value="${Math.round((L.upg||0)*100)}" style="width:56px" onchange="loyalTier(${i},'upg',this.value)">% upgrade priority</span></div>`).join('')}
-  </div>
-  <div class="card"><h3>Member Ledger — top guests</h3>
-   <div class="tbl-wrap"><table><thead><tr><th>Guest</th><th>Tier</th><th>Stays</th><th>Points</th><th>Avg sat.</th><th>Last comment</th></tr></thead><tbody>
-    ${members.length?members.map(([k,e])=>{const nm=k.split('|')[0];const T=loyaltyTier(e.stays||0);return `<tr><td class="b">${nm}</td><td><span class="pill gold">${T?T.name:'—'}</span></td><td>${e.stays||0}</td><td>${Math.round(e.pts||0)}</td><td>${moodPill(e.avgSat||0)}</td><td class="muted sm" style="max-width:280px">${e.lastCmt?'“'+e.lastCmt+'” — '+(e.lastStars||'')+'★':'—'}</td></tr>`;}).join(''):'<tr><td colspan="6" class="muted">No members yet — repeat guests join automatically.</td></tr>'}
-   </tbody></table></div>
-  </div>`;
-};
+/* [v28 hygiene] dead superseded assignment of tabLoyalty removed */
 
 /* =======================================================================
    (Task 8) REVIEWS — variety, length, facility & wear flavour
@@ -4611,13 +4368,7 @@ try{
   G.cash-=pen;P().expToday+=pen;_v11RL(i);};}
 /* legacy valet button → tiered valet */
 window.enableValet=()=>{window.setValet(1);};
-/* event choices need the right people on duty */
-try{
-  const ac=EVENTS.find(e=>e.id==='ac');const d=ac&&ac.ch.find(c=>/Dispatch maintenance/i.test(c.t));
-  if(d){d.avail=p=>onDuty(p,'maintenance')>0;d.c+=' (needs maintenance on duty)';}
-  const early=EVENTS.find(e=>e.id==='early');const rush=early&&early.ch.find(c=>/Rush housekeeping/i.test(c.t));
-  if(rush){rush.avail=p=>onDuty(p,'housekeeping')>0;rush.c+=' (needs housekeeping on duty)';}
-}catch(e){}
+/* [v28 hygiene] event availability patches removed */
 /* night security gate */
 function v11Security(p){
   if(p.rooms.length>=12&&(G.hour>=22||G.hour<=4)&&onDuty(p,'security')===0&&Math.random()<.004){
@@ -5541,39 +5292,7 @@ window.rosterCell=(role,d,h)=>{const p=P();const head=rHead(p,role);
     if(dayHours(p,role,d)+(nxt-cur)>head*R_MAXDAY){toast('⚠ Daily cap: max '+R_MAXDAY+'h per employee per day ('+(head*R_MAXDAY)+' staff-hours today).','neg');return;}
   }
   p.roster[role][d][h]=nxt;renderTab();};
-tabRoster=function(p){
-  const role=G._rrole||'frontdesk';const head=rHead(p,role);const wk=rWeekHours(p,role);const capW=head*R_MAXWK;
-  const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  let uncov=0;for(let d=0;d<7;d++)for(let h=0;h<24;h++){if(Math.min(p.roster[role][d][h],head)<rNeed(p,role,d,h))uncov++;}
-  const pay=v12Payroll(p);const pr=pay.rows.find(r=>r.role===role)||{perHead:0,otH:0,otPay:0,nightPay:0};
-  const gap=(p._rosterGap||{})[role];
-  const fat=Math.round(p.fat[role]||0);
-  return `<div class="page-head"><div><h2>Shift Roster ${tip('roster')}</h2><div class="desc">Tap cells to set staff on duty. Hard limits: <b>${R_MAXWK}h/week</b> and <b>${R_MAXDAY}h/day</b> per employee.</div></div>
-    <div class="wrapf"><button class="btn" onclick="rosterAuto()">⚡ Auto-fill all</button><button class="btn" onclick="rosterClear('${role}')">Clear ${ROLES[role].name}</button></div></div>
-  <div class="wrapf" style="margin-bottom:10px">${R_ROLES.map(r=>`<button class="tag ${role===r?'on':''}" onclick="setRosterRole('${r}')">${ROLES[r].name} · ${rHead(p,r)}</button>`).join('')}</div>
-  <div class="cards cols-4" style="margin-bottom:10px">
-    ${ovCard('Weekly staff-hours',wk+' / '+capW,head+' on payroll · avg '+pr.perHead+'h each','')}
-    ${ovCard('Overtime',pr.otH+'h / head',(pr.otPay?'+'+cr0(pr.otPay)+'/day at 1.5×':'within contract'),'')}
-    ${ovCard('Uncovered need',uncov+'h',uncov?'service suffers in red-outlined cells':'fully covered','')}
-    ${ovCard('Team fatigue',fat+'/100',fat>65?'exhausted — errors & resignations':'recovers off-shift','')}
-  </div>
-  ${gap?`<div class="notice" style="border-color:var(--warn)">⚠ <b>${ROLES[role].name} can't be fully covered:</b> ${gap.why}</div>`:''}
-  <div class="card"><h3>${ROLES[role].name} — week grid</h3>
-   <div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table style="border-collapse:collapse;min-width:780px">
-    <tr><td></td>${Array.from({length:24},(_,h)=>`<td class="muted sm" style="padding:2px 3px;text-align:center">${h}</td>`).join('')}<td class="muted sm" style="padding:2px 6px">Σday</td></tr>
-    ${DOW.map((dn,d)=>{const dh=dayHours(p,role,d);const over=dh>head*R_MAXDAY;
-      return `<tr><td class="muted sm" style="padding:2px 6px;position:sticky;left:0;background:var(--panel)">${dn}</td>${Array.from({length:24},(_,h)=>{const v=p.roster[role][d][h];const need=rNeed(p,role,d,h);const short=Math.min(v,head)<need;const bg=v?`rgba(216,162,74,${.18+.16*Math.min(v,4)})`:(need?'rgba(239,106,106,.16)':'transparent');
-      return `<td onclick="rosterCell('${role}',${d},${h})" style="width:24px;height:24px;text-align:center;cursor:pointer;border:1px solid var(--line);background:${bg};font-size:11px;${short?'outline:1px solid var(--neg);outline-offset:-2px;':''}">${v||''}</td>`;}).join('')}<td style="padding:2px 6px;font-size:11px;color:${over?'var(--neg)':'var(--mut)'}">${dh}</td></tr>`;}).join('')}
-   </table></div>
-   <div class="muted sm" style="margin-top:6px">Red tint = hours this team is needed · red outline = below need. Night cells (22–06) carry a 15% premium; hours beyond ${p.contract}h/week pay 1.5×.</div>
-  </div>
-  <div class="card" style="margin-top:12px"><h3>Payroll Impact ${tip('overtime')}</h3>
-    ${row('Contracted hours / week',`<input type="number" min="40" max="56" value="${p.contract}" style="width:60px" onchange="P().contract=clamp(+this.value,40,56);renderTab()"> h (hard cap ${R_MAXWK}h)`)}
-    ${pay.rows.map(r=>row(ROLES[r.role].name+' — '+r.perHead+'h/head'+(r.otH?' ('+r.otH+'h OT)':''),(r.otPay?'+'+cr0(r.otPay)+' OT/day ':'')+(r.nightPay?'+'+cr0(r.nightPay)+' night/day':'')||'—')).join('')}
-    ${row('<b>Daily premium payroll</b>','<b>'+cr0(pay.ot+pay.night)+'</b>')}
-    <div class="wrapf" style="margin-top:6px">${R_ROLES.map(r=>(p.staff[r]||[]).length?`<button class="btn" style="padding:4px 9px;font-size:11px" onclick="grantLeave('${r}')">Leave: ${ROLES[r].name}</button>`:'').join('')}</div>
-  </div>${saveBar()}`;
-};
+/* [v28 hygiene] dead superseded assignment of tabRoster removed */
 window.rosterAuto=()=>{autoFillRoster(P());toast('Roster auto-filled within legal caps.','pos');renderTab();};
 
 /* ---------- (5/15) CHART ENGINE v2 — zero axis, readable ---------- */
@@ -5707,15 +5426,7 @@ function managerPricing(p){
     }
   });
 }
-rmApplyDaily=function(p){
-  if(!p.rm||!p.rm.auto)return;
-  const rec=rmRecommend(p);
-  RT_ORDER.forEach(rt=>{
-    if(p.priceMode&&p.priceMode[rt]==='manager')return; /* manager owns these */
-    const base=p.rmBase[rt]||p.prices[rt];
-    p.prices[rt]=Math.max(500,Math.round(base*(p.rm.dow[G.dow]||1)*(1+rec.pct/100)/50)*50);
-  });
-};
+/* [v28 hygiene] dead superseded assignment of rmApplyDaily removed */
 {const _v13TP=tabPricing;tabPricing=function(p){let html=_v13TP(p);try{
   p.priceMode=p.priceMode||{};p.priceStrat=p.priceStrat||{};
   const built=RT_ORDER.filter(rt=>p.rooms.some(r=>r.type===rt));
@@ -6387,70 +6098,18 @@ try{
 /* =======================================================================
    1) REVENUE MANAGEMENT SYSTEM — modes, strategies, explanations
    ======================================================================= */
-const RM_STRATS={
- occupancy:{n:'Aggressive Occupancy',d:'Fill rooms first — discount into weakness, modest gains in strength.',adj:-6,dem:1.6,floor:-22,cap:6},
- profit:{n:'Maximum Profit',d:'Chase RevPAR — push rate hard whenever demand allows.',adj:2,dem:1.2,floor:-8,cap:18},
- balanced:{n:'Balanced',d:'Track the market; lean with demand in both directions.',adj:0,dem:1,floor:-12,cap:12},
- premium:{n:'Premium Positioning',d:'Protect the brand — never discount below market.',adj:10,dem:.7,floor:2,cap:25},
- budget:{n:'Budget Leader',d:'Always the value option — undercut the market.',adj:-12,dem:.9,floor:-30,cap:-4}};
-function rmsDecide(p){
-  ensureV17(p);
-  const S=RM_STRATS[p.rm.strategy]||RM_STRATS.balanced;
-  const why=[];let pct=S.adj;
-  const d1=projDemand(p,1);
-  if(d1>1.25){pct+=6*S.dem;why.push('projected demand for tomorrow is running hot ('+d1.toFixed(2)+')');}
-  else if(d1<.7){pct-=5*S.dem;why.push('soft demand ahead ('+d1.toFixed(2)+')');}
-  const onB=(p.otb&&p.otb[G.day+1]?p.otb[G.day+1].n:0),pace=onB/Math.max(1,p.rooms.length);
-  if(pace>.65){pct+=4*S.dem;why.push(Math.round(pace*100)+'% of rooms already reserved for tomorrow');}
-  else if(pace<.2&&p.rooms.length>6){pct-=3*S.dem;why.push('weak advance pickup — only '+onB+' on the books');}
-  if(((G.dow+1)%7)>=5&&p.city.tour>.35){pct+=3;why.push('leisure weekend in a tourism-led market');}
-  const fest=festivalMultiplier();if(fest>1.2){pct+=5;why.push('festival / wedding-season window (×'+fest.toFixed(2)+')');}
-  const avgIdx=p.comps.length?p.comps.reduce((s,c)=>s+c.priceIdx,0)/p.comps.length:1;
-  if(avgIdx<.9){pct-=2;why.push('competitors are discounting (price index '+avgIdx.toFixed(2)+')');}
-  if((p.rating||0)>=4.4){pct+=2;why.push('a '+p.rating.toFixed(1)+'★ rating supports premium rates');}
-  if(p.reputation<45){pct-=2;why.push('reputation is fragile — price cannot lead');}
-  pct=clamp(pct,S.floor,S.cap);
-  if(!why.length)why.push(S.n+' stance ('+(S.adj>=0?'+':'')+S.adj+'% baseline) — steady market conditions');
-  if(p.rm.mode==='manager'){const q=avgSkill(p,'manager')||45;const noise=(80-Math.min(80,q))/80*4;pct+=rnd(-noise,noise);why.push('revenue manager judgement (skill '+Math.round(q)+'/100)');}
-  return {pct:Math.round(pct*10)/10,why,S};
-}
-rmApplyDaily=function(p){
-  ensureV17(p);
-  if(!p.rm||p.rm.mode==='manual')return;
-  const rec=rmsDecide(p);
-  RT_ORDER.forEach(rt=>{
-    if(!p.rooms.some(r=>r.type===rt))return;
-    const base=p.rmBase[rt]||p.prices[rt],from=p.prices[rt];
-    const to=Math.max(500,Math.round(base*(p.rm.dow[G.dow]||1)*(1+rec.pct/100)/50)*50);
-    p.prices[rt]=to;
-    if(Math.abs(to-from)>=50){p.rm.log.unshift({d:G.day,rt,from,to,pct:Math.round((to/from-1)*100),why:rec.why.slice(0,3)});if(p.rm.log.length>40)p.rm.log.pop();}
-  });
-};
+/* [v28 hygiene] legacy RM_STRATS + rmsDecide removed — the v27 positioning repricer is authoritative */
+/* [v28 hygiene] dead superseded assignment of rmApplyDaily removed */
 managerPricing=function(p){}; // folded into the RMS — one authoritative pricing brain
 window.rmsMode=m=>{const p=P();ensureV17(p);if(m!=='manual'&&p.rm.mode==='manual')RT_ORDER.forEach(rt=>p.rmBase[rt]=p.prices[rt]);p.rm.mode=m;p.rm.auto=(m!=='manual');logDecision('Pricing mode: '+(m==='ai'?'AI Revenue Manager':m==='manager'?'Revenue Manager':'Manual'),0,'Change who sets rates','Daily repricing '+(m==='manual'?'off':'on'),'Strategy-driven yield',['revenue']);renderTab();};
-window.rmsStrat=s=>{const p=P();ensureV17(p);p.rm.strategy=s;logDecision('Pricing strategy: '+RM_STRATS[s].n,0,RM_STRATS[s].d,'Applied from tomorrow','Positioning follows strategy',['revenue']);renderTab();};
+/* [v28 hygiene] legacy strategy setter removed */
 window.rmsDirect=v=>{const p=P();ensureV17(p);p.rm.directDisc=clamp(Math.round(+v||0),0,12);renderTab();};
 {const _v17rmSet=window.rmSet;window.rmSet=(k,v)=>{if(k==='auto'){const p=P();ensureV17(p);window.rmsMode(p.rm.mode==='manual'?'ai':'manual');return;}_v17rmSet(k,v);};}
 /* direct-booking incentive applied to today's direct arrivals */
 {const _v17SD2=scheduleDay;scheduleDay=function(){_v17SD2();try{const p=P();const disc=((p.rm&&p.rm.directDisc)||0)/100;
   if(disc>0)(G.pendingArrivals||[]).forEach(a=>{if(a.channel==='direct'&&!a._dd){a._dd=1;a.price=Math.round(a.price*(1-disc));a.sat+=1;}});
 }catch(e){}};}
-{const _v17TP=tabPricing;tabPricing=function(p){let h=_v17TP(p);try{
-  ensureV17(p);const M=p.rm.mode,S=RM_STRATS[p.rm.strategy];
-  const rec=(M!=='manual')?rmsDecide(p):null;
-  h+=`<div class="card" style="margin-top:12px"><h3>Revenue Management System</h3>
-   <div class="row"><span class="lab"><b>Pricing control</b></span><span class="val">
-     <button class="tag ${M==='manual'?'on':''}" onclick="rmsMode('manual')">Manual</button>
-     <button class="tag ${M==='manager'?'on':''}" onclick="rmsMode('manager')">Revenue Manager</button>
-     <button class="tag ${M==='ai'?'on':''}" onclick="rmsMode('ai')">AI Revenue Manager</button></span></div>
-   <div class="muted sm" style="margin:2px 0 8px">${M==='manual'?'You set every rate by hand above.':M==='manager'?'Your revenue manager reprices daily — decision quality follows their skill ('+Math.round(avgSkill(p,'manager')||45)+'/100).':'The AI reprices daily with full information.'}</div>
-   ${M!=='manual'?`<div class="row" style="flex-wrap:wrap"><span class="lab"><b>Strategy</b></span><span class="val">${Object.keys(RM_STRATS).map(k=>`<button class="tag ${p.rm.strategy===k?'on':''}" onclick="rmsStrat('${k}')">${RM_STRATS[k].n}</button>`).join(' ')}</span></div>
-   <div class="muted sm" style="margin:2px 0 8px">${S.d}</div>
-   <div class="notice">🧠 Tomorrow: <b>${rec.pct>=0?'+':''}${rec.pct}%</b> vs base — ${rec.why.slice(0,3).join('; ')||'steady conditions'}.</div>`:''}
-   ${row('Direct-booking incentive',`<input type="number" min="0" max="12" value="${p.rm.directDisc}" style="width:60px" onchange="rmsDirect(this.value)"> % off direct-channel rates (commission-free anyway)`)}
-   ${p.rm.log.length?`<div class="fl" style="margin-top:8px"><b>Recent pricing decisions — every change explained</b></div><div style="max-height:220px;overflow:auto">${p.rm.log.slice(0,12).map(l=>`<div class="review" style="padding:8px"><div class="rh"><span class="who">${ROOMTYPES[l.rt].name}: ${cr0(l.from)} → ${cr0(l.to)} (${l.pct>=0?'+':''}${l.pct}%)</span><span class="muted sm">Day ${l.d}</span></div><div class="txt sm">${l.why.map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join('. ')}.</div></div>`).join('')}</div>`:'<div class="muted sm" style="margin-top:6px">Pricing decisions will be logged and explained here.</div>'}
-  </div>`;
-}catch(e){}return h;};}
+/* [v28 hygiene] legacy v17 RMS card removed — superseded by the v27 card */
 
 /* =======================================================================
    2) GUEST MEMORY — persistent preferences, usual room, spend & standards
@@ -6836,10 +6495,7 @@ function runGM(p){
   ensureV17(p);
   const m=gmOf(p);if(!m)return;
   const pers=m.personality||'balanced';
-  if(p.rm.mode==='manager'){
-    const want={luxury:'premium',cost:'profit',growth:'occupancy',aggressive:'occupancy',guest:'balanced',conservative:'balanced',balanced:'balanced'}[pers]||'balanced';
-    if(p.rm.strategy!==want){p.rm.strategy=want;logDecision('[GM '+m.name+'] Pricing strategy → '+RM_STRATS[want].n,0,pers+' instincts','Rates follow tomorrow','Positioning drift',['revenue']);}
-  }
+  /* [v28 hygiene] GM pricing-strategy drift retired — market positioning (v27) is the single pricing knob */
   Object.keys(p.dept||{}).forEach(k=>{const st=p.dept[k];if(!st||st.mode!=='manager')return;
     if(pers==='luxury'&&st.pricing!=='premium')st.pricing='premium';
     if(pers==='cost'){if(st.pricing!=='budget')st.pricing='budget';if(DEPTS[k]&&DEPTS[k].defComp&&st.service==='comp')st.service='paid';}
@@ -7660,7 +7316,6 @@ Object.keys(FACILITIES).forEach(f=>{_BASE.fbuild[f]=FACILITIES[f].build;_BASE.fd
 for(const k in COMPONENTS)_BASE.comp[k]=COMPONENTS[k].cost;
 for(const k in INV)_BASE.invc[k]=INV[k].cost;
 for(const r in ROLES)_BASE.sal[r]=ROLES[r].sal;
-try{EVENTS.forEach((e,i)=>{_BASE.evd[i]=e.desc;_BASE.evc[i]=e.ch.map(c=>c.c);});}catch(e){}
 try{OBJECTIVES.forEach((o,i)=>_BASE.obj[i]=o.label);}catch(e){}
 try{_BASE.ach=[];ACHIEVEMENTS.forEach((o,i)=>_BASE.ach[i]=o.label);}catch(e){}
 
@@ -7754,7 +7409,6 @@ function applyCountry(key){
   for(const k in INV)INV[k].cost=Math.round(_BASE.invc[k]*(1+(C.capex-1)*.6));
   for(const r in ROLES)ROLES[r].sal=Math.round(_BASE.sal[r]*C.wage/1000)*1000;
   // localise static currency labels in events & objectives from base
-  try{EVENTS.forEach((e,i)=>{if(_BASE.evd[i]!=null)e.desc=locStr(_BASE.evd[i]);if(_BASE.evc[i])e.ch.forEach((c,j)=>{if(_BASE.evc[i][j]!=null)c.c=locStr(_BASE.evc[i][j]);});});}catch(e){}
   try{OBJECTIVES.forEach((o,i)=>{if(_BASE.obj[i]!=null)o.label=locStr(_BASE.obj[i]);});}catch(e){}
   try{ACHIEVEMENTS.forEach((o,i)=>{if(_BASE.ach&&_BASE.ach[i]!=null)o.label=locStr(_BASE.ach[i]);});}catch(e){}
   // swap the active city list in place (const array — mutate contents)
@@ -8860,8 +8514,6 @@ camFrame=function(p,key,big){
    ======================================================================= */
 
 /* ---------- (5) organic-only: kill the random event spawner ---------- */
-triggerEvent=function(){};              // no pop-up situations; organic pressure only
-try{G.eventCooldown=1e9;}catch(e){}
 
 /* ---------- (7) construction -20% at the cost source ---------- */
 try{

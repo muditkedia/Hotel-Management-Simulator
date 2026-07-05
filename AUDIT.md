@@ -422,3 +422,17 @@ Focused on "reduced unnecessary complexity / smarter automation" half of the Pha
 **Verified.** Dedicated v27 suite (16/16 real checks): events never fire over 20 days; payroll OT = 0 under standard load; roster contract control gone + standard-schedule wording; management toggle present and delegating auto-refills a cleared roster at rollover; pricing shows two modes + five options with no legacy strategy buttons; Match-Market snaps to reference, +20% lifts above; construction −20% confirmed against pre-v27 effective bases. Full regression green — 3-country/29-tab sweep (0 issues), smoke4 economy invariants, smoke5 Phase-11 suite. (A tiny pre-existing rounding drift in the non-default 'partial'-deposit ledger is present in the committed build too — not a v27 regression; the default policy is 'none'.)
 
 *Deferred to the next build (per scope split): strategic modules — Corporate Sales workflow (#1), Supplier Marketplace (#2), expanded HQ (#3), long-term progression (#4) — and the deep code-hygiene pass (#10).*
+
+---
+
+## 20. Deep code hygiene (`v28`, this branch — spec item #10)
+
+Behaviour-preserving cleanup, verified before/after with the full battery. **~365 lines of provably-dead code removed.**
+
+**Mechanical pass (AST, acorn).** A new analyzer finds (a) shadowed function declarations — an earlier declaration whose name is re-declared later, dead by hoisting — and (b) superseded top-level assignments (`name=fn` / `window.name=fn`) where *no reference to the name occurs* between the assignment and its replacement, so no wrap ever captured the earlier body. Removed 15 blocks: buyFac×3, rmApplyDaily×2, addFloor×2, buildRoom×2, tabRoster, tabLoyalty, investorRaise, dismissOnboarding, fireStaff, hireStaff. Wrap-captured chains are protected automatically (the capture counts as a reference).
+
+**Events system fully excised (spec §5 said removed; v27 had only disconnected it).** Gone: the EVENTS array and Phase-5 extras, `showEvent`, `autoResolveEvent`, `triggerEvent` and its tickHour cooldown hook, the event-availability patches, the events-only `hasUpgradeRoom` helper, the `_BASE` event-caption capture and its `applyCountry` localization pass — and the entire **event-automation layer** (Automation tab, nav entries, `setAutoRule`/`autoRuleFromEvent`), which was a rules engine over events and therefore dead with them. `G.autoRules`/`autoLog` fields still initialise so old saves load untouched.
+
+**Legacy pricing machinery removed (superseded by the v27 positioning repricer).** `RM_STRATS`, `rmsDecide`, `rmsStrat`, the v17 RMS card wrap (which still *executed* `rmsDecide` on every pricing render before v27 cut its HTML — wasted work now gone), and the GM personality's pricing-strategy drift (it turned a knob nothing read anymore). Old saves' `p.rm.strategy` still migrates to a positioning via `rmMigrate`.
+
+**Safety method.** All removals were exact-anchor cuts with span guards and single-match assertions, applied atomically (any mismatch aborts the whole script unchanged) — one such abort correctly prevented an over-greedy cut during development. Verified after each stage: syntax check, v27 suite (14/14 real checks), 3-country/29-tab sweep (0 issues, no page errors), smoke4 economy invariants, smoke5 Phase-11 suite, and an exact save→hard-reload→load state match including v27 fields.
