@@ -436,3 +436,19 @@ Behaviour-preserving cleanup, verified before/after with the full battery. **~36
 **Legacy pricing machinery removed (superseded by the v27 positioning repricer).** `RM_STRATS`, `rmsDecide`, `rmsStrat`, the v17 RMS card wrap (which still *executed* `rmsDecide` on every pricing render before v27 cut its HTML — wasted work now gone), and the GM personality's pricing-strategy drift (it turned a knob nothing read anymore). Old saves' `p.rm.strategy` still migrates to a positioning via `rmMigrate`.
 
 **Safety method.** All removals were exact-anchor cuts with span guards and single-match assertions, applied atomically (any mismatch aborts the whole script unchanged) — one such abort correctly prevented an over-greedy cut during development. Verified after each stage: syntax check, v27 suite (14/14 real checks), 3-country/29-tab sweep (0 issues, no page errors), smoke4 economy invariants, smoke5 Phase-11 suite, and an exact save→hard-reload→load state match including v27 fields.
+
+---
+
+## 21. True Corporate Sales workflow (`v29`, this branch — spec item #1)
+
+Extends the v21 corporate module into an active B2B pipeline; contracted nights still flow through the real reservation book (no parallel mechanics).
+
+**Pipeline.** Prospects arrive as *leads* with unknown requirements. **Meetings** (paid, capex-scaled) reveal requirements and build relationship (+8–15). **Proposals** (paid) carry a negotiated discount and win on: rate vs budget, rating, reputation, business facilities, awards, **met requirements** (+6 each; −9 for each one you can't service) and **relationship**; cold proposals (no meeting) convert −10. Wins/losses/renewals/walkaways land in a **Win/Loss record** with reasons.
+
+**Client requirements** (1–3 each, from 7): long-stay discounts, volume discounts, preferred room category, airport transfers (needs Parking & Valet), meeting rooms (needs Conference Hall), conference packages (needs Banquet Hall), restaurant credits (needs Restaurant). Facility-gated needs show red/green pills; the perks you promise become **servicing costs** accrued per delivered night, so every account shows true **profitability** (revenue − servicing).
+
+**Contract terms vary**: duration and room-nights (v21), plus **payment reliability** (weak payers short-pay 2–5% of a month's billing occasionally, written off and logged) and a **cancellation clause** (strict = 1.5-month penalty they owe if they walk; standard = 0.75; flexible = none).
+
+**Relationship score** per account (0–100): moves monthly with traveller satisfaction, +3/month with an assigned **account manager** (your hired managers, one account each), −2 on a bad stay. Relationships under ~22 risk a **mid-term walkaway** — the account leaves (its reservation flow disappears, so occupancy genuinely drops) and paying the exit penalty per its clause; **major accounts (450+ nights/yr) leaving also dent reputation and corporate standing**. Renewals remain satisfaction-driven (v21) and now also log to history and boost relationship.
+
+**Verified.** 12-point workflow test (enrichment, meeting effects, proposal wins, contract fields, AM assignment, per-stay revenue+perk accrual, monthly relationship engine, forced walkaway with history, page sections, requirement pills); legacy `corpPitch` alias keeps older callers working (smoke5's corporate suite passes unchanged); 3-country sweep 0 issues; smoke4 economy invariants green; v27 suite 14/14.

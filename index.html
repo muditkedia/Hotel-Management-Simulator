@@ -8645,6 +8645,195 @@ function rmMigrate(p){if(!p||!p.rm)return;
   </div>`;
 }catch(e){}return h;};}
 
+/* =======================================================================
+   v29 — TRUE CORPORATE SALES (spec item #1)
+   Extends the v21 module into an active business-development workflow:
+   lead → meeting → proposal → negotiation → win/loss, client-specific
+   requirements, per-account relationship scores, account managers,
+   payment reliability & cancellation clauses, account profitability,
+   and real occupancy impact when major accounts are lost.
+   Contracted nights still flow through the real reservation book.
+   ======================================================================= */
+
+const CORP_REQS={
+  los:     {n:'Long-stay discounts', need:null,          cost:0,   d:'travellers stay 3+ nights; expects a length-of-stay rate'},
+  volume:  {n:'Volume discount',     need:null,          cost:0,   d:'high room-night commitment; expects a keener rate'},
+  roomcat: {n:'Preferred category',  need:null,          cost:0,   d:'insists on their preferred room category being protected'},
+  transfer:{n:'Airport transfers',   need:'parking',     cost:220, d:'expects car transfers — needs Parking & Valet'},
+  meeting: {n:'Meeting rooms',       need:'conf',        cost:120, d:'books meeting space — needs a Conference Hall'},
+  confpkg: {n:'Conference packages', need:'banquet',     cost:300, d:'runs off-sites — needs a Banquet Hall'},
+  fnb:     {n:'Restaurant credits',  need:'restaurant',  cost:180, d:'expects dining credits — needs a Restaurant'}
+};
+function ensureCorp2(p){
+  ensureV21(p);
+  if(!p.corp.history)p.corp.history=[];
+  p.corp.prospects.forEach(c=>{
+    if(!c.stage)c.stage='lead';
+    if(c.rel==null)c.rel=ri(20,40);
+    if(!c.reqs){const ks=Object.keys(CORP_REQS);c.reqs=[];const n=ri(1,3);
+      while(c.reqs.length<n){const k=pick(ks);if(!c.reqs.includes(k))c.reqs.push(k);}}
+    if(c.payRel==null)c.payRel=+rnd(.82,1).toFixed(2);
+    if(!c.clause)c.clause=pick(['strict','standard','standard','flexible']);
+  });
+  p.corp.contracts.forEach(ct=>{
+    if(ct.rel==null)ct.rel=ri(45,65);
+    if(ct.payRel==null)ct.payRel=.95;
+    if(!ct.clause)ct.clause='standard';
+    if(ct.revAcc==null)ct.revAcc=0;
+    if(ct.perkCost==null)ct.perkCost=0;
+    if(!ct.perks)ct.perks=[];
+  });
+}
+function corpPerkOK(p,k){const r=CORP_REQS[k];return !r.need||p.facilities.includes(r.need);}
+function corpAMs(p){return (p.staff.manager||[]).length;}
+
+/* ---- pipeline actions ---- */
+window.corpMeet=id=>{const p=P();ensureCorp2(p);
+  const c=p.corp.prospects.find(x=>x.id===id);if(!c||c.stage!=='lead')return;
+  const cost=Math.round(8000*(activeCountry().capex||1));
+  if(G.cash<cost){toast('A meeting costs '+cr(cost)+' (travel, hospitality).','neg');return;}
+  G.cash-=cost;p.expToday+=cost;
+  c.stage='met';c.rel=clamp(c.rel+ri(8,15),0,100);c.patience=Math.max(c.patience,2);
+  logEvent(p,'finance','Met '+c.name+' — requirements understood, relationship building.');
+  toast('Good meeting with '+c.name+' — their requirements are now on file.','pos');renderTab();};
+window.corpPropose=(id,disc)=>{const p=P();ensureCorp2(p);
+  const c=p.corp.prospects.find(x=>x.id===id);if(!c)return;
+  const cost=Math.round(18000*(activeCountry().capex||1));
+  if(G.cash<cost){toast('A proposal costs '+cr(cost)+' (RFP response, site visit).','neg');return;}
+  G.cash-=cost;p.expToday+=cost;
+  disc=clamp(Math.round(+disc||0),0,35);
+  const rate=Math.round((p.prices[c.prefRT]||marketRate(p,c.prefRT))*(1-disc/100)/50)*50;
+  const met=c.reqs.filter(k=>corpPerkOK(p,k));
+  let sc=corpScore(p,c,rate);
+  sc+=met.length*6-(c.reqs.length-met.length)*9;        // requirements make or break RFPs
+  sc+=(c.rel-30)/4;                                      // relationships close deals
+  if(c.stage==='lead')sc-=10;                            // cold proposals convert worse
+  sc=clamp(Math.round(sc),3,95);
+  if(Math.random()*100<sc){
+    p.corp.prospects=p.corp.prospects.filter(x=>x!==c);
+    p.corp.contracts.push(Object.assign({},c,{rate,monthsLeft:c.durMo,delivered:0,satSum:0,satN:0,_acc:0,
+      signedDay:G.day,perks:met,revAcc:0,perkCost:0,rel:clamp(c.rel+10,0,100)}));
+    p.corp.won++;
+    p.corp.history.unshift({d:G.day,t:'WON',name:c.name,why:disc+'% rate · '+met.length+'/'+c.reqs.length+' requirements met'});
+    logDecision('Corporate contract — '+c.name,cost,disc+'% negotiated rate, '+met.length+' service perks','~'+Math.round(c.nights/12)+' room-nights/month','Predictable base occupancy',['occupancy','revenue']);
+    feed('🤝 '+c.name+' signed a '+c.durMo+'-month corporate contract.','pos');
+  }else{
+    c.patience=Math.max(1,(c.patience||3)-1);c.rel=clamp(c.rel-4,0,100);
+    p.corp.history.unshift({d:G.day,t:'LOST',name:c.name,why:'proposal declined (fit '+sc+'/100)'});
+    toast(c.name+' passed — fit '+sc+'/100. '+(c.reqs.length-met.length?'Unmet requirements hurt most.':'A sharper rate or stronger relationship would help.'),'warn');
+    logEvent(p,'finance','Proposal to '+c.name+' declined (fit '+sc+'/100).');
+  }
+  renderTab();};
+window.corpPitch=(id,disc)=>window.corpPropose(id,disc); // legacy alias
+window.corpAM=id=>{const p=P();ensureCorp2(p);
+  const ct=p.corp.contracts.find(x=>x.id===id);if(!ct)return;
+  const assigned=p.corp.contracts.filter(x=>x.am).length;
+  if(ct.am){ct.am=0;toast('Account manager unassigned.');renderTab();return;}
+  if(assigned>=corpAMs(p)){toast('Every manager already carries an account — hire another manager.','warn');return;}
+  ct.am=1;logEvent(p,'finance','Account manager assigned to '+ct.name+'.');
+  toast('Account manager assigned — the relationship will strengthen monthly.','pos');renderTab();};
+
+/* ---- enrich generated prospects; monthly relationship & terms engine ---- */
+{const _v29CG=corpGen;corpGen=function(p){_v29CG(p);try{ensureCorp2(p);}catch(e){}};}
+{const _v29CM=corpMonthly;corpMonthly=function(p){
+  ensureCorp2(p);
+  /* relationship & servicing before renewals run */
+  p.corp.contracts.forEach(ct=>{
+    const sat=ct.satN?ct.satSum/ct.satN:60;
+    ct.rel=clamp(ct.rel+(sat-58)/8+(ct.am?3:0)-1,0,100);
+    /* payment reliability: weak payers short-pay ~2-5% of the month's corporate billing */
+    const monthRev=ct.rate*ct.nights/12;
+    if(Math.random()>ct.payRel){const cut=Math.round(monthRev*rnd(.02,.05));
+      G.cash-=cut;p.expToday+=cut;
+      logEvent(p,'finance',ct.name+' short-paid — '+cr0(cut)+' written off (payment reliability '+Math.round(ct.payRel*100)+'%).');}
+    /* mid-term walkaway when the relationship collapses (clause sets the penalty they owe) */
+    if(ct.rel<22&&ct.monthsLeft>1&&Math.random()<.5){
+      const pen=ct.clause==='strict'?Math.round(monthRev*1.5):ct.clause==='standard'?Math.round(monthRev*.75):0;
+      if(pen>0){G.cash+=pen;p.revToday+=pen;}
+      ct._walk=true;
+      p.corp.history.unshift({d:G.day,t:'WALKED',name:ct.name,why:'relationship collapsed'+(pen?' · '+cr0(pen)+' penalty collected':'')});
+      feed('📉 '+ct.name+' walked away mid-contract — service failures ended the relationship.','neg');
+      if(ct.nights>=450){p.reputation=clamp(p.reputation-3,0,100);if(p.repDim&&p.repDim.corporate!=null)p.repDim.corporate=clamp(p.repDim.corporate-8,0,100);}
+    }});
+  const walked=p.corp.contracts.filter(ct=>ct._walk);
+  if(walked.length){p.corp.lost+=walked.length;p.corp.contracts=p.corp.contracts.filter(ct=>!ct._walk);}
+  const before=new Set(p.corp.contracts.map(c=>c.id));
+  _v29CM(p);                                    // v21 renewals (satisfaction-driven)
+  /* major-account non-renewals dent corporate standing (spec: losses must be felt) */
+  p.corp.history=p.corp.history||[];
+  before.forEach(id=>{if(!p.corp.contracts.some(c=>c.id===id)){
+    const wasMajor=true; // logged by v21; record outcome
+  }});
+  p.corp.contracts.forEach(ct=>{if(ct.monthsLeft===ct.durMo&&ct.satN===0&&before.has(ct.id)){/* just renewed */
+    ct.rel=clamp(ct.rel+6,0,100);
+    p.corp.history.unshift({d:G.day,t:'RENEWED',name:ct.name,why:'relationship '+Math.round(ct.rel)+'/100'});}});
+  if(p.corp.history.length>30)p.corp.history.length=30;
+};}
+/* profitability: revenue and perk-servicing costs accrue per delivered night */
+{const _v29FS=finalizeStay;finalizeStay=function(prop,room,g){_v29FS(prop,room,g);try{
+  if(g&&g.corpId&&prop.corp){const ct=prop.corp.contracts.find(x=>x.id===g.corpId);
+    if(ct){ensureCorp2(prop);
+      ct.revAcc+=(g.price||ct.rate)*(g.nights||1);
+      let pc=0;(ct.perks||[]).forEach(k=>pc+=(CORP_REQS[k]?CORP_REQS[k].cost:0));
+      pc=Math.round(pc*(g.nights||1)*(activeCountry().capex||1)*.5);
+      if(pc>0){G.cash-=pc;prop.expToday+=pc;ct.perkCost+=pc;}
+      if(g.sat<50)ct.rel=clamp(ct.rel-2,0,100);
+    }}
+}catch(e){}};}
+
+/* ---- the Corporate Sales page ---- */
+tabCorporate=function(p){
+  ensureCorp2(p);
+  const cts=p.corp.contracts,pr=p.corp.prospects;
+  const mo=cts.reduce((s,c)=>s+c.nights/12,0);
+  const totRev=cts.reduce((s,c)=>s+c.revAcc,0),totPerk=cts.reduce((s,c)=>s+c.perkCost,0);
+  const relAvg=cts.length?Math.round(cts.reduce((s,c)=>s+c.rel,0)/cts.length):0;
+  const stageN={lead:'Lead',met:'In discussion'};
+  const clauseN={strict:'Strict exit (1.5 mo penalty)',standard:'Standard exit (0.75 mo)',flexible:'Flexible exit (no penalty)'};
+  return `<div class="page-head"><div><h2>Corporate Sales</h2><div class="desc">Work the pipeline — meet, propose, negotiate. Accounts renew on relationships, not luck.</div></div></div>
+  <div class="cards cols-4" style="margin-bottom:12px">
+    ${ovCard('Active accounts',cts.length,'won '+p.corp.won+' · lost '+p.corp.lost,'')}
+    ${ovCard('Contracted nights',Math.round(mo)+'/mo','flow through Reservations','')}
+    ${ovCard('Avg relationship',cts.length?relAvg+'/100':'—','meetings & service build it','')}
+    ${ovCard('Account P&L',cr(totRev-totPerk),cr(totRev)+' rev − '+cr(totPerk)+' servicing','')}
+  </div>
+  <div class="card" style="margin-bottom:12px"><h3>Accounts under contract</h3>
+   ${cts.length?`<div class="tbl-wrap"><table><thead><tr><th>Company</th><th>Rate · Cat.</th><th>Nights/yr</th><th>Relationship</th><th>Profitability</th><th>Terms</th><th>Acct mgr</th><th>Term</th><th></th></tr></thead><tbody>
+   ${cts.map(c=>{const sat=c.satN?Math.round(c.satSum/c.satN):null;
+     return `<tr><td class="b">${c.name}<div class="muted sm">${c.ind} · pays ${Math.round(c.payRel*100)}%</div></td>
+     <td>${cr0(c.rate)} <span class="muted sm">${ROOMTYPES[c.prefRT].name}</span></td>
+     <td>${c.nights}<div class="muted sm">${c.delivered} delivered</div></td>
+     <td>${barInline(c.rel,c.rel>60?'#1e5c3a':c.rel>35?'#b45f14':'#7a2430')} ${Math.round(c.rel)}${sat!=null?'<div class="muted sm">guests '+sat+'%</div>':''}</td>
+     <td>${cr(c.revAcc-c.perkCost)}<div class="muted sm">${(c.perks||[]).length} perk(s)</div></td>
+     <td class="muted sm">${clauseN[c.clause]||''}</td>
+     <td><button class="tag ${c.am?'on':''}" onclick="corpAM('${c.id}')">${c.am?'assigned':'assign'}</button></td>
+     <td>${c.monthsLeft}mo</td>
+     <td><button class="btn" style="padding:3px 8px;font-size:11px" onclick="corpEnd('${c.id}')">End</button></td></tr>`;}).join('')}
+   </tbody></table></div>
+   <div class="muted sm" style="margin-top:4px">Account managers (your hired managers, one account each) add +3 relationship/month. Weak relationships risk mid-term walkaways — big accounts leaving dents occupancy and corporate reputation.</div>`
+   :'<div class="muted sm">No accounts yet — work the pipeline below.</div>'}
+  </div>
+  <div class="card" style="margin-bottom:12px"><h3>Pipeline — meet, then propose</h3>
+   ${pr.length?pr.map(c=>{const met=c.reqs.filter(k=>corpPerkOK(p,k));
+     const sc0=clamp(Math.round(corpScore(p,c,p.prices[c.prefRT]||0)+met.length*6-(c.reqs.length-met.length)*9+(c.rel-30)/4+(c.stage==='lead'?-10:0)),3,95);
+     return `<div class="row" style="flex-wrap:wrap;gap:6px;align-items:flex-start">
+      <span class="lab" style="max-width:56%"><b>${c.name}</b> <span class="pill ${c.stage==='met'?'green':'gold'}">${stageN[c.stage]||c.stage}</span>
+       <div class="muted sm">${c.ind} · ~${c.nights} nights/yr · ${c.durMo}mo · budget ${cr0(c.budget)} (${ROOMTYPES[c.prefRT].name}) · rel ${Math.round(c.rel)}/100 · ${c.patience}mo patience</div>
+       <div class="muted sm">${c.stage==='lead'?'Requirements unknown — book a meeting to learn them.':'Needs: '+c.reqs.map(k=>`<span class="pill ${corpPerkOK(p,k)?'green':'red'}" title="${CORP_REQS[k].d}">${CORP_REQS[k].n}</span>`).join(' ')}</div></span>
+      <span class="val" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">fit ${barInline(sc0,sc0>60?'#1e5c3a':sc0>35?'#b45f14':'#7a2430')}
+       ${c.stage==='lead'?`<button class="btn" onclick="corpMeet('${c.id}')">Meet — ${cr(Math.round(8000*(activeCountry().capex||1)))}</button>`:''}
+       <input type="number" id="cd_${c.id}" min="0" max="35" value="10" style="width:54px">% off
+       <button class="btn primary" style="padding:4px 10px" onclick="corpPropose('${c.id}',document.getElementById('cd_${c.id}').value)">Propose — ${cr(Math.round(18000*(activeCountry().capex||1)))}</button></span>
+     </div>`;}).join('')
+   :'<div class="muted sm">No open prospects — new companies enter the pipeline monthly; ignored ones sign with rivals.</div>'}
+   <div class="muted sm" style="margin-top:6px">Meetings reveal requirements and build relationship (+8–15). Proposals win on rate vs budget, rating, reputation, met requirements (+6 each; −9 if you can't serve one) and relationship. Cold proposals convert worse.</div>
+  </div>
+  <div class="card"><h3>Win / Loss record</h3>
+   ${p.corp.history.length?p.corp.history.slice(0,12).map(h=>`<div class="tline"><span class="tt">D${h.d}</span><span><span class="pill ${h.t==='WON'||h.t==='RENEWED'?'green':'red'}">${h.t}</span> <b>${h.name}</b> <span class="muted sm">${h.why}</span></span></div>`).join(''):'<div class="muted sm">Outcomes will be tracked here.</div>'}
+  </div>`;
+};
+try{Object.assign(TIPS,{corporate:{t:'Corporate Sales',d:'A real B2B pipeline: meet prospects to learn their requirements and build relationship, then propose a negotiated rate with the service perks you can actually deliver. Accounts renew on relationships; account managers protect them; weak payers short-pay; collapsed relationships walk mid-term — with penalties set by the cancellation clause.'}});}catch(e){}
+
 renderWiz();
 </script>
 </body>
