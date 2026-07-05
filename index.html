@@ -1013,7 +1013,7 @@ function leaveReview(prop,g,room){
   const stars=clamp(Math.round(s/20+rnd(-.3,.3)),1,5);
   const rv=reviewText(stars,g,room,prop);
   prop.reviews.push({stars,title:rv.title,txt:rv.body,who:g.name,type:g.type,day:G.day,channel:g.channel,aspects:g.aspects||{}});
-  if(prop.reviews.length>240)prop.reviews.shift();
+  /* [v32] review history is unbounded — display lists slice for the UI only */
   prop.rating=prop.reviews.reduce((a,r)=>a+r.stars,0)/prop.reviews.length;
   logEvent(prop,'review',g.name+' left '+stars+'★: "'+rv.title+'"');
   feed('★ '+g.name+' left a '+stars+'-star review.',stars>=4?'pos':stars<=2?'neg':'info');
@@ -1134,7 +1134,7 @@ function tabReviews(p){
   const dist=[0,0,0,0,0];p.reviews.forEach(r=>dist[r.stars-1]++);
   const tot=p.reviews.length||1,filt=p._revFilter||'all';
   const aspects=['cleanliness','staff','wifi','noise','bathroom','breakfast','restaurant','parking'];
-  let list=p.reviews.slice().reverse();
+  let list=p.reviews.slice(-150).reverse(); // latest 150 in the UI; full history kept
   if(filt!=='all'){if(['1','2','3','4','5'].includes(filt))list=list.filter(r=>r.stars==+filt);else list=list.filter(r=>r.aspects&&Math.abs(r.aspects[filt]||0)>=1);}
   return `<div class="page-head"><div><h2>Reviews & Reputation</h2><div class="desc">Google-style guest ratings shape demand and pricing power</div></div></div>
   <div class="split">
@@ -1498,9 +1498,9 @@ function tabPolicies(p){
       <div class="muted sm" style="margin-top:4px">Locked services are unavailable until the facility is built (Facilities tab).</div>
     </div>
     <div class="card"><h3>Service Generosity</h3>
-      <label class="fl">Complaint-handling budget — ${Math.round(P0.generosity*100)}%</label>
-      <input type="range" min="0" max="100" value="${P0.generosity*100}" oninput="setPolicy('generosity',+this.value/100)">
-      <div class="muted sm" style="margin-top:4px">Higher generosity recovers satisfaction and reviews faster but raises cost.</div>
+      <label class="fl">Daily service-generosity budget (${LOC.sym}/day)</label>
+      <input type="number" min="0" step="${LOC.k>1?10:100}" value="${Math.round((ensureGen(p),p.genBudget)/(LOC.k||1))}" onchange="setGenBudget(this.value)">
+      <div class="muted sm" style="margin-top:4px">Funds complimentary gestures — complaint recovery, member welcome touches, goodwill upgrades. Used ${cr(p._genUsedYest||0)} yesterday${(p._genLeft!=null)?' · '+cr(p._genLeft)+' left today':''}.</div>
     </div>
   </div>`;
 }
@@ -1788,8 +1788,8 @@ function genGuest(prop){
   for(const k in w){r-=w[k];if(r<=0){type=k;break;}}
   let returning=null,prior=0,favRT=null,loyalty=null;
   const poolT=G.returnPool&&G.returnPool[type];
-  if(poolT&&poolT.length&&Math.random()<clamp(.12+prop.reputation/100*.25,0,.5)){
-    returning=pick(poolT);prior=returning.stays;favRT=returning.favRT;type=returning.type;loyalty=loyaltyTier(prior);
+  if(poolT&&poolT.length&&Math.random()<clamp(.16+prop.reputation/100*.28+((prop.rating||3.2)-3.4)*.08,0,.6)){
+    {const good=poolT.filter(x=>(x.avgSat||60)>=65);returning=pick((good.length&&Math.random()<.7)?good:poolT);}prior=returning.stays;favRT=returning.favRT;type=returning.type;loyalty=loyaltyTier(prior);
   }
   const gt=GUEST_TYPES[type];
   const budget=c.baseRate*c.spend*gt.budgetF*rnd(.8,1.3)*(ch==='ota'?.95:ch==='corp'?1.08:1);
@@ -2395,7 +2395,7 @@ function finalizeStay(prop,room,g){
   if(g.returning){const e=G.guestDB[g.name+'|'+g.type];if(e)expectation+=clamp(e.avgSat-70,-8,12)*.3;}
   // --- satisfaction ---
   let sat=65+(experience-expectation);
-  if((g.complaints||0)>0){ if((prop.policies.generosity||.5)>.55&&avgSkill(prop,'frontdesk')>60){sat+=6;g.recovered=true;} else sat-=4; } // service-recovery paradox
+  if((g.complaints||0)>0){ if(genSpend(prop,Math.round(280*(activeCountry().capex||1)))&&avgSkill(prop,'frontdesk')>55){sat+=7;g.recovered=true;} else sat-=4; } // recovery draws on the daily generosity budget
   g.sat=clamp(sat,0,100);
   prop._satSum=(prop._satSum||0)+g.sat;prop._satN=(prop._satN||0)+1;   // feed analytics + daily-report satisfaction
   if(g.sat<45)g.complaints=(g.complaints||0)+1;
@@ -4230,7 +4230,7 @@ try{
       if(roll<.28){const x2=pick(REV_BODIES[stars]);if(x2&&r.body.indexOf(x2)<0)r.body+=' '+x2;}
     }
     if(room&&(room.cond||100)<40&&stars<=3&&Math.random()<.7)r.body+=' '+pick(WEAR_NEG);
-    if(g&&g.loyalty&&stars>=4&&Math.random()<.5)r.body+=' '+pick(LOY_POS);
+    if(g&&g.loyalty&&stars>=4&&Math.random()<.7)r.body+=' '+pick(LOY_POS);
     if(g&&g.nights>=3&&Math.random()<.3)r.body+=(stars>=4?' Over '+g.nights+' nights it never dipped.':' And that was over '+g.nights+' long nights.');
   }catch(e){}
   return r;};}
@@ -4248,8 +4248,8 @@ try{
     const e=G.guestDB[g.name+'|'+g.type];const T=e?loyaltyTier(e.stays||0):null;const LM=G.loyM=G.loyM||{repeats:0,mrev:0,redeem:0,msat:0,msatN:0,osat:0,osatN:0};
     const paid=(g.price||0)*(g.nights||1);
     if(T){LM.mrev+=paid;LM.msat+=g.sat;LM.msatN++;if((e.stays||0)>1)LM.repeats++;
-      if(G.loyal.allowRedeem&&(e.pts||0)>=400){const maxDisc=paid*.2;const usePts=Math.min(e.pts,Math.round(maxDisc/Math.max(.05,G.loyal.redeemVal)));
-        const disc=Math.round(usePts*G.loyal.redeemVal);if(disc>50){e.pts-=usePts;G.cash-=disc;prop.expToday+=disc;LM.redeem+=disc;g.sat+=3;}}
+      if(G.loyal.allowRedeem&&(e.pts||0)>=250){const maxDisc=paid*.2;const usePts=Math.min(e.pts,Math.round(maxDisc/Math.max(.05,G.loyal.redeemVal)));
+        const disc=Math.round(usePts*G.loyal.redeemVal);if(disc>50){e.pts-=usePts;G.cash-=disc;prop.expToday+=disc;LM.redeem+=disc;g.sat+=4;g._redeemed=disc;}}
       const tp=(G.loyal.tierPerks||{})[LOYALTY.indexOf(T)]||{};if(tp.late){g.sat+=2;}
     } else {LM.osat+=g.sat;LM.osatN++;}
   }catch(e){}
@@ -6371,7 +6371,7 @@ function runChainBackground(){
       if(Math.random()<.25&&occN>0){
         const st=clamp(Math.round((pp.rating||3.8)+(condF-.9)*2+rnd(-.7,.7)),1,5);
         pp.reviews.push({stars:st,txt:'(remote property stay)',title:'Stayed at '+pp.name,who:regionalName(pp),type:'tourist',day:G.day});
-        if(pp.reviews.length>240)pp.reviews.shift();
+        
         pp.rating=pp.reviews.reduce((a,r)=>a+r.stars,0)/pp.reviews.length;}
       pp.rooms.forEach(r=>{if(Math.random()<occE)r.cond=clamp((r.cond||100)-.15,20,100);});
       pp.analytics=pp.analytics||[];
@@ -7739,7 +7739,7 @@ function camScene(p,key){
     if(hk>0&&dirty>0&&!night)el.push(_prsn(660,352,1.25,'carry'));
     if(sec>0)el.push(_prsn(60+R()*40,356,1.28,night?'walk':'stand'));
     const vis=deskN+ciQ+lounging+walkers+(sec>0?1:0);
-    info=[['Guests visible',vis],['Check-ins active',arrDue],['Check-outs active',depNow],['Waiting',q]];
+    info=[['Guests visible',vis],['Check-ins active',typeof ciNow!=='undefined'?ciNow:arrDue],['Check-outs due',typeof coQ!=='undefined'?coQ:depNow],['Waiting',q],['Desk',deskN?deskN+' on duty':'UNMANNED']];
   }
   else if(key.startsWith('floor:')){
     const f=+key.split(':')[1];
@@ -7759,7 +7759,7 @@ function camScene(p,key){
   else if(key==='fac:restaurant'||key==='fac:breakfast'){
     const bk=key==='fac:breakfast';
     title=bk?'CAM 12 — BREAKFAST HALL':'CAM 11 — RESTAURANT';sub=bk?'Buffet · Seating':'Dining Room · Service';
-    const open=bk?(h>=6&&h<=11):(h>=7&&h<=23);
+    const open=isFacOpen(p,bk?'breakfast':'restaurant',h);
     const dRest=(p.dept&&p.dept.restaurant)||{};
     const mult=bk?((h>=7&&h<=10)?1:.25):(meal?1:.3);
     const covers=open?clamp(Math.round(occ*(bk?.5:.38)*mult+(dRest.service==='external'?3:0)+R()*2),0,26):0;
@@ -7781,7 +7781,7 @@ function camScene(p,key){
     el.push(`<path d="M120,270 L560,270 Q600,270 600,306 L600,340 Q600,372 560,372 L120,372 Q90,372 90,338 L90,304 Q90,270 120,270 Z" fill="#dde3e0" stroke="#b7bdb9" stroke-width="1.6"/>`);
     for(let i=0;i<4;i++)el.push(`<path d="M${140+i*110},${300+(i%2)*26} q14,-6 28,0 q14,6 28,0" fill="none" stroke="#b7bdb9" stroke-width="1.6"/>`);
     el.push(`<rect x="596" y="266" width="4" height="40" fill="#9a978a"/><rect x="612" y="266" width="4" height="40" fill="#9a978a"/><rect x="592" y="264" width="28" height="4" fill="#9a978a"/>`);
-    const open=h>=6&&h<=21&&!rainy;
+    const open=isFacOpen(p,'pool',h)&&!rainy;
     const swimN=open?clamp(Math.round(occ*((h>=7&&h<=10)||(h>=16&&h<=19)?.16:.07)),0,8):0;
     for(let i=0;i<swimN;i++)el.push(_prsn(150+R()*400,300+R()*54,1.15,'swim'));
     const deckN=open?clamp(Math.round(swimN*.7+R()*2),0,6):0;
@@ -7795,7 +7795,7 @@ function camScene(p,key){
     for(let i=0;i<3;i++)el.push(`<path d="M${110+i*120},372 L${110+i*120},330 L${170+i*120},322 L${170+i*120},372 Z" ${_FUR}/>`);
     el.push(`<rect x="520" y="344" width="150" height="8" ${_FUR2}/><circle cx="530" cy="348" r="12" ${_FUR}/><circle cx="660" cy="348" r="12" ${_FUR}/>`);
     const bizShare=p.rooms.filter(r=>r.guest&&['business','corporate','premium','vip'].includes(r.guest.type)).length;
-    const open=h>=5&&h<=22;
+    const open=isFacOpen(p,'gym',h);
     const n=open?clamp(Math.round(bizShare*((h>=6&&h<=9)||(h>=17&&h<=20)?.5:.15)+R()),0,6):0;
     for(let i=0;i<n;i++)el.push(_prsn(130+i*105,i%2?352:338,1.15,i%3===0?'carry':'stand'));
     info=[['Training now',n],['In-house fit guests',bizShare],['Hours','05–22'],['Status',open?'open':'closed']];
@@ -7804,7 +7804,7 @@ function camScene(p,key){
     title='CAM 23 — SPA & WELLNESS';sub='Treatment · Relaxation';
     for(let i=0;i<3;i++)el.push(`<rect x="${120+i*190}" y="330" width="110" height="12" rx="4" ${_FUR}/><rect x="${120+i*190}" y="342" width="110" height="30" ${_FUR2}/>`);
     const prem=p.rooms.filter(r=>r.guest&&['premium','vip','wedding'].includes(r.guest.type)).length;
-    const open=h>=9&&h<=20;
+    const open=isFacOpen(p,'spa',h);
     const n=open?clamp(Math.round(prem*.4+occ*.03+R()),0,4):0;
     for(let i=0;i<n;i++)el.push(_prsn(150+i*190,330,1.1,'sit'));
     const th=open?Math.min((p.staff.fnb||[]).length+(p.staff.housekeeping||[]).length?2:0,n+1):0;
@@ -7824,7 +7824,7 @@ function camScene(p,key){
   else if(key==='fac:traveldesk'){
     title='CAM 41 — TRAVEL DESK';sub='Concierge · Excursions';
     el.push(`<rect x="540" y="280" width="180" height="22" ${_FUR}/><rect x="548" y="302" width="164" height="70" ${_FUR2}/>`);
-    const open=h>=8&&h<=20;
+    const open=isFacOpen(p,'traveldesk',h);
     const tour=(p.city&&p.city.tour)||.3;
     const vis=open?clamp(Math.round(occ*tour*.35+(h>=9&&h<=13?2:0)+R()*2),0,8):0;
     if(open)el.push(_prsn(600,302,1.2,'desk'));
@@ -7867,7 +7867,7 @@ function camScene(p,key){
     el.push(`<rect x="580" y="270" width="180" height="24" ${_FUR}/><rect x="588" y="294" width="164" height="78" ${_FUR2}/>`);
     for(let i=0;i<4;i++)el.push(`<rect x="${110+i*110}" y="326" width="66" height="12" rx="3" ${_FUR}/>`);
     const elig=p.rooms.filter(r=>r.guest&&['vip','premium','corporate','business'].includes(r.guest.type)).length;
-    const open=h>=6&&h<=23;
+    const open=isFacOpen(p,'lounge',h);
     const n=open?clamp(Math.round(elig*((h>=17&&h<=21)?.5:.2)+R()),0,8):0;
     for(let i=0;i<n;i++)el.push(_prsn(126+(i%4)*110+Math.floor(i/4)*30,326,1.1,'sit'));
     const host=open&&fnb>0?1:0;if(host)el.push(_prsn(640,294,1.2,'desk'));
@@ -8292,8 +8292,11 @@ camScene=function(p,key){
     const deskN=Math.min(fd,3);
     for(let i=0;i<deskN;i++)el.push(fig(170+i*72,FY-7,1.06,'desk'));
     el.push(reception(118,FY,220));
-    const q=Math.max(0,arrDue+Math.round(depNow*.6)-deskN*2);
-    const ciQ=Math.min(4,arrDue+q+(arrSoon>0?1:0));
+    const waitCI=(G.pendingArrivals||[]).filter(a=>!a.checkedIn&&a.checkedIn!=='lost'&&a.arrHour<=h).length;
+    const ciNow=deskN>0?Math.min(waitCI,deskN*2):0;
+    const q=Math.max(0,waitCI-ciNow);
+    const coQ=p.rooms.filter(r=>r.guest&&r.guest.checkedIn===true&&r.guest.depDay===day&&(r.guest.depHour||11)<=h).length;
+    const ciQ=Math.min(5,waitCI);
     for(let i=0;i<ciQ;i++){el.push(fig(190+i*48,FY-2,1.16,i%2?'stand':'roll',{flip:true}));if(i%2)el.push(bag(206+i*48,FY-4,1));}
     // seating right
     el.push(sofa(560,FY-2,96));el.push(lowTable(568,FY-2,70));el.push(sofa(700,FY-2,64,'r'));
@@ -8307,7 +8310,7 @@ camScene=function(p,key){
     if(hk>0&&dirty>0&&!night){el.push(hkCart(468,FY-2,.92));el.push(fig(494,FY-4,1.08,'push'));}
     if(sec>0)el.push(fig(64,FY-4,1.1,night?'walk':'stand',night?{walkDur:56}:{}));
     const vis=deskN+ciQ+lounging+walkers+(sec>0?1:0);
-    info=[['Guests visible',vis],['Check-ins active',arrDue],['Check-outs active',depNow],['Waiting',q]];
+    info=[['Guests visible',vis],['Check-ins active',typeof ciNow!=='undefined'?ciNow:arrDue],['Check-outs due',typeof coQ!=='undefined'?coQ:depNow],['Waiting',q],['Desk',deskN?deskN+' on duty':'UNMANNED']];
   }
   else if(key.startsWith('floor:')){
     const f=+key.split(':')[1];
@@ -8338,7 +8341,7 @@ camScene=function(p,key){
     [130,745].forEach(x=>el.push(palm(x,234,.92,'#d3d1c5')));
     [180,300,420,540,660].forEach((x,i)=>el.push(pendant(x,60+(i%2)*16,'cone')));
     el.push(plantBig(48,FY,1));
-    const open=bk?(h>=6&&h<=11):(h>=7&&h<=23);
+    const open=isFacOpen(p,bk?'breakfast':'restaurant',h);
     const mult=bk?((h>=7&&h<=10)?1:.25):(meal?1:.3);
     const covers=open?clamp(Math.round(occ*(bk?.5:.38)*mult+R()*2),0,18):0;
     let seated=0;
@@ -8364,7 +8367,7 @@ camScene=function(p,key){
     el.push(`<path d="M60,${FY-56} L400,${FY-56} Q430,${FY-56} 430,${FY-26} L430,${FY-4} Q430,${FY} 420,${FY} L70,${FY} Q60,${FY} 60,${FY-10} Z" fill="#e3e8e5" stroke="#c4cac6" stroke-width="1.6"/>`);
     for(let i=0;i<4;i++)el.push(`<path d="M${95+i*80},${FY-34+(i%2)*12} q12,-5 24,0 q12,5 24,0" stroke="#c4cac6" stroke-width="1.6" fill="none"/>`);
     el.push(`<path d="M428,${FY-58} L428,${FY-22} M444,${FY-58} L444,${FY-22} M424,${FY-60} L448,${FY-60}" stroke="#b0aea2" stroke-width="3" fill="none"/>`);
-    const open=h>=6&&h<=21&&!rainy;
+    const open=isFacOpen(p,'pool',h)&&!rainy;
     const swimN=open?clamp(Math.round(occ*((h>=7&&h<=10)||(h>=16&&h<=19)?.16:.07)),0,6):0;
     for(let i=0;i<swimN;i++)el.push(fig(100+R()*300,FY-16-R()*30,1.05,'swim'));
     const deckN=open?clamp(Math.round(swimN*.7+R()*2),0,4):0;
@@ -8379,7 +8382,7 @@ camScene=function(p,key){
     for(let i=0;i<3;i++)el.push(`<g transform="translate(${100+i*115},${FY})"><path d="M0,-4 L44,-4 L44,-30 L36,-30" stroke="${MID}" stroke-width="4" fill="none"/><rect x="0" y="-8" width="46" height="6" rx="3" fill="${INK}" opacity=".85"/></g>`);
     el.push(`<rect x="520" y="${FY-10}" width="150" height="5" rx="2.5" fill="${MID}"/><circle cx="530" cy="${FY-7}" r="11" fill="${INK}"/><circle cx="660" cy="${FY-7}" r="11" fill="${INK}"/>`);
     const bizShare=p.rooms.filter(r=>r.guest&&['business','corporate','premium','vip'].includes(r.guest.type)).length;
-    const open=h>=5&&h<=22;
+    const open=isFacOpen(p,'gym',h);
     const n=open?clamp(Math.round(bizShare*((h>=6&&h<=9)||(h>=17&&h<=20)?.5:.15)+R()),0,5):0;
     for(let i=0;i<n;i++)el.push(fig(120+i*115,FY-8,1.04,i%3===0?'walk':'stand',{norefl:false}));
     info=[['Training now',n],['In-house fit guests',bizShare],['Hours','05–22'],['Status',open?'open':'closed']];
@@ -8391,7 +8394,7 @@ camScene=function(p,key){
     [240,430,620].forEach(x=>el.push(pendant(x,54,'cone')));
     for(let i=0;i<3;i++)el.push(`<g transform="translate(${210+i*180},${FY})"><rect x="-52" y="-22" width="104" height="9" rx="4.5" fill="${MID2}"/><rect x="-52" y="-13" width="104" height="13" rx="3" fill="${MID}"/></g>`);
     const prem=p.rooms.filter(r=>r.guest&&['premium','vip','wedding'].includes(r.guest.type)).length;
-    const open=h>=9&&h<=20;
+    const open=isFacOpen(p,'spa',h);
     const n=open?clamp(Math.round(prem*.4+occ*.03+R()),0,3):0;
     for(let i=0;i<n;i++)el.push(`<g transform="translate(${210+i*180},${FY-24})"><ellipse cx="0" cy="-3" rx="30" ry="6.5" fill="${INK}"/><circle cx="-36" cy="-6" r="5" fill="${INK}"/></g>`);
     const th=open?Math.min(((p.staff.fnb||[]).length+(p.staff.housekeeping||[]).length)?2:0,n+1):0;
@@ -8414,7 +8417,7 @@ camScene=function(p,key){
     el.push(palm(740,248,1,'#cfccc0'));
     el.push(plantBig(56,FY,1.05));
     el.push(`<g transform="translate(96,116)"><rect x="0" y="0" width="86" height="56" rx="3" fill="${INK}"/><path d="M14,36 L34,20 L46,30 L66,12" stroke="#fff" stroke-width="2.4" fill="none"/><path d="M60,10 L70,10 L70,18" stroke="#fff" stroke-width="2.4" fill="none"/></g>`);
-    const open=h>=8&&h<=20;
+    const open=isFacOpen(p,'traveldesk',h);
     if(open)el.push(fig(196,FY-7,1.04,'desk'));
     el.push(reception(120,FY,160));
     const tour=(p.city&&p.city.tour)||.3;
@@ -8472,7 +8475,7 @@ camScene=function(p,key){
 
     el.push(sofa(120,FY-2,96));el.push(lowTable(128,FY-2,70));el.push(sofa(300,FY-2,96));
     const elig=p.rooms.filter(r=>r.guest&&['vip','premium','corporate','business'].includes(r.guest.type)).length;
-    const open=h>=6&&h<=23;
+    const open=isFacOpen(p,'lounge',h);
     const n=open?clamp(Math.round(elig*((h>=17&&h<=21)?.5:.2)+R()),0,6):0;
     for(let i=0;i<Math.min(n,4);i++)el.push(fig((i<2?146:326)+(i%2)*44,FY-16,1.02,'sit',{flip:i%2===1}));
     for(let i=0;i<Math.max(0,n-4);i++)el.push(fig(480+i*36,FY-4,1.06,'pair'));
@@ -8729,7 +8732,7 @@ window.corpAM=id=>{const p=P();ensureCorp2(p);
   const ct=p.corp.contracts.find(x=>x.id===id);if(!ct)return;
   const assigned=p.corp.contracts.filter(x=>x.am).length;
   if(ct.am){ct.am=0;toast('Account manager unassigned.');renderTab();return;}
-  if(assigned>=corpAMs(p)){toast('Every manager already carries an account — hire another manager.','warn');return;}
+  if(assigned>=corpAMs(p)*5){toast('Managers are at capacity (5 accounts each) — hire another manager.','warn');return;}
   ct.am=1;logEvent(p,'finance','Account manager assigned to '+ct.name+'.');
   toast('Account manager assigned — the relationship will strengthen monthly.','pos');renderTab();};
 
@@ -8792,7 +8795,7 @@ tabCorporate=function(p){
   const clauseN={strict:'Strict exit (1.5 mo penalty)',standard:'Standard exit (0.75 mo)',flexible:'Flexible exit (no penalty)'};
   return `<div class="page-head"><div><h2>Corporate Sales</h2><div class="desc">Work the pipeline — meet, propose, negotiate. Accounts renew on relationships, not luck.</div></div></div>
   <div class="cards cols-4" style="margin-bottom:12px">
-    ${ovCard('Active accounts',cts.length,'won '+p.corp.won+' · lost '+p.corp.lost,'')}
+    ${ovCard('Active accounts',cts.length,'AM load '+cts.filter(c=>c.am).length+'/'+(corpAMs(p)*5)+' · won '+p.corp.won+' · lost '+p.corp.lost,'')}
     ${ovCard('Contracted nights',Math.round(mo)+'/mo','flow through Reservations','')}
     ${ovCard('Avg relationship',cts.length?relAvg+'/100':'—','meetings & service build it','')}
     ${ovCard('Account P&L',cr(totRev-totPerk),cr(totRev)+' rev − '+cr(totPerk)+' servicing','')}
@@ -8810,7 +8813,7 @@ tabCorporate=function(p){
      <td>${c.monthsLeft}mo</td>
      <td><button class="btn" style="padding:3px 8px;font-size:11px" onclick="corpEnd('${c.id}')">End</button></td></tr>`;}).join('')}
    </tbody></table></div>
-   <div class="muted sm" style="margin-top:4px">Account managers (your hired managers, one account each) add +3 relationship/month. Weak relationships risk mid-term walkaways — big accounts leaving dents occupancy and corporate reputation.</div>`
+   <div class="muted sm" style="margin-top:4px">Account managers add +3 relationship/month; each manager carries up to five accounts, and unmanaged accounts are picked up automatically when capacity allows. Weak relationships risk mid-term walkaways — big accounts leaving dents occupancy and corporate reputation.</div>`
    :'<div class="muted sm">No accounts yet — work the pipeline below.</div>'}
   </div>
   <div class="card" style="margin-bottom:12px"><h3>Pipeline — meet, then propose</h3>
@@ -9193,6 +9196,319 @@ window.sellFranchise=()=>{
   </div>`;
 }catch(e){}return h;};}
 try{Object.assign(TIPS,{hq:{t:'Chain Headquarters',d:'Benchmark every hotel on occupancy, RevPAR, GOPPAR and rating; transfer staff between properties; allocate monthly capital that the regional office invests in the weakest rooms and stock; and license the brand as a franchise once prestige reaches National Chain level.'}});}catch(e){}
+
+/* =======================================================================
+   v32 — GUEST JOURNEYS, STAFFING AUTOMATION, LOYALTY & CCTV DEPTH
+   1) Reviews: unbounded history (cap removed at source) + journey-driven,
+      guest-type-voiced text with far more variety
+   2) Manager-managed hiring with per-role seniority preferences
+   3) Corporate: 5 accounts per manager + monthly auto-distribution
+   4) CCTV: accurate queues, open/closed/unstaffed stamps, night mood,
+      richer motion — still strictly one frame per in-game hour
+   5) Facility operating hours (hotel hours / custom window / 24h / off)
+      that drive outside trade, costs and the cameras
+   6) Loyalty: easier redemption, welcome gestures, repeat weighting
+   7) Service generosity as a daily money budget with real gestures
+   8) Maintenance crews work the backlog hourly while rostered
+   ======================================================================= */
+
+/* ---------------- (7) service generosity: a daily money budget ---------------- */
+function ensureGen(p){
+  if(p.genBudget==null)p.genBudget=Math.round(((p.policies&&p.policies.generosity!=null?p.policies.generosity:.5))*1200*(activeCountry().capex||1));
+  if(p._genLeft==null)p._genLeft=p.genBudget;
+  return p.genBudget;
+}
+function genSpend(p,amt){
+  ensureGen(p);
+  if(amt<=0)return true;
+  if(p._genLeft<amt||G.cash<amt)return false;
+  G.cash-=amt;p.expToday+=amt;p._genLeft-=amt;p._genUsed=(p._genUsed||0)+amt;
+  return true;
+}
+window.setGenBudget=v=>{const p=P();ensureGen(p);
+  p.genBudget=Math.max(0,Math.round((+v||0)*(LOC.k||1)));
+  p._genLeft=Math.min(p._genLeft,p.genBudget);
+  logDecision('Generosity budget → '+cr(p.genBudget)+'/day',0,'Fund complimentary gestures','Recoveries & welcome touches','Satisfaction and reviews improve',['satisfaction']);
+  renderTab();};
+
+/* ---------------- (5) facility operating hours ---------------- */
+const FAC_WIN={restaurant:[7,23],breakfast:[6,11],pool:[6,21],gym:[5,22],spa:[9,20],lounge:[6,23],traveldesk:[8,20],banquet:[10,23],conf:[8,20],roomsvc:[0,24],laundry:[0,24],parking:[0,24]};
+function ensureFacOps(p){
+  if(!p.facOps)p.facOps={};
+  Object.keys(FAC_WIN).forEach(k=>{
+    if(!p.facOps[k])p.facOps[k]={mode:'default',open:FAC_WIN[k][0],close:FAC_WIN[k][1],active:true};});
+  return p.facOps;
+}
+function isFacOpen(p,key,h){
+  if(h==null)h=G.hour;
+  ensureFacOps(p);
+  const o=p.facOps[key];if(!o)return true;
+  if(!o.active)return false;
+  if(o.mode==='24h')return true;
+  const w=o.mode==='custom'?[o.open,o.close]:(FAC_WIN[key]||[0,24]);
+  return w[0]<=w[1]?(h>=w[0]&&h<w[1]):(h>=w[0]||h<w[1]); // supports overnight windows
+}
+function facOpenFrac(p,key){
+  const d=FAC_WIN[key];if(!d)return 1;
+  ensureFacOps(p);const o=p.facOps[key];
+  if(!o.active)return 0;
+  if(o.mode==='24h')return 1;
+  if(o.mode!=='custom')return 1;
+  let n=0;for(let h=d[0];h<d[1];h++)if(isFacOpen(p,key,h))n++;
+  return clamp(n/Math.max(1,d[1]-d[0]),0,1);
+}
+window.facOpsSet=(key,field,v)=>{const p=P();ensureFacOps(p);const o=p.facOps[key];
+  if(field==='mode')o.mode=v;
+  else if(field==='active'){o.active=!o.active;logEvent(p,'decision',(DEPTS[key]?DEPTS[key].name:key)+' '+(o.active?'reopened':'taken offline')+'.');}
+  else o[field]=clamp(Math.round(+v||0),0,24);
+  renderTab();};
+/* outside trade & running costs follow the configured window */
+{const _v32RD=runDepartments;runDepartments=function(p){
+  let savedB=null,savedD=null;
+  try{
+    ensureFacOps(p);savedB={};savedD={};
+    Object.keys(DEPTS||{}).forEach(k=>{
+      const f=facOpenFrac(p,k);
+      savedB[k]=DEPTS[k].base;DEPTS[k].base*=f;});
+    Object.keys(FACILITIES||{}).forEach(k=>{
+      if(p.facOps[k]&&!p.facOps[k].active){savedD[k]=FACILITIES[k].daily;FACILITIES[k].daily=Math.round(FACILITIES[k].daily*.3);}});
+  }catch(e){}
+  _v32RD(p);
+  try{
+    if(savedB)Object.keys(savedB).forEach(k=>{DEPTS[k].base=savedB[k];});
+    if(savedD)Object.keys(savedD).forEach(k=>{FACILITIES[k].daily=savedD[k];});
+  }catch(e){}
+};}
+/* facility page: operating-hours controls */
+{const _v32TF=tabFacility;tabFacility=function(p,key){let h=_v32TF(p,key);try{
+  if(!FAC_WIN[key])return h;
+  ensureFacOps(p);const o=p.facOps[key],d=FAC_WIN[key];
+  const hrs=(a,b)=>String(a).padStart(2,'0')+':00–'+String(b).padStart(2,'0')+':00';
+  h+=`<div class="card" style="margin-top:12px"><h3>Operating Hours</h3>
+   <div class="row"><span class="lab"><b>Status</b></span><span class="val"><button class="tag ${o.active?'on':''}" onclick="facOpsSet('${key}','active')">${o.active?'OPEN for business':'OFFLINE'}</button></span></div>
+   ${o.active?`<div class="row" style="flex-wrap:wrap;gap:6px"><span class="lab">Schedule</span><span class="val">
+     <button class="tag ${o.mode==='default'?'on':''}" onclick="facOpsSet('${key}','mode','default')">House hours (${hrs(d[0],d[1])})</button>
+     <button class="tag ${o.mode==='custom'?'on':''}" onclick="facOpsSet('${key}','mode','custom')">Custom window</button>
+     <button class="tag ${o.mode==='24h'?'on':''}" onclick="facOpsSet('${key}','mode','24h')">Open all night</button></span></div>
+   ${o.mode==='custom'?row('Service window',`<input type="number" min="0" max="24" value="${o.open}" style="width:56px" onchange="facOpsSet('${key}','open',this.value)"> : 00 — <input type="number" min="0" max="24" value="${o.close}" style="width:56px" onchange="facOpsSet('${key}','close',this.value)"> : 00`):''}
+   ${row('Right now',isFacOpen(p,key)?'<span class="pill green">open</span>':'<span class="pill red">closed</span>')}`:''}
+   <div class="muted sm" style="margin-top:4px">Outside trade follows this window (a shorter window means fewer walk-in covers); an offline facility drops to 30% running cost and shows CLOSED on its camera. In-house guests keep their own routines.</div>
+  </div>`;
+}catch(e){}return h;};}
+
+/* ---------------- (8) maintenance crews work the backlog hourly ---------------- */
+{const _v32TH=tickHour;tickHour=function(){
+  _v32TH();
+  try{
+    const p=P();if(!p||!p.maintBacklog||!p.maintBacklog.length)return;
+    const sp=maintSpeed(p);if(sp<=0)return;
+    p._mw=(p._mw||0)+sp/9;                      // a full crew clears ~2-3 issues/shift
+    while(p._mw>=1&&p.maintBacklog.length){
+      p._mw-=1;
+      p.maintBacklog.sort((a,b)=>b.sev-a.sev);
+      const is=p.maintBacklog[0];
+      if(G.cash<is.cost)break;
+      G.cash-=is.cost;p.expToday+=is.cost;
+      p.maintBacklog.shift();
+      if(is.roomId){const r=p.rooms.find(x=>x.id===is.roomId);
+        if(r){r.cond=clamp(r.cond+rnd(2,5),0,100);if(r.guest)r.guest._maintFixed=true;}}
+      logEvent(p,'maintenance',is.t+(is.roomId?' (Room '+is.roomId+')':'')+' resolved by the duty technician.');
+    }
+  }catch(e){}
+};}
+/* a fault in an occupied room marks the guest's journey */
+{const _v32SM=spawnMaintIssue;spawnMaintIssue=function(prop,room){
+  _v32SM(prop,room);
+  try{if(room&&room.guest)room.guest._maintSeen=true;}catch(e){}
+};}
+
+/* ---------------- (2+9) manager-managed hiring with seniority prefs ---------------- */
+const SEN_TIERS=['Junior','Experienced','Senior'];
+function ensureHire(p){
+  if(!p.hireMode)p.hireMode=(p.rosterMode==='manager')?'manager':'player';
+  if(!p.senPref){p.senPref={};R_ROLES.concat(['manager']).forEach(r=>p.senPref[r]=1);}
+}
+window.setHireMode=m=>{const p=P();ensureHire(p);p.hireMode=m;
+  logDecision('Hiring → '+(m==='manager'?'Manager-managed':'Player-managed'),0,'Who builds the team','Manager hires to need daily','Headcount follows demand',['staff']);
+  toast('Hiring: '+(m==='manager'?'manager-managed':'player-managed')+'.','pos');renderTab();};
+window.setSenPref=(role,i)=>{const p=P();ensureHire(p);p.senPref[role]=clamp(+i,0,2);renderTab();};
+function roleWeekNeed(p,role){let n=0;for(let d=0;d<7;d++)for(let h=0;h<24;h++)n+=rNeed(p,role,d,h);return n;}
+function managerHiring(p){
+  ensureHire(p);
+  if(p.hireMode!=='manager')return;
+  if(!((p.staff.manager||[]).length))return;             // needs a GM on staff
+  let hires=0;
+  const plan=R_ROLES.map(role=>{
+    const need=roleWeekNeed(p,role);
+    const target=need?Math.ceil(need/50):0;               // 56h cap with a rest margin
+    return {role,target,short:target-((p.staff[role]||[]).length)};
+  }).filter(x=>x.short>0).sort((a,b)=>b.short-a.short);   // worst-staffed departments first
+  // breadth-first: every short department gets one hire before any gets a second
+  for(let round=0;round<2&&hires<6;round++){
+    for(const x of plan){
+      if(hires>=6)break;
+      const head=(p.staff[x.role]||[]).length;
+      if(head>=x.target)continue;
+      const ti=(x.role in p.senPref)?p.senPref[x.role]:1;
+      const tier=HIRE_TIERS[ti];
+      const s=mkStaff(x.role,ti);
+      if(G.cash<s.sal*4)return;                           // keep 4 months of salary cover
+      if(!p.staff[x.role])p.staff[x.role]=[];
+      p.staff[x.role].push(s);hires++;
+      logEvent(p,'decision','[GM] Hired '+s.name+' — '+tier.name+' '+ROLES[x.role].name+' ('+(head+1)+'/'+x.target+' needed).');
+      feed('🧑‍💼 GM hired a '+tier.name.toLowerCase()+' '+ROLES[x.role].name.toLowerCase()+'.','pos');
+    }
+  }
+  if(hires&&p.rosterMode==='manager')autoFillRoster(p);
+  else if(hires)R_ROLES.forEach(r=>{try{rosterTopUp(p,r);}catch(e){}});
+}
+/* daily: hiring first, then the (v27) manager roster refresh; generosity budget resets */
+{const _v32DR=dayRollover;dayRollover=function(){
+  try{const p=P();if(p){
+    ensureGen(p);p._genUsedYest=p._genUsed||0;p._genUsed=0;p._genLeft=p.genBudget;
+    managerHiring(p);
+  }}catch(e){}
+  _v32DR();
+};}
+/* staff page: hiring-mode + seniority preference card */
+{const _v32TS=tabStaff;tabStaff=function(p){let h=_v32TS(p);try{
+  ensureHire(p);
+  const gm=((p.staff.manager||[]).length)>0;
+  h+=`<div class="card" style="margin-top:12px"><h3>Hiring Desk</h3>
+   <div class="row"><span class="lab"><b>Hiring</b>${gm?'':' <span class="muted sm">(hire a manager to delegate)</span>'}</span><span class="val">
+    <button class="tag ${p.hireMode!=='manager'?'on':''}" onclick="setHireMode('player')">Player-managed</button>
+    <button class="tag ${p.hireMode==='manager'?'on':''}" ${gm?'':'disabled style="opacity:.4"'} onclick="setHireMode('manager')">Manager-managed</button></span></div>
+   ${p.hireMode==='manager'?'<div class="muted sm" style="margin:2px 0 8px">Your GM hires to operational need every morning — occupancy, facilities and service complexity set the targets; new facilities are staffed automatically. Up to three hires a day, keeping four months of salary in reserve.</div>':''}
+   <div class="fl" style="margin-top:6px"><b>Seniority preference by department</b> <span class="muted sm">(guides ${p.hireMode==='manager'?'the GM':'you'} when hiring)</span></div>
+   ${R_ROLES.map(r=>`<div class="row"><span class="lab">${ROLES[r].name} <span class="muted sm">${(p.staff[r]||[]).length} on payroll · needs ~${Math.ceil(roleWeekNeed(p,r)/50)||0}</span></span>
+     <span class="val">${SEN_TIERS.map((t,i)=>`<button class="tag ${(p.senPref[r]!=null?p.senPref[r]:1)===i?'on':''}" onclick="setSenPref('${r}',${i})">${t}</button>`).join(' ')}</span></div>`).join('')}
+  </div>`;
+}catch(e){}return h;};}
+
+/* ---------------- (3) corporate accounts distribute across managers ---------------- */
+{const _v32CM=corpMonthly;corpMonthly=function(p){
+  _v32CM(p);
+  try{
+    ensureCorp2(p);
+    const cap=corpAMs(p)*5;
+    let load=p.corp.contracts.filter(c=>c.am).length;
+    p.corp.contracts.slice().sort((a,b)=>b.nights-a.nights).forEach(ct=>{
+      if(!ct.am&&load<cap){ct.am=1;load++;
+        logEvent(p,'finance','Account manager picked up '+ct.name+' ('+load+'/'+cap+' capacity).');}});
+  }catch(e){}
+};}
+
+/* ---------------- (1) journey-driven, voiced reviews ---------------- */
+const REV_LEADIN={
+ business:["Here on business.","In town for meetings.","A working trip.","Travelling for work."],
+ corporate:["Our company books here regularly.","Another corporate stay.","In on the company account."],
+ family:["Travelled with the kids.","A family trip.","Here with the whole family."],
+ tourist:["First time in the city.","Here to explore.","A sightseeing break."],
+ premium:["I expect a certain standard.","Booked one of the better rooms.","We chose this hotel for a treat."],
+ vip:["I stay in a lot of hotels.","My expectations are high, always."],
+ wedding:["We were in town for a wedding.","Part of the wedding party."],
+ longstay:["I stayed the better part of a week.","A longer stay than usual."]};
+const REV_QUIET=["Blissfully uneventful — exactly what we wanted.","Nothing to report, which is the highest praise.","A calm, quiet stay from start to finish."];
+const REV_MAINT_FIXED=["Something broke in the room but the technician had it sorted within the hour.","A small maintenance fault was fixed almost before we'd reported it."];
+const REV_MAINT_BAD=["Something in the room was broken and stayed broken all stay.","We reported a fault and nobody ever came."];
+const REV_REDEEM=["Redeeming my points knocked a chunk off the bill — the programme actually pays.","Used my loyalty points at checkout; genuinely worthwhile."];
+const REV_WELCOME=["The welcome amenity for members was a classy touch.","They recognised my membership at the desk with a small gesture — noted and appreciated."];
+const REV_EARLY=["They took us in early without any fuss.","Early check-in was handled smoothly."];
+const REV_LATE=["The late checkout made our last day so much easier."];
+const REV_CH={ota:"Booked through an agency site and the reservation was handled cleanly.",direct:"Booked direct with the hotel — smooth from the first click.",corp:"", walkin:"We walked in without a booking and they sorted us quickly."};
+{const _v32RT=reviewText;reviewText=function(stars,g,room,prop){
+  const r=_v32RT(stars,g,room,prop);
+  try{
+    const seed=camHash((g.id||g.name||'x')+'|'+G.day),R=camRng(seed);
+    const bits=[];
+    // guest-type voice up front (seeded, so runs of reviews differ)
+    const lead=REV_LEADIN[g.type];
+    if(lead&&R()<.55)r.body=lead[Math.floor(R()*lead.length)]+' '+r.body;
+    // journey specifics
+    if(g._maintSeen)bits.push(g._maintFixed?pick(REV_MAINT_FIXED):pick(REV_MAINT_BAD));
+    if(g._redeemed&&stars>=3)bits.push(pick(REV_REDEEM));
+    if(g._welcomed&&stars>=4)bits.push(pick(REV_WELCOME));
+    if(g._earlyIn&&stars>=3&&R()<.5)bits.push(pick(REV_EARLY));
+    if(g._lateOut&&stars>=3&&R()<.5)bits.push(pick(REV_LATE));
+    if(room&&ROOMTYPES[room.type]&&R()<.35)bits.push((stars>=4?'The ':'Our ')+ROOMTYPES[room.type].name.toLowerCase()+' room '+(stars>=4?'was exactly as advertised.':'did not live up to its billing.'));
+    if(REV_CH[g.channel]&&R()<.25)bits.push(REV_CH[g.channel]);
+    // the quiet perfect stay reads differently from an eventful one
+    const eventful=g._maintSeen||g.queued||(g.complaints||0)>0||g._redeemed||g.upgraded;
+    if(!eventful&&stars===5&&R()<.4)bits.push(pick(REV_QUIET));
+    if(bits.length)r.body+=' '+bits.slice(0,2).join(' ');
+    // never let two consecutive reviews share an opening body
+    if(G._lastRB&&r.body.slice(0,40)===G._lastRB&&REV_BODIES[stars]){
+      const alt=pick(REV_BODIES[stars]);
+      if(alt&&r.body.indexOf(alt)<0)r.body=alt+' '+r.body;
+    }
+    G._lastRB=r.body.slice(0,40);
+  }catch(e){}
+  return r;};}
+/* early-in / late-out flags for the journey (set where fees are charged) */
+{const _v32CI=checkInGuest;checkInGuest=function(prop,a,waiting){
+  const before=a.checkedIn;
+  _v32CI(prop,a,waiting);
+  try{
+    if(a.checkedIn===true&&before!==true){
+      const pol=prop.policies||{};
+      if(pol.earlyCI&&G.hour<(pol.checkinTime||13))a._earlyIn=true;
+      /* member welcome gesture from the generosity budget */
+      const e=G.guestDB[a.name+'|'+a.type];
+      if(e&&typeof loyaltyTier==='function'&&loyaltyTier(e.stays||0)&&genSpend(prop,Math.round(120*(activeCountry().capex||1)))){
+        a.sat=clamp((a.sat||70)+3,0,100);a._welcomed=true;}
+    }
+  }catch(e){}
+};}
+{const _v32FS2=finalizeStay;finalizeStay=function(prop,room,g){
+  try{if(g&&(prop.policies||{}).lateCO&&G.hour>((prop.policies||{}).checkoutTime||11))g._lateOut=true;}catch(e){}
+  _v32FS2(prop,room,g);
+};}
+
+/* ---------------- (4) CCTV depth — stamps, night mood, richer motion ---------------- */
+{const _v32CS=camScene;camScene=function(p,key){
+  const sc=_v32CS(p,key);
+  try{
+    const h=G.hour,night=h>=22||h<6;
+    const R=camRng(camHash('x32'+key)+(G.day*24+h));
+    // facility open/closed/unstaffed stamps
+    const facKey=key.indexOf('fac:')===0?key.slice(4):null;
+    if(facKey&&FAC_WIN[facKey]){
+      const open=isFacOpen(p,facKey,h);
+      const staffed=(facKey==='restaurant'||facKey==='breakfast'||facKey==='lounge')?onDuty(p,'fnb')>0:
+                    (facKey==='traveldesk')?onDuty(p,'frontdesk')>0:true;
+      if(!open)sc.el+=`<g transform="translate(400,190) rotate(-9)"><rect x="-124" y="-26" width="248" height="52" fill="none" stroke="#7a2430" stroke-width="3" opacity=".65"/><text x="0" y="9" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="30" letter-spacing="8" fill="#7a2430" opacity=".65">CLOSED</text></g>`;
+      else if(!staffed)sc.el+=`<text x="400" y="60" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="15" letter-spacing="4" fill="#b45f14" opacity=".8">— UNSTAFFED —</text>`;
+      sc.info.push(['Hours',(p.facOps&&p.facOps[facKey]&&!p.facOps[facKey].active)?'offline':(p.facOps[facKey].mode==='24h'?'24 h':(p.facOps[facKey].mode==='custom'?String(p.facOps[facKey].open).padStart(2,'0')+'–'+String(p.facOps[facKey].close).padStart(2,'0'):'house'))]);
+    }
+    // lobby vignettes: shift change + checkout luggage cluster
+    if(key==='lobby'){
+      if([6,14,22].indexOf(h)>=0){sc.el+=fig(560+R()*60,372,1.1,'walk',{flip:true})+fig(600+R()*60,372,1.08,'walk');}
+      if(h>=10&&h<=12){const n=Math.min(3,p.rooms.filter(r=>r.guest&&r.guest.depDay===G.day).length);
+        for(let i=0;i<n;i++){sc.el+=fig(300+i*40+R()*10,372,1.12,'roll',{flip:true});}}
+    }
+    // one extra slow counter-drifting figure in busy public scenes
+    if((key==='lobby'||key==='fac:restaurant'||key==='fac:lounge')&&!night&&R()<.6){
+      sc.el+=`<g class="camDrift2" style="--dd:${(9+R()*5).toFixed(1)}s">${fig(180+R()*380,372,1.1,R()<.5?'walk':'stand',{flip:true})}</g>`;
+    }
+    // night mood: dimmer scene, cooler header
+    if(night)sc.el+=`<rect x="0" y="0" width="800" height="400" fill="#20222a" opacity=".08"/><text x="770" y="26" text-anchor="end" font-family="ui-monospace,Menlo,monospace" font-size="11" letter-spacing="3" fill="#44505c" opacity=".8">NIGHT</text>`;
+  }catch(e){}
+  return sc;
+};}
+(function(){try{
+  const css=`.camDrift2{animation:camdrift2 var(--dd,10s) ease-in-out infinite alternate}
+@keyframes camdrift2{from{transform:translateX(0)}to{transform:translateX(-24px)}}
+body.reduce-motion .camDrift2{animation:none}`;
+  const st=document.createElement('style');st.id='v32Cam';st.textContent=css;(document.head||document.body).appendChild(st);
+}catch(e){}})();
+
+/* ---------------- save-compat backfill ---------------- */
+{const _v32AI=augmentInit;augmentInit=function(){_v32AI();try{
+  (G.properties||[]).forEach(p=>{ensureGen(p);ensureFacOps(p);ensureHire(p);});
+}catch(e){}};}
+try{Object.assign(TIPS,{
+ hiring:{t:'Hiring Desk',d:'Delegate hiring to your GM: they hire to operational need each morning, guided by your per-department seniority preference, and staff up new facilities automatically. Or keep it manual and use the same preferences as your own guide.'},
+ generosity:{t:'Service Generosity',d:'A daily budget for complimentary gestures — complaint recovery at the desk, welcome touches for members, goodwill upgrades. When it runs out, recovery stops until tomorrow.'}});}catch(e){}
 
 renderWiz();
 </script>
