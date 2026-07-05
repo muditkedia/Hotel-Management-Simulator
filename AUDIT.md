@@ -402,3 +402,23 @@ Previously these inputs displayed the raw internal (India-base) number while sur
 **One real defect found and fixed:** guest walkouts (`checkedIn='lost'` — unmanned desk or no clean room) kept the guest's deposit in the `depositsHeld` liability forever, never refunding or releasing it. All three walkout sites now refund the deposit in full (the failure is the hotel's) and release the liability.
 
 **Verified:** 3-country / 29-tab sweep zero issues; smoke4 economy invariants; smoke5 Phase-11 suite; v25 20-assertion logic suite; save→hard-reload→load exact match.
+
+---
+
+## 19. Streamlining pass — spec items 5–9 + construction (`v27`, this branch)
+
+Focused on "reduced unnecessary complexity / smarter automation" half of the Phase-Next spec. No simulation depth removed.
+
+5. **Random Events/Situations removed.** `triggerEvent` is now a no-op; no pop-up situation cards, timers or forced interruptions. Operational pressure surfaces organically through the existing Attention Center, staffing gates, maintenance backlog, reviews, utilities and finance — the game is simulation-driven, not event-driven. `showEvent`/`autoResolveEvent` remain defined (harmless) but are never invoked.
+
+6. **Pricing overhaul — one clean control.** The page had three overlapping pricing systems (v13 per-room positioning, v17 global 3-mode/5-strategy, v12 tactics). Consolidated to the spec model: a single "Revenue Management — who sets prices" card with two modes — **Player Managed** (you set rack rates) and **Manager Managed** — and, under Manager, exactly five positioning options (20% Below / 10% Below / Match / 10% Above / 20% Above Market). One authoritative daily repricer anchors each rate to the live market reference: `rate = marketRate × (1 + position%) × (1 + organic-nudge%)`, where the bounded ±12% nudge reads demand, on-the-books pace, festival windows, competitor index, rating and reputation — every change logged and explained. Removed the duplicate per-room positioning card and the redundant "Yield autopilot" toggle. Booking fences (early-bird, corporate rate, weekend min-stay, day-of-week, last-minute yield, OTA parity) kept as a distinct "Rate Tactics" card. Legacy 3-mode/5-strategy state migrates automatically (manager/ai → auto; strategy → nearest positioning).
+
+7. **Construction costs −20%.** Scaled at the cost source: `_BASE.build` (rooms), `_BASE.qcost` (quality fit-out), `_BASE.fbuild` (all facilities/departments) and `_BASE.comp` (components) × 0.8, re-derived through `applyCountry` so every country stays consistent; floor construction (2.5M+0.8M/floor → 2.0M+0.64M) and parking bays (45k → 36k/space) edited directly. Daily operating costs and consumable inventory left unchanged (not construction).
+
+8. **Contract hours removed.** One standard schedule everywhere — 56 h/week, 8 h/day. Payroll baseline is `salary / (4.33 × 56)`; overtime only accrues past 56 h/week (never, given the hard cap), so OT is effectively retired while the 15% night premium stays. The contracted-hours input, `p.contract` dependence and OT-below-56 logic are gone from the roster UI and payroll math.
+
+9. **Manager-controlled rostering.** Per-hotel toggle on the Roster page: **Player-managed** (edit shifts by hand) or **Manager-managed** (enabled once a General Manager is on staff). Under Manager-managed, the GM auto-fills every shift to need each day at rollover — front office, housekeeping, maintenance and F&B coverage maintained, staffing scaled to occupancy, overtime minimised — and the player can switch back to manual anytime.
+
+**Verified.** Dedicated v27 suite (16/16 real checks): events never fire over 20 days; payroll OT = 0 under standard load; roster contract control gone + standard-schedule wording; management toggle present and delegating auto-refills a cleared roster at rollover; pricing shows two modes + five options with no legacy strategy buttons; Match-Market snaps to reference, +20% lifts above; construction −20% confirmed against pre-v27 effective bases. Full regression green — 3-country/29-tab sweep (0 issues), smoke4 economy invariants, smoke5 Phase-11 suite. (A tiny pre-existing rounding drift in the non-default 'partial'-deposit ledger is present in the committed build too — not a v27 regression; the default policy is 'none'.)
+
+*Deferred to the next build (per scope split): strategic modules — Corporate Sales workflow (#1), Supplier Marketplace (#2), expanded HQ (#3), long-term progression (#4) — and the deep code-hygiene pass (#10).*
