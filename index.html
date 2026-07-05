@@ -923,8 +923,8 @@ const COMP_ORDER=Object.keys(COMPONENTS);
 /* ---------------- DATA: LOYALTY ---------------- */
 const LOYALTY=[
  {name:'Silver',min:2,disc:.03,upg:.10,brk:false},
- {name:'Gold',  min:5,disc:.06,upg:.22,brk:true},
- {name:'Platinum',min:10,disc:.10,upg:.40,brk:true}
+ {name:'Gold',  min:4,disc:.06,upg:.22,brk:true},
+ {name:'Platinum',min:7,disc:.10,upg:.40,brk:true}
 ];
 function loyaltyTier(stays){let t=null;for(const L of LOYALTY)if(stays>=L.min)t=L;return t;}
 
@@ -2096,7 +2096,7 @@ function tabMarketing(p){
   </div>
   ${active.length?`<div class="card" style="margin-bottom:12px"><h3>Active Campaigns</h3>${active.map(cm=>{const M=MKT[cm.type];return `<div class="row"><span class="lab">${M.ic} ${M.name} <span class="muted sm">· ${cm.left}d left</span></span><span class="val">${(cm.impressions/1000).toFixed(0)}k impressions · ${cm.bookings} bookings</span></div>`;}).join('')}</div>`:''}
   <div class="card" style="margin-bottom:12px"><h3>Launch a Campaign</h3>
-    <div class="cards cols-2">${MKT_ORDER.map(k=>{const M=MKT[k];return `<div class="shopitem"><div class="si-ic">${M.ic}</div><div class="si-b"><div class="si-t">${M.name}</div><div class="si-d">${cr0(M.cost)} · ${M.days}d · ${M.ch?'boosts '+M.ch:'brand'}${M.seg?' / '+M.seg:''}</div></div><button class="btn primary" onclick="runMarketing('${k}')">Run</button></div>`;}).join('')}</div>
+    <div class="cards cols-2">${MKT_ORDER.map(k=>{const M=MKT[k];return `<div class="shopitem"><div class="si-ic">${M.ic}</div><div class="si-b"><div class="si-t">${M.name}</div><div class="si-d">Cost ${cr0(M.cost)} · runs ${M.days}d · ${M.ch?'boosts '+M.ch+' bookings':'brand awareness'}${M.seg?' · targets '+M.seg:''}</div></div><button class="btn primary" onclick="runMarketing('${k}')">Run</button></div>`;}).join('')}</div>
   </div>
   <div class="card"><h3>Campaign History & ROI</h3>${p.marketing.hist.length?`<div class="tbl-wrap"><table><thead><tr><th>Campaign</th><th>Spend</th><th>Impressions</th><th>Bookings</th><th>Est. ROI</th></tr></thead><tbody>${p.marketing.hist.map(h=>`<tr><td class="b">${MKT[h.type].name}</td><td>${cr(h.spend)}</td><td>${(h.impressions/1000).toFixed(0)}k</td><td>${h.bookings}</td><td class="${h.roi>=0?'up':'down'}">${cr(h.roi)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted sm">No completed campaigns yet.</div>'}</div>`;
 }
@@ -2112,12 +2112,12 @@ function tabExpand(p){
   <div class="cards cols-2" style="margin-bottom:14px">
     <div class="card"><h3>Build Rooms</h3>
       <div class="muted sm" style="margin-bottom:8px">Floor capacity: ${p.rooms.filter(r=>r.floor<=p.floors).length+inProgRooms}/${p.floors*p.capPerFloor}. ${canRoom?'':'<span class="gold">Add a floor to build more.</span>'}</div>
-      ${RT_ORDER.map(rt=>{const t=ROOMTYPES[rt];return `<div class="shopitem"><div class="si-ic">▦</div><div class="si-b"><div class="si-t">${t.name} Room</div><div class="si-d">Build ${cr(t.build)} · ~4-7 days · ref ${cr0(marketRate(p,rt))}</div></div>
+      ${RT_ORDER.map(rt=>{const t=ROOMTYPES[rt];return `<div class="shopitem"><div class="si-ic">▦</div><div class="si-b"><div class="si-t">${t.name} Room</div><div class="si-d">Build ${cr(t.build+(QUALITY[TYPE_TIER[rt]!=null?TYPE_TIER[rt]:1]||QUALITY[0]).cost)}/room (incl. fit-out) · ~4–7 days · market ref ${cr0(marketRate(p,rt))}/night</div></div>
 
         <button class="btn primary" style="padding:7px 11px" ${canRoom?'':'disabled'} onclick="buildRoom('${rt}')">Start</button></div>`;}).join('')}
     </div>
     <div class="card"><h3>Property Growth</h3>
-      <div class="shopitem"><div class="si-ic">🏗️</div><div class="si-b"><div class="si-t">Add a Floor</div><div class="si-d">+${p.capPerFloor} capacity · ~12-18 days</div></div><button class="btn primary" style="padding:7px 13px" onclick="addFloor()">Start</button></div>
+      <div class="shopitem"><div class="si-ic">🏗️</div><div class="si-b"><div class="si-t">Add a Floor</div><div class="si-d">Build ${cr(Math.round((2000000+p.floors*640000)*(activeCountry().capex||1)))} · +${p.capPerFloor} room capacity · ~12–18 days</div></div><button class="btn primary" style="padding:7px 13px" onclick="addFloor()">Start</button></div>
       <div class="shopitem"><div class="si-ic">🅿️</div><div class="si-b"><div class="si-t">Parking Spaces</div><div class="si-d">Now ${p.parking.spaces} · ${cr0(36000)}/space</div></div><div class="wrapf"><button class="btn" onclick="buildParking(1)">+1</button><button class="btn" onclick="buildParking(5)">+5</button></div></div>
       <div class="shopitem"><div class="si-ic">🔌</div><div class="si-b"><div class="si-t">EV Charging Bays</div><div class="si-d">Now ${p.parking.ev} · ${cr0(70000)}/bay</div></div><div class="wrapf"><button class="btn" onclick="buildEVbays(1)">+1</button><button class="btn" onclick="buildEVbays(5)">+5</button></div></div>
       <div class="shopitem"><div class="si-ic">🧳</div><div class="si-b"><div class="si-t">Valet Service ${p.parking.valet?'<span class="pill green">active</span>':''}</div><div class="si-d">${cr(250000)} one-time</div></div><button class="btn" ${p.parking.valet?'disabled':''} onclick="enableValet()">Enable</button></div>
@@ -3131,7 +3131,7 @@ function tabFacilities(p){
     <div class="cards cols-2" style="margin-top:8px">
     ${shop.map(f=>{const fc=FACILITIES[f];return `<div class="shopitem"><div class="si-ic">${fc.ic}</div>
       <div class="si-b"><div class="si-t">${fc.name}</div>
-        <div class="si-d">Build ${cr(fc.build)} · Daily ${cr0(fc.daily)}${fc.staff?' · +'+fc.staff+' staff':''}</div>
+        <div class="si-d">Build cost ${cr(fc.build)} · Daily running cost ${cr0(fc.daily)}${fc.rev?' · earns revenue':''}${fc.staff?' · +'+fc.staff+' staff':''}</div>
         <div class="si-d">+${Math.round(fc.dem*100)}% demand · +${fc.sat} satisfaction · +${fc.rep} rep${DEPTS[f]?' · manageable dept':''}</div></div>
       <button class="btn primary" style="padding:7px 13px" onclick="buyFac('${f}')">Build</button></div>`}).join('')||'<div class="muted sm">All facilities built.</div>'}
     </div>
@@ -3929,8 +3929,8 @@ function roomDetail(id){
     <div class="wrapf" style="margin-top:4px">${equip.map(n=>`<span class="tag">${n}</span>`).join('')}</div>
     <div class="fl" style="margin-top:10px">Renovation (restores condition — does not alter the standard)</div>
     <div class="wrapf" style="margin-top:4px">
-      <button class="btn" ${busy?'disabled':''} onclick="renovateRoom(${r.id},'cosmetic')">Refresh · ${cr(Math.round(60000*DX().costM))}</button>
-      <button class="btn" ${busy?'disabled':''} onclick="renovateRoom(${r.id},'moderate')">Deep renovation · ${cr(Math.round(180000*DX().costM))}</button>
+      <button class="btn" ${busy?'disabled':''} onclick="renovateRoom(${r.id},'cosmetic')">Refresh · ${cr(Math.round(54000*DX().costM))}</button>
+      <button class="btn" ${busy?'disabled':''} onclick="renovateRoom(${r.id},'moderate')">Deep renovation · ${cr(Math.round(162000*DX().costM))}</button>
     </div>
     <div class="wrapf" style="margin-top:12px"><button class="btn" onclick="v8CloseModal&&v8CloseModal()">Close</button></div>
    </div>`;
@@ -3939,7 +3939,7 @@ function roomDetail(id){
 window.roomDetail=roomDetail;
 window.renovateRoom=(id,kind)=>{const p=P(),r=p.rooms.find(x=>x.id===id);if(!r)return;
   if(r.status==='occupied'||r.status==='renovation'){toast('Room must be free to renovate.','warn');return;}
-  const cost=Math.round((kind==='moderate'?180000:60000)*DX().costM);
+  const cost=Math.round((kind==='moderate'?162000:54000)*DX().costM);
   if(G.cash<cost){toast('Not enough cash.','neg');return;}
   G.cash-=cost;p.expToday+=cost;r.status='renovation';r.renoLeft=kind==='moderate'?3:1;
   logEvent(p,'maintenance','Room '+id+' renovation started ('+kind+').');toast('Room '+id+' under renovation.','pos');
@@ -4170,7 +4170,7 @@ function wearBands(p){
 window.renoBand=(lo,hi)=>{const p=P();let n=0,cost=0;
   p.rooms.forEach(r=>{const w=100-(r.cond||100);
     if(w>=lo&&w<hi&&r.status!=='occupied'&&r.status!=='renovation'){
-      const c=Math.round((w>=60?180000:60000)*DX().costM);
+      const c=Math.round((w>=60?162000:54000)*DX().costM);
       if(G.cash>=c){G.cash-=c;p.expToday+=c;r.status='renovation';r.renoLeft=w>=60?3:1;n++;cost+=c;}
     }});
   if(n){logEvent(p,'maintenance','Renovation wave: '+n+' room(s), '+cr(cost)+'.');toast(n+' room(s) sent for renovation ('+cr(cost)+'). Occupied rooms skipped.','pos');}
@@ -7122,7 +7122,7 @@ function tabCapex(p){
   const worn=p.rooms.filter(r=>(r.cond||100)<60).length;
   const rows=[];
   const add=(name,cost,life,annual,note,act)=>rows.push({name,cost,life,annual,note,act});
-  if(worn)add('Renovate '+worn+' worn room'+(worn>1?'s':''),worn*Math.round(180000*G.D.costM),5,Math.round(worn*revpar*365*.06),'Worn rooms drag satisfaction, reviews and rate power',`<button class="btn" style="padding:3px 9px;font-size:11px" onclick="renoBand(40,101)">Start</button>`);
+  if(worn)add('Renovate '+worn+' worn room'+(worn>1?'s':''),worn*Math.round(162000*G.D.costM),5,Math.round(worn*revpar*365*.06),'Worn rooms drag satisfaction, reviews and rate power',`<button class="btn" style="padding:3px 9px;font-size:11px" onclick="renoBand(40,101)">Start</button>`);
   add('Add a floor (+'+p.capPerFloor+' room capacity)',Math.round((2000000+p.floors*640000)*(activeCountry().capex||1)),20,Math.round(p.capPerFloor*revpar*365*.45),'Shell only — rooms are built and fitted separately',`<button class="btn" style="padding:3px 9px;font-size:11px" onclick="addFloor()">Start</button>`);
   Object.keys(UTIL_INV).forEach(k=>{const V=UTIL_INV[k];if(p.util.inv[k])return;
     const base=V.save==='elec'?u.elec:V.save==='water'?u.water:V.save==='gas'?u.gas:0;
@@ -8662,7 +8662,7 @@ const CORP_REQS={
   los:     {n:'Long-stay discounts', need:null,          cost:0,   d:'travellers stay 3+ nights; expects a length-of-stay rate'},
   volume:  {n:'Volume discount',     need:null,          cost:0,   d:'high room-night commitment; expects a keener rate'},
   roomcat: {n:'Preferred category',  need:null,          cost:0,   d:'insists on their preferred room category being protected'},
-  transfer:{n:'Airport transfers',   need:'parking',     cost:220, d:'expects car transfers — needs Parking & Valet'},
+  transfer:{n:'Airport transfers',   need:'shuttle',     cost:220, d:'expects airport transfers — needs Airport Shuttle or Parking & Valet'},
   meeting: {n:'Meeting rooms',       need:'conf',        cost:120, d:'books meeting space — needs a Conference Hall'},
   confpkg: {n:'Conference packages', need:'banquet',     cost:300, d:'runs off-sites — needs a Banquet Hall'},
   fnb:     {n:'Restaurant credits',  need:'restaurant',  cost:180, d:'expects dining credits — needs a Restaurant'}
@@ -8687,7 +8687,7 @@ function ensureCorp2(p){
     if(!ct.perks)ct.perks=[];
   });
 }
-function corpPerkOK(p,k){const r=CORP_REQS[k];return !r.need||p.facilities.includes(r.need);}
+function corpPerkOK(p,k){const r=CORP_REQS[k];if(!r.need)return true;if(k==='transfer')return p.facilities.includes('shuttle')||p.facilities.includes('parking');return p.facilities.includes(r.need);}
 function corpAMs(p){return (p.staff.manager||[]).length;}
 
 /* ---- pipeline actions ---- */
@@ -9509,6 +9509,215 @@ body.reduce-motion .camDrift2{animation:none}`;
 try{Object.assign(TIPS,{
  hiring:{t:'Hiring Desk',d:'Delegate hiring to your GM: they hire to operational need each morning, guided by your per-department seniority preference, and staff up new facilities automatically. Or keep it manual and use the same preferences as your own guide.'},
  generosity:{t:'Service Generosity',d:'A daily budget for complimentary gestures — complaint recovery at the desk, welcome touches for members, goodwill upgrades. When it runs out, recovery stops until tomorrow.'}});}catch(e){}
+
+/* =======================================================================
+   v33 — QA FIXES + MANAGEMENT AUTOMATION, PRICING & UI
+   • Loyalty: repeat selection weighted by stays so a loyal core reaches
+     Gold/Platinum (tiers 2/3 populate)
+   • Marketing: campaigns -10% cost; broader influence; occupancy plateaus
+     near 90% without an active campaign (95-100% needs marketing + rep)
+   • Construction: progress/ETA refresh every in-game hour (fractional),
+     Expansion added to the live-refresh set
+   • Finance: a proper loan marketplace with EMI / total / comparison
+   • Renovation: manager-driven auto-scheduling in Manager Mode
+   • Facility & purchase cards: every figure clearly labelled
+   • Visual polish: richer state accents, depth, hierarchy
+   ======================================================================= */
+
+/* ---- marketing -10% (scaled once at load, save-safe) ---- */
+try{if(typeof MKT!=='undefined'&&!MKT._v33){Object.keys(MKT).forEach(k=>{if(MKT[k]&&MKT[k].cost)MKT[k].cost=Math.round(MKT[k].cost*0.9);});MKT._v33=1;}}catch(e){}
+
+/* ---- (BUG1) loyalty: weight returning-guest pick toward higher-stay guests ---- */
+/* the base generator picks uniformly from the return pool, so nobody compounds
+   past ~3 stays. Re-pick with a stay-weighted lottery so a loyal core forms. */
+function loyalWeightedPick(pool){
+  if(!pool||!pool.length)return null;
+  let tot=0;const w=pool.map(g=>{const s=(g.stays||1);const x=1+s*s*s*0.7;tot+=x;return x;});
+  let r=Math.random()*tot;
+  for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i];}
+  return pool[pool.length-1];
+}
+{const _v33GG=genGuest;genGuest=function(prop){
+  const g=_v33GG(prop);
+  try{
+    if(g&&g.returning){
+      // concentrate returns on the rising loyal core so guests actually climb tiers
+      const pool=(G.returnPool&&G.returnPool[g.type])||[];
+      const members=pool.filter(x=>(x.stays||0)>=2&&(x.avgSat||60)>=58)
+        .sort((a,b)=>(b.stays||0)-(a.stays||0)).slice(0,20);
+      if(members.length&&Math.random()<0.6){
+        const better=loyalWeightedPick(members);
+        if(better){g.name=better.name;g.prior=better.stays||g.prior;g.favRT=better.favRT||g.favRT;
+          g.loyalty=(typeof loyaltyTier==='function'&&loyaltyTier(better.stays||0))?loyaltyTier(better.stays||0).name:g.loyalty;}
+      }
+    }
+  }catch(e){}
+  return g;
+};}
+
+/* ---- (new#3) occupancy plateau without marketing ---- */
+/* demand softly caps unless a campaign is live; 95%+ needs marketing + a
+   strong reputation/rating. Applied as a gentle multiplier on the demand index. */
+function marketingActive(p){
+  return ((p.marketing&&p.marketing.campaigns&&p.marketing.campaigns.length)?1:0)
+       + ((G.chain&&G.chain.campaigns&&G.chain.campaigns.length)?1:0) > 0;
+}
+{const _v33CD=computeDemand;computeDemand=function(p){
+  let d=_v33CD(p);
+  try{
+    const active=marketingActive(p);
+    const rep=(p.reputation||50), rat=(p.rating||3);
+    if(!active){
+      // no campaign: pull the top off demand so occupancy plateaus ~90%
+      if(d>0.86)d=0.86+(d-0.86)*0.30;   // firm plateau: unmarketed demand can't push past ~90% occ
+      if(d>1.02)d=1.02;
+      p._occCap=90;
+    }else{
+      // campaign live: ceiling lifts with reputation + rating toward 100%
+      const lift=clamp((rep-55)/45,0,1)*0.5+clamp((rat-3.8)/1.2,0,1)*0.5;
+      p._occCap=Math.round(90+lift*10);
+      d*=1+0.06*lift;
+    }
+  }catch(e){}
+  return d;
+};}
+/* marketing also nudges brand awareness, loyalty enrolment and corporate interest */
+{const _v33DR=dayRollover;dayRollover=function(){
+  try{const p=P();if(p&&marketingActive(p)){
+    p.awareness=clamp((p.awareness||0)+0.4,0,100);
+    if(G.loyal)G.loyal._enrollBoost=1;              // read by enrolment where present
+  }else if(P())P()._occCap=P()._occCap||90;}catch(e){}
+  _v33DR();
+};}
+
+/* ---- (new#3) occupancy ceiling: without marketing, arrivals are trimmed so
+   in-house occupancy plateaus ~90%; a live campaign raises the ceiling with
+   reputation & rating. Committed reservations/corporate arrivals are kept first. */
+{const _v33SD=scheduleDay;scheduleDay=function(){_v33SD();try{
+  const p=P();if(!p||!G.pendingArrivals||!p.rooms.length)return;
+  const rooms=p.rooms.length,occ=occupied(p);
+  let ceilPct=90;
+  if(marketingActive(p)){const lift=clamp(((p.reputation||50)-55)/45,0,1)*0.5+clamp(((p.rating||3)-3.8)/1.2,0,1)*0.5;ceilPct=Math.round(90+lift*10);}
+  const allowed=Math.max(0,Math.round(rooms*ceilPct/100)-occ);
+  if(G.pendingArrivals.length>allowed){
+    const committed=G.pendingArrivals.filter(a=>a.corpId);          // only corporate contracts are protected
+    const flex=G.pendingArrivals.filter(a=>!a.corpId);
+    G.pendingArrivals=committed.concat(flex).slice(0,Math.max(allowed,committed.length));
+    p.expectedToday=G.pendingArrivals.length;
+  }
+}catch(e){}};}
+
+/* ---- (new#8) construction & live dashboards refresh every hour ---- */
+{const _v33RL=refreshLive;refreshLive=function(){
+  _v33RL();
+  // extend the live-refresh set so construction & strategy dashboards update hourly
+  try{
+    if(['expand','corporate','hq','cameras'].includes(G.tab)){
+      const ae=document.activeElement;
+      if(ae&&(ae.tagName==='INPUT'||ae.tagName==='SELECT'))return;
+      renderTab();
+    }
+  }catch(e){}
+};}
+/* fractional remaining time so the Expansion dashboard counts down within a day */
+
+/* ---- (new#2) manager-driven room renovation in Manager Mode ---- */
+{const _v33DR2=dayRollover;dayRollover=function(){
+  try{const p=P();
+    if(p&&(p.rosterMode==='manager'||p.hireMode==='manager')&&((p.staff.manager||[]).length)){
+      // schedule the worst free rooms, protecting occupancy: at most ~15% of rooms at once
+      const cap=Math.max(1,Math.round(p.rooms.length*0.15));
+      let underReno=p.rooms.filter(r=>r.status==='renovation').length;
+      const cands=p.rooms.filter(r=>r.status!=='occupied'&&r.status!=='renovation'&&(100-(r.cond||100))>=45)
+        .sort((a,b)=>a.cond-b.cond);
+      for(const r of cands){
+        if(underReno>=cap)break;
+        const w=100-(r.cond||100);const c=Math.round((w>=60?162000:54000)*DX().costM);
+        if(G.cash<c+500000)break;                    // keep a cash cushion
+        G.cash-=c;p.expToday+=c;r.status='renovation';r.renoLeft=w>=60?3:1;underReno++;
+        logEvent(p,'maintenance','[GM] Scheduled Room '+r.id+' for renovation ('+w.toFixed(0)+'% wear).');
+      }
+    }
+  }catch(e){}
+  _v33DR2();
+};}
+
+/* ---- (new#5) loan marketplace ---- */
+const LOAN_PRODUCTS=[
+ {n:'Working Capital',mult:.4,rate:.14,mo:12},
+ {n:'Equipment Finance',mult:.8,rate:.115,mo:24},
+ {n:'Expansion Loan',mult:1.5,rate:.10,mo:48},
+ {n:'Term Mortgage',mult:2.6,rate:.085,mo:84},
+ {n:'Bridge Facility',mult:.6,rate:.17,mo:9}];
+function loanEMI(amt,rate,mo){const r=rate/12;return Math.round(amt*r/(1-Math.pow(1+r,-mo)));}
+window.takeLoanProduct=i=>{const P0=LOAN_PRODUCTS[i];if(!P0)return;
+  const cap=(typeof maxLoan==='function')?maxLoan():5000000;
+  const amt=Math.min(Math.round(cap*P0.mult),Math.round(cap));
+  if(amt<50000){toast('Your borrowing capacity is too low for this product right now.','warn');return;}
+  const before=G.loans.length;
+  takeLoan(amt,P0.mo);                                // reuses the audited amortiser + 1% fee
+  try{const l=G.loans[G.loans.length-1];if(l&&G.loans.length>before){l.annual=P0.rate;l.rate=P0.rate/12;l.emi=loanEMI(l.principal,P0.rate,P0.mo);}}catch(e){}
+  renderTab();};
+{const _v33TF=tabFinance;tabFinance=function(p){let h=_v33TF(p);try{
+  const cap=(typeof maxLoan==='function')?maxLoan():5000000;
+  const rows=LOAN_PRODUCTS.map((L,i)=>{const amt=Math.min(Math.round(cap*L.mult),Math.round(cap));const emi=loanEMI(amt,L.rate,L.mo);const tot=emi*L.mo;
+    return `<tr><td class="b">${L.n}</td><td>${cr(amt)}</td><td>${(L.rate*100).toFixed(1)}%</td><td>${L.mo} mo</td><td>${cr(emi)}/mo</td><td>${cr(tot)}</td>
+      <td><button class="btn ${i===2?'primary':''}" style="padding:3px 10px;font-size:11px" ${amt<50000?'disabled':''} onclick="takeLoanProduct(${i})">Borrow</button></td></tr>`;}).join('');
+  const card=`<div class="card" style="margin-top:12px"><h3>Loan Marketplace ${tip('loans')||''}</h3>
+    <div class="muted sm" style="margin-bottom:6px">Amounts scale with your borrowing capacity (${cr(cap)}). Compare the full cost before you commit — longer terms cost more in total interest.</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Product</th><th>Amount</th><th>Rate (APR)</th><th>Term</th><th>Monthly EMI</th><th>Total repayable</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="muted sm" style="margin-top:4px">A 1% processing fee applies on drawdown. EMIs auto-deduct monthly and appear in expenses.</div></div>`;
+  // place the marketplace right after the old quick-loan financing card
+  h+=card;
+}catch(e){}return h;};}
+
+/* ---- (new#9) visual polish: state accents, depth, hierarchy ---- */
+(function(){try{
+const css=`
+body.light{--v33-shadow:0 1px 0 rgba(20,20,18,.03),0 1px 3px rgba(20,20,18,.05)}
+body.light .card{box-shadow:var(--v33-shadow)!important;border-color:#e7e6df!important}
+body.light .card>h3{letter-spacing:.02em}
+body.light .ovcard .stat,body.light .card .stat{letter-spacing:-.01em}
+.pill.green{background:rgba(30,92,58,.10)}
+.pill.red{background:rgba(122,36,48,.10)}
+.pill.gold{background:rgba(138,106,30,.10)}
+.pill.blue{background:rgba(68,80,92,.10)}
+body.light table thead th{border-bottom:1.5px solid #d9d8d0;color:#5c5c55;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase}
+body.light table tbody tr:hover{background:#faf9f5}
+body.light .shopitem{border-color:#e7e6df!important}
+body.light .shopitem:hover{border-color:#c9c7bc!important}
+body.light .btn.primary{box-shadow:0 1px 2px rgba(20,20,18,.12)!important}
+.oprow .st.g,.pill.green,.up{font-variant-numeric:tabular-nums}
+body.light .barwrap,body.light .bar{border-radius:3px}
+body.light .page-head h2{letter-spacing:.01em}
+`;
+const st=document.createElement('style');st.id='v33Polish';st.textContent=css;(document.head||document.body).appendChild(st);
+}catch(e){}})();
+
+/* live redraw of the Expansion "in progress" list with fractional ETA each hour.
+   Done by post-processing tabExpand output: recompute the progress row from a
+   fractional remaining = pr.left - hourOfDay/24 (completion still fires daily). */
+{const _v33TE2=tabExpand;tabExpand=function(p){let h=_v33TE2(p);try{
+  if(p.projects&&p.projects.length){
+    const frac=G.hour/24;
+    const rebuilt=p.projects.map(pr=>{
+      const remD=Math.max(0,(pr.left||0)-frac);
+      const pct=clamp((1-remD/Math.max(1,pr.total||pr.left||1))*100,0,100);
+      const eta=remD>=1?remD.toFixed(1)+'d left':Math.round(remD*24)+'h left';
+      return `<div class="row"><span class="lab">${pr.label} · <span class="muted sm">${projStage(pr)} · ${Math.round(pct)}%</span></span><span class="val" style="min-width:170px">${barInline(pct,'#8a6a1e')} ${eta}</span></div>`;
+    }).join('');
+    // swap the whole "Projects in Progress" card body
+    const marker='Projects in Progress (';
+    const i=h.indexOf(marker);
+    if(i>=0){const cardStart=h.lastIndexOf('<div class="card"',i);
+      const bodyStart=h.indexOf('</h3>',i);
+      // find end of this card: next '</div>\n  </div>' pattern after the rows — use the known template tail
+      const tail=h.indexOf('</div>`:\'\'}',cardStart); // not reliable across builds
+      // simpler: replace each existing project row block by regex
+      h=h.replace(/(<h3>Projects in Progress \(\d+\)<\/h3>)[\s\S]*?(<\/div>\s*<div class="cards cols-2")/,'$1'+rebuilt+'</div><div class="cards cols-2"');
+    }
+  }
+}catch(e){}return h;};}
 
 renderWiz();
 </script>

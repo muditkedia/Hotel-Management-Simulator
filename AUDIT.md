@@ -498,3 +498,29 @@ Replaces the single 3-tier "Supply Partner" with a live, competitive marketplace
 **8 · Maintenance execution.** Rostered technicians now work the backlog **hourly** (severity first, ~2–3 issues per full shift, cost paid per fix, room condition restored, guests' journeys flagged for their reviews, every resolution logged) — the log visibly drains instead of waiting for a midnight batch. The daily resolver remains as escalation/backstop.
 
 **Verified.** 30-check dedicated suite (all green), 3-country/29-tab sweep 0 issues, smoke4 economy invariants, smoke5 Phase-11, v27 suite 14/14, and exact save→hard-reload→load round-trip including all new fields (genBudget, facOps windows, hireMode, senPref).
+
+---
+
+## 25. QA bug-fix pass + management/pricing/UI phase (`v33`, this branch)
+
+Combined the reported-bug QA sweep with the overlapping "Management Automation, Pricing Accuracy & UI" phase.
+
+**Reported bugs — root-caused & fixed:**
+1. **Loyalty 2nd tier never populated.** Returning guests were picked *uniformly* from the entire past-guest pool (hundreds of entries), so no individual ever compounded past ~3 stays and Gold/Platinum stayed empty (probe: 150 days, dbSize 554, maxStays 3). Fixed by concentrating 60% of returns on a stay-weighted shortlist of the top ~20 rising members, and lowering the Gold/Platinum thresholds to 4/7. Gold now populates (verified over a 180-day run).
+2. **Corporate contracts declined for "airport transfers" despite an active Airport Shuttle.** The requirement's `need` was hard-coded to `'parking'`; the Airport Shuttle facility (`shuttle`) never satisfied it. Now satisfied by **Airport Shuttle *or* Parking & Valet**; description updated.
+3. **Add-a-Floor showed no construction cost.** The card now shows `Build ₹… · +N room capacity · ~12–18 days`.
+4. **Room cost differed between the Expansion card and the build dialog (all types except Budget).** The card showed base build only (`cr(t.build)`) while the dialog charged `build + type-implied fit-out`; they matched only for Budget (fit-out 0). The card now shows the identical full per-room cost, labelled "(incl. fit-out)". Verified page == dialog == cash charged for every category.
+
+**Additional issue found in the same sweep:** the **Construction-in-Progress** panel was static within a day — `pr.left` decrements once per day-rollover and `expand` wasn't in the hourly live-refresh set, so time/%/ETA never moved between days. Now the panel recomputes a fractional remaining time each in-game hour (`left − hour/24`), redrawn live; `expand`, `corporate`, `hq` and `cameras` were added to the hourly refresh set.
+
+**Phase items delivered:**
+- **Prices everywhere / cost clarity (§1, §6):** room, floor, parking, EV, facility and marketing cards now label every figure (build cost, daily running cost, "earns revenue", campaign cost + duration + effect).
+- **Room-price consistency (§7):** the single fix above guarantees displayed = dialog = charged.
+- **Construction refresh (§8):** fractional hourly updates as above.
+- **Renovation −10% (§2):** cosmetic 60k→54k, deep 180k→162k at every call site; plus **manager-driven auto-renovation** — in Manager Mode the GM schedules the worst free rooms (≤15% of stock at once, cash cushion kept), coordinated so occupancy isn't disrupted; manual control remains when Manager Mode is off.
+- **Marketing (§3):** all campaigns −10%; **occupancy now plateaus ~90% without an active campaign** (a same-day arrival cap keyed to marketing state, with corporate contracts protected) — reaching 95–100% needs a live campaign plus strong reputation/rating, which lifts the ceiling; marketing also nudges awareness and loyalty.
+- **Loan marketplace (§5):** five loan products (working capital → term mortgage) in a comparison table with amount, APR, term, monthly EMI and total repayable; borrowing reuses the audited amortiser (1% fee) and applies each product's real rate.
+- **Camera panels (§4):** confirmed the lobby/facility overlays read live simulation state (waiting = real unserved arrivals, desk state, closed/unstaffed stamps) from the v32 work; no permanently-zero placeholders.
+- **Visual polish (§9):** subtle card depth, state-tinted pills, stronger table-header hierarchy, hover states — no gradients.
+
+**Verified.** 15-check QA/phase suite (all green after tuning loan-rate application, occupancy cap and loyalty concentration), 3-country/29-tab sweep (0 issues), smoke4/smoke5, and the v32 30-check suite — all green.
