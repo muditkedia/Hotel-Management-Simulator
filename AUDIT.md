@@ -452,3 +452,17 @@ Extends the v21 corporate module into an active B2B pipeline; contracted nights 
 **Relationship score** per account (0–100): moves monthly with traveller satisfaction, +3/month with an assigned **account manager** (your hired managers, one account each), −2 on a bad stay. Relationships under ~22 risk a **mid-term walkaway** — the account leaves (its reservation flow disappears, so occupancy genuinely drops) and paying the exit penalty per its clause; **major accounts (450+ nights/yr) leaving also dent reputation and corporate standing**. Renewals remain satisfaction-driven (v21) and now also log to history and boost relationship.
 
 **Verified.** 12-point workflow test (enrichment, meeting effects, proposal wins, contract fields, AM assignment, per-stay revenue+perk accrual, monthly relationship engine, forced walkaway with history, page sections, requirement pills); legacy `corpPitch` alias keeps older callers working (smoke5's corporate suite passes unchanged); 3-country sweep 0 issues; smoke4 economy invariants green; v27 suite 14/14.
+
+---
+
+## 22. Supplier Marketplace (`v30`, this branch — spec item #2)
+
+Replaces the single 3-tier "Supply Partner" with a live, competitive marketplace.
+
+**The market.** Four suppliers per procurement category (bathroom, housekeeping, restaurant, laundry, maintenance), each with price level, quality, delivery speed, reliability, credit period (0/7/15 days), bulk discount (on ≥70%-capacity orders), minimum order quantity and an evolving reputation. New entrants arrive monthly; suppliers whose reputation collapses (failed deliveries) go out of business — properties buying from them are moved and notified.
+
+**Buying.** Every order snapshots its supplier: delivery runs early/late per their speed; unreliable suppliers short the order or slip two days (and lose reputation). Credit orders queue an invoice payable after delivery + credit days — cash and P&L recognised together at settlement, preserving the ledger identity. Minimum quantities and bulk discounts apply on both manual and manager orders.
+
+**Strategy-driven manager procurement.** A buying-strategy stance (cheapest / fastest / highest quality / most reliable) guides the procurement manager, who re-scores the market each order cycle and switches suppliers when a clearly better fit appears (skilled managers switch more decisively). **Supplier quality reaches operations**: restaurant-category quality moves kitchen quality (±30 pts around neutral), maintenance-category quality scales repair speed ±15%.
+
+**Verified.** 14-point suite: market generation, per-property selections, credit-order invoice flow, supplier snapshots on orders, min-order enforcement, strategy re-picking, manager ordering, invoice settlement (cash+P&L together), kitchen-quality hook, forced market churn, old tier card removed from Operations, UI render, no NaN, 12-day organic run. Full battery green (3-country sweep 0 issues, smoke4/5, v27 suite).

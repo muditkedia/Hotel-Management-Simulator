@@ -8834,6 +8834,200 @@ tabCorporate=function(p){
 };
 try{Object.assign(TIPS,{corporate:{t:'Corporate Sales',d:'A real B2B pipeline: meet prospects to learn their requirements and build relationship, then propose a negotiated rate with the service perks you can actually deliver. Accounts renew on relationships; account managers protect them; weak payers short-pay; collapsed relationships walk mid-term — with penalties set by the cancellation clause.'}});}catch(e){}
 
+/* =======================================================================
+   v30 — SUPPLIER MARKETPLACE (spec item #2)
+   Replaces the single 3-tier "Supply Partner" with a live, per-category
+   marketplace: competing suppliers with price / quality / delivery /
+   reliability / credit terms / bulk discounts / minimum orders and an
+   evolving reputation. Suppliers enter and exit the market; poor ones
+   fail deliveries. Manager procurement picks suppliers by your buying
+   strategy (cheapest / fastest / quality / reliable). Supplier quality
+   feeds the kitchen and the workshop. Credit orders settle through a
+   payables queue (P&L and cash recognised together at payment).
+   ======================================================================= */
+
+const SUP_N1=['Sharma','Metro','Prime','Golden','City','Apex','Crown','Delta','Everest','Falcon','Galaxy','Orient'];
+const SUP_N2={'Bathroom':'Supplies','Housekeeping':'Textiles','Restaurant':'Foods','Laundry':'Chemicals','Maintenance':'Hardware'};
+const SUP_CATS=['Bathroom','Housekeeping','Restaurant','Laundry','Maintenance'];
+let supSeq=1;
+function mkSupplier(cat,tilt){
+  // tilt biases a new entrant toward one strength so the market stays interesting
+  const t=tilt||pick(['cheap','fast','quality','reliable','balanced']);
+  const s={id:'s'+(supSeq++),cat,name:pick(SUP_N1)+' '+(SUP_N2[cat]||'Trading'),
+    priceM:+rnd(.88,1.14).toFixed(2),q:+rnd(.88,1.12).toFixed(2),lead:pick([-1,0,0,1,2]),
+    rel:+rnd(.85,.985).toFixed(2),credit:pick([0,0,7,15]),bulk:pick([0,5,8,12]),minQ:pick([0,0,.25,.4]),rep:ri(40,70)};
+  if(t==='cheap'){s.priceM=+rnd(.82,.92).toFixed(2);s.q=+rnd(.85,.97).toFixed(2);s.rel=+rnd(.84,.93).toFixed(2);}
+  if(t==='fast'){s.lead=pick([-1,-1,0]);s.priceM=+rnd(1,1.14).toFixed(2);}
+  if(t==='quality'){s.q=+rnd(1.05,1.15).toFixed(2);s.priceM=+rnd(1.04,1.18).toFixed(2);}
+  if(t==='reliable'){s.rel=+rnd(.96,.99).toFixed(2);s.credit=pick([7,15]);s.priceM=+rnd(.98,1.1).toFixed(2);}
+  return s;
+}
+function ensureSupMkt(){
+  if(!G.supMkt){G.supMkt={};SUP_CATS.forEach(c=>{G.supMkt[c]=[mkSupplier(c,'cheap'),mkSupplier(c,'balanced'),mkSupplier(c,'quality'),mkSupplier(c,'reliable')];});}
+  return G.supMkt;
+}
+function ensureSup(p){
+  ensureSupMkt();
+  if(!p.supSel){p.supSel={};SUP_CATS.forEach(c=>p.supSel[c]=G.supMkt[c][1]?G.supMkt[c][1].id:G.supMkt[c][0].id);}
+  if(!p.procStrat)p.procStrat='reliable';
+  if(!p.payables)p.payables=[];
+  if(!p._supQ)p._supQ={};
+}
+function supOf(p,cat){ensureSup(p);const arr=G.supMkt[cat]||[];return arr.find(s=>s.id===p.supSel[cat])||arr[0];}
+function supScore(s,strat){
+  if(!s)return 0;
+  if(strat==='cheapest')return 200-s.priceM*100-(s.minQ*20);
+  if(strat==='fastest')return 100-(s.lead+1)*25+s.rel*20;
+  if(strat==='quality')return s.q*100+s.rel*10-s.priceM*20;
+  return s.rel*120+s.rep/4-s.priceM*20; // reliable (default)
+}
+window.setSupplierCat=(cat,id)=>{const p=P();ensureSup(p);p.supSel[cat]=id;
+  const s=(G.supMkt[cat]||[]).find(x=>x.id===id);
+  logEvent(p,'finance','Supplier for '+cat+': '+(s?s.name:id)+'.');toast('Supplier switched.','pos');renderTab();};
+window.setProcStrat=k=>{const p=P();ensureSup(p);p.procStrat=k;
+  logDecision('Buying strategy → '+k,0,'Manager procurement follows this stance','Suppliers re-picked at next order','Cost/speed/quality trade-off',['costs']);renderTab();};
+
+/* ---- ordering through the selected supplier ---- */
+window.reorderInv=k=>{
+  const p=P(),it=p.inv[k],I=INV[k];ensureSup(p);
+  const sup=supOf(p,I.cat);
+  let qty=I.cap-it.stock;
+  if(qty<=0){toast('Already full.');return;}
+  if(sup&&sup.minQ&&qty<I.cap*sup.minQ)qty=Math.ceil(I.cap*sup.minQ); // minimum order quantity
+  qty=Math.min(qty,I.cap); // never order past capacity headroom by much
+  let unit=I.cost*(sup?sup.priceM:1);
+  const bulky=sup&&sup.bulk&&qty>=I.cap*.7;
+  if(bulky)unit*=(1-sup.bulk/100);
+  const cost=Math.round(qty*unit);
+  const lead=Math.max(1,I.lead+(sup?sup.lead:0));
+  if(!sup||!sup.credit){ // cash order
+    if(G.cash<cost){toast('Not enough cash.','neg');return;}
+    G.cash-=cost;p.expToday+=cost;
+  }else{ // credit order — settles after delivery + credit days
+    p.payables.push({day:G.day+lead+sup.credit,amt:cost,name:(sup.name||'supplier')+' · '+I.name});
+  }
+  it.incoming=qty;it.incDays=lead;
+  it._sup=sup?{name:sup.name,rel:sup.rel,lead:sup.lead,q:sup.q,id:sup.id}:null;
+  logEvent(p,'finance','Ordered '+I.name+' from '+(sup?sup.name:'supplier')+' ('+cr0(cost)+(sup&&sup.credit?', '+sup.credit+'-day credit':'')+(bulky?', bulk discount':'')+').');
+  toast(I.name+' ordered — arrives in '+lead+'d'+(sup&&sup.credit?' · payable in '+(lead+sup.credit)+'d':'')+'.','pos');renderTab();};
+
+/* manager procurement: pick the best supplier per category by strategy, then order */
+autoProcure=function(prop){
+  ensureSup(prop);
+  const eff=avgSkill(prop,'procurement')/100;
+  SUP_CATS.forEach(cat=>{ // strategy-driven supplier selection (skilled managers switch smartly)
+    const arr=G.supMkt[cat]||[];if(!arr.length)return;
+    const best=arr.slice().sort((a,b)=>supScore(b,prop.procStrat)-supScore(a,prop.procStrat))[0];
+    const cur=supOf(prop,cat);
+    if(best&&cur&&best.id!==cur.id&&supScore(best,prop.procStrat)>supScore(cur,prop.procStrat)+8*(1.2-eff)){
+      prop.supSel[cat]=best.id;
+      logEvent(prop,'finance','Procurement switched '+cat+' supply to '+best.name+' ('+prop.procStrat+' strategy).');
+    }});
+  INV_ORDER.forEach(k=>{const it=prop.inv[k],I=INV[k];
+    if(it.stock<=it.reorder&&it.incDays<=0){
+      const sup=supOf(prop,I.cat);
+      let qty=Math.round((I.cap-it.stock)*(.7+eff*.3));
+      if(sup&&sup.minQ&&qty<I.cap*sup.minQ)qty=Math.ceil(I.cap*sup.minQ);
+      let unit=I.cost*(sup?sup.priceM:1)*(1.1-eff*.2);
+      if(sup&&sup.bulk&&qty>=I.cap*.7)unit*=(1-sup.bulk/100);
+      const cost=Math.round(qty*unit);
+      const lead=Math.max(1,I.lead+(sup?sup.lead:0));
+      if(sup&&sup.credit){prop.payables.push({day:G.day+lead+sup.credit,amt:cost,name:sup.name+' · '+I.name});}
+      else{if(G.cash<cost)return;G.cash-=cost;prop.expToday+=cost;}
+      it.incoming=qty;it.incDays=lead;
+      it._sup=sup?{name:sup.name,rel:sup.rel,lead:sup.lead,q:sup.q,id:sup.id}:null;
+      logEvent(prop,'finance','Procurement ordered '+I.name+' from '+(sup?sup.name:'supplier')+' ('+cr0(cost)+').');
+    }
+  });
+};
+
+/* deliveries: per-order supplier drives early/late/failed; quality lands in _supQ */
+v12Deliveries=function(p){
+  ensureSup(p);
+  INV_ORDER.forEach(k=>{const it=p.inv[k];if(!it)return;
+    const s=it._sup||{rel:.95,lead:0,q:1,name:'supplier'};
+    if(it.incDays>0){
+      if(s.lead<0&&Math.random()<.4)it.incDays--;
+      if(s.lead>0&&Math.random()<.25)it.incDays++;
+      if(it.incDays<=1&&Math.random()>s.rel){
+        if(Math.random()<.5){ it.incoming=Math.round(it.incoming*.7);
+          feed('🚚 Partial delivery of '+INV[k].name+' — '+s.name+' shorted the order.','warn');
+        }else{ it.incDays+=2;
+          feed('🚚 '+s.name+' missed the '+INV[k].name+' delivery — 2 days late.','warn');}
+        const cat=INV[k].cat,live=(G.supMkt[cat]||[]).find(x=>x.id===s.id);
+        if(live)live.rep=clamp(live.rep-4,5,95);
+      }
+    }
+    if(it.incDays<=1&&it.incoming>0){/* shipment landing — record its quality */
+      p._supQ[INV[k].cat]=s.q;
+      const live=(G.supMkt[INV[k].cat]||[]).find(x=>x.id===s.id);
+      if(live)live.rep=clamp(live.rep+1,5,95);
+    }
+  });
+  /* payables fall due */
+  if(p.payables&&p.payables.length){
+    const due=p.payables.filter(x=>x.day<=G.day);
+    if(due.length){p.payables=p.payables.filter(x=>x.day>G.day);
+      due.forEach(x=>{G.cash-=x.amt;p.expToday+=x.amt;logEvent(p,'finance','Paid supplier invoice: '+x.name+' — '+cr0(x.amt)+'.');});}
+  }
+};
+/* market churn: monthly, the worst-reputation supplier may exit; a new entrant arrives */
+{const _v30CM=corpMonthly;corpMonthly=function(p){_v30CM(p);try{
+  ensureSupMkt();
+  SUP_CATS.forEach(cat=>{
+    const arr=G.supMkt[cat];
+    if(arr.length>2&&Math.random()<.18){
+      arr.sort((a,b)=>a.rep-b.rep);
+      if(arr[0].rep<35){const gone=arr.shift();
+        feed('🏪 '+gone.name+' has gone out of business.','warn');
+        (G.properties||[]).forEach(pp=>{if(pp.supSel&&pp.supSel[cat]===gone.id){pp.supSel[cat]=arr[0].id;
+          logEvent(pp,'finance',gone.name+' closed — '+cat.toLowerCase()+' supply moved to '+arr[0].name+'.');}});}
+    }
+    if(arr.length<5&&Math.random()<.25){const nu=mkSupplier(cat);arr.push(nu);
+      feed('🏪 New supplier in the market: '+nu.name+' ('+cat.toLowerCase()+').','pos');}
+  });
+}catch(e){}};}
+/* supplier quality feeds the kitchen and the workshop */
+{const _v30FQ=fnbQuality;fnbQuality=function(prop){let q=_v30FQ(prop);try{ensureSup(prop);
+  const sq=prop._supQ&&prop._supQ.Restaurant;if(sq)q=clamp(q+(sq-1)*30,10,98);}catch(e){}return q;};}
+{const _v30MS=maintSpeed;maintSpeed=function(prop){let v=_v30MS(prop);try{
+  const sq=prop._supQ&&prop._supQ.Maintenance;if(sq&&v>0)v*=clamp(1+(sq-1)*.6,.85,1.15);}catch(e){}return v;};}
+
+/* ---- marketplace UI on the Procurement page; retire the old tier card ---- */
+{const _v30TO=tabOperations;tabOperations=function(p){let h=_v30TO(p);try{h=cutCard(h,'Supply Partner');}catch(e){}return h;};}
+{const _v30TPr=tabProcurement;tabProcurement=function(p){let h=_v30TPr(p);try{
+  ensureSup(p);
+  const strat=p.procStrat;
+  const payables=p.payables.reduce((s,x)=>s+x.amt,0);
+  const mkt=`<div class="card" style="margin-bottom:12px"><h3>Supplier Marketplace</h3>
+   <div class="row" style="flex-wrap:wrap;gap:6px"><span class="lab"><b>Buying strategy</b> <span class="muted sm">(guides manager procurement)</span></span>
+    <span class="val">${[['cheapest','Cheapest'],['fastest','Fastest'],['quality','Highest quality'],['reliable','Most reliable']].map(([k,n])=>`<button class="tag ${strat===k?'on':''}" onclick="setProcStrat('${k}')">${n}</button>`).join(' ')}</span></div>
+   ${payables?row('Supplier invoices outstanding',cr(payables)+' <span class="muted sm">(credit terms — settle automatically)</span>'):''}
+   ${SUP_CATS.map(cat=>{const arr=(G.supMkt[cat]||[]).slice().sort((a,b)=>supScore(b,strat)-supScore(a,strat));const sel=p.supSel[cat];
+     return `<div class="fl" style="margin-top:10px"><b>${cat}</b></div>
+     <div class="tbl-wrap"><table><thead><tr><th>Supplier</th><th>Price</th><th>Quality</th><th>Delivery</th><th>Reliability</th><th>Credit</th><th>Bulk</th><th>Min. order</th><th>Rep</th><th></th></tr></thead><tbody>
+     ${arr.map(s=>`<tr${s.id===sel?' style="outline:1px solid var(--gold);outline-offset:-1px"':''}>
+       <td class="b">${s.name}</td>
+       <td>${Math.round(s.priceM*100)}%</td>
+       <td>${Math.round(s.q*100)}%</td>
+       <td>${s.lead<0?'a day early':s.lead===0?'on time':'+'+s.lead+'d'}</td>
+       <td>${Math.round(s.rel*100)}%</td>
+       <td>${s.credit?s.credit+'d':'—'}</td>
+       <td>${s.bulk?s.bulk+'% ≥70% cap':'—'}</td>
+       <td>${s.minQ?Math.round(s.minQ*100)+'% cap':'—'}</td>
+       <td>${barInline(s.rep,s.rep>60?'#1e5c3a':s.rep>35?'#b45f14':'#7a2430')}</td>
+       <td><button class="tag ${s.id===sel?'on':''}" onclick="setSupplierCat('${cat}','${s.id}')">${s.id===sel?'selected':'select'}</button></td></tr>`).join('')}
+     </tbody></table></div>`;}).join('')}
+   <div class="muted sm" style="margin-top:6px">Poor suppliers short orders or deliver late (and lose reputation). New suppliers enter monthly; failing ones go out of business. Credit terms delay the invoice; bulk discounts apply on near-full orders.</div>
+  </div>`;
+  const anchor='</div>\n  '+'${Object.keys(cats)';
+  // insert after the Procurement Mode card (first card)
+  const i=h.indexOf('</div>',h.indexOf('Procurement Mode'));
+  const j=h.indexOf('<div class="card"',i);
+  h=j>=0?h.slice(0,j)+mkt+h.slice(j):h+mkt;
+}catch(e){}return h;};}
+try{Object.assign(TIPS,{procurement:{t:'Procurement & Suppliers',d:'A live marketplace per category: price, quality, delivery speed, reliability, credit terms, bulk discounts and minimum orders. Pick suppliers yourself or set a buying strategy and let your procurement manager choose. Supplier quality reaches the kitchen and the workshop; bad suppliers fail deliveries and eventually fold.'}});}catch(e){}
+
 renderWiz();
 </script>
 </body>
