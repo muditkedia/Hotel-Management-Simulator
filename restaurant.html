@@ -443,6 +443,32 @@ const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const dow=()=>((G.day-1)%7);
 const isWknd=()=>dow()>=5;
 const dayLabel=()=>'Day '+G.day+' · '+DOW[dow()];
+/* ---- weather & festivals ---- */
+const WEATHER={
+ clear:   {name:'Clear',ic:'☀️',walkM:1.0, delM:1.0, outdoor:true},
+ pleasant:{name:'Pleasant',ic:'🌤️',walkM:1.12,delM:.95,outdoor:true},
+ hot:     {name:'Hot & Humid',ic:'🥵',walkM:.9, delM:1.18,outdoor:false},
+ rainy:   {name:'Rainy',ic:'🌧️',walkM:.7, delM:1.35,outdoor:false},
+ cold:    {name:'Cool Evening',ic:'🌙',walkM:1.06,delM:1.05,outdoor:true}};
+const WEATHER_KEYS=Object.keys(WEATHER);
+function rollWeather(){const r=Math.random();
+  return r<.42?'clear':r<.62?'pleasant':r<.78?'hot':r<.9?'rainy':'cold';}
+const FESTIVALS=['Diwali','Holi','Eid','Christmas','New Year','Navratri','Onam','Pongal','Ganesh Utsav','Independence Day Weekend'];
+/* ---- ingredient commodity market (chain-wide price indices, baseline 1.0) ---- */
+const ING_VOL={veg:.09,meat:.06,seafood:.12,dairy:.04,flour:.03,coffee:.05,tea:.03,bev:.02,spice:.05,choc:.04,pack:.01,clean:.01,gas:.05};
+function mktIdx(k){return (G.mkt&&G.mkt[k])||1;}
+function driftMarket(){
+  if(!G.mkt){G.mkt={};ING_ORDER.forEach(k=>G.mkt[k]=1);}
+  const festPerish=G.fest?1:0;
+  ING_ORDER.forEach(k=>{const v=ING_VOL[k]||.03;let x=G.mkt[k]||1;
+    x+=(1-x)*.06+rnd(-v,v);
+    if(festPerish&&['veg','meat','seafood','dairy'].includes(k))x+=.02;
+    G.mkt[k]=clamp(x,.68,1.6);});
+  // occasional supply shock on a volatile staple
+  if(Math.random()<.04){const k=pick(['veg','seafood','meat','spice','coffee']);
+    G.mkt[k]=clamp(G.mkt[k]+rnd(.18,.4),.68,1.75);
+    G.outlets.forEach(o=>logEv(o,'market','Supply shock — '+ING[k].name+' prices have spiked. Buy carefully.'));}
+}
 
 function mkTables(seats){
   const t=[];let left=seats,id=1;
@@ -477,6 +503,33 @@ function starterStaff(o){
   // both shifts need line coverage for tiny teams: default everyone full-day at start
   Object.values(st).flat().forEach(s=>s.sh='F');
   return st;}
+/* ---- local competition ---- */
+const RIVAL_A=['Spice','Urban','The Curry','Tandoori','Olive','Bombay','Masala','Flame','Green','Metro','The Local','Zaika'];
+const RIVAL_B=['Junction','Kitchen','House','Grill','Café','Corner','Table','Story','Bistro','Diner','Point','Kitchen Co.'];
+/* ---- kitchen equipment upgrades ---- */
+const EQUIP_UP=[
+ {k:'range',name:'High-BTU Range',ic:'🔥',cost:600000,cap:.12,d:'Sears and boils faster — +12% kitchen throughput.'},
+ {k:'combi',name:'Combi Oven',ic:'🌀',cost:750000,food:6,cap:.05,d:'Precise, consistent cooking — noticeably better food scores.'},
+ {k:'espresso',name:'Pro Espresso Machine',ic:'☕',cost:450000,cap:.05,food:3,d:'Café-grade extraction — a quicker bar and better drinks.'},
+ {k:'chiller',name:'Blast Chiller',ic:'❄️',cost:520000,cold:.5,d:'Locks in freshness — +50% cold capacity, far less spoilage.'},
+ {k:'dishwasher',name:'Conveyor Dishwasher',ic:'🍽️',cost:380000,buss:.5,d:'Tables turn faster and hygiene holds up under a rush.'},
+ {k:'kds',name:'POS + Kitchen Display',ic:'🖥️',cost:420000,err:.5,cap:.04,d:'Digital tickets cut mistakes and speed up the pass.'}];
+function equipBonus(o){const b={cap:0,food:0,cold:0,buss:0,err:0};
+  (EQUIP_UP).forEach(u=>{if(o.equipUp&&o.equipUp[u.k]){['cap','food','cold','buss','err'].forEach(x=>{if(u[x])b[x]+=u[x];});}});
+  return b;}
+function priceIdxOf(o){return o.style==='value'?.9:o.style==='premium'?1.12:1;}
+function mkRival(o){
+  return {name:pick(RIVAL_A)+' '+pick(RIVAL_B),
+    rating:+clamp(3.4+rnd(-.4,.7),2.8,4.6).toFixed(1),
+    targetRating:+clamp(3.8+rnd(-.5,.8),3,4.7).toFixed(1),
+    priceIdx:+rnd(.9,1.12).toFixed(2),
+    promo:false,promoLeft:0,scouted:false};
+}
+function rivalEdge(o){ // >1 favours you, <1 favours rival
+  const R=o.rival;if(!R)return 1;
+  const edge=(o.rating-R.rating)*.12+(R.priceIdx-priceIdxOf(o))*.7-(R.promo?.12:0);
+  return clamp(1+edge,.62,1.3);
+}
 function newOutlet(opts){
   const c=CONCEPTS[opts.concept];
   const o={id:'o'+(G?G.outlets.length+1:1),name:opts.name,concept:opts.concept,cuisine:opts.cuisine,
@@ -508,6 +561,10 @@ function newOutlet(opts){
   // starter inventory: ~3 days of expected usage on active dishes
   ING_ORDER.forEach(k=>{o.inv[k]=[];});
   activeIngUse(o,true);
+  o.rival=mkRival(o);
+  o.weather=rollWeather();
+  o.loyalty={active:false,members:0};
+  o.equipUp={};
   return o;
 }
 function activeIngUse(o,seed){
@@ -540,7 +597,8 @@ function startGame(){
   const investM=[.85,1,1.35][wiz.invest];
   G={ver:1,day:1,hour:Math.max(7,c.hours[0]),dow:0,speed:1,paused:false,tab:'overview',cur:0,
     diff:wiz.diff,cash:0,outlets:[],loans:[],log:[],guestDB:{},seq:1,
-    chain:{hq:false,perks:{},royalty:0,franchises:[]},prog:[],brandVal:0,camsOwned:{}};
+    chain:{hq:false,perks:{},royalty:0,franchises:[]},prog:[],brandVal:0,camsOwned:{},fest:null,festCooldown:8,mkt:{}};
+  ING_ORDER.forEach(k=>G.mkt[k]=1);
   const budget=Math.round(c.cost*investM*DIFFS[wiz.diff].cashM);
   G.cash=Math.round(budget*.42);            // cost of fitout sunk; working capital remains
   const o=newOutlet({name:wiz.name||genRestName(),concept:wiz.concept,cuisine:wiz.cuisine,
@@ -619,7 +677,7 @@ function kitchenOn(o){return ['chef','linecook','barista'].flatMap(r=>staffOn(o,
 function stationsCovered(o){const set=new Set();kitchenOn(o).forEach(s=>ROLES[s.role].st.forEach(x=>set.add(x)));return set;}
 function kitchenCapMin(o){let cap=0;kitchenOn(o).forEach(s=>{
   cap+=60*ROLES[s.role].speed*(s.skill/70)*(1-s.fatigue/170)*(.72+s.morale/260);});
-  return cap*(.72+o.equip/350)*(o.perks.training?1.06:1);}
+  return cap*(.72+o.equip/350)*(o.perks.training?1.06:1)*(1+equipBonus(o).cap);}
 function demandIdx(o){
   const city=CITIES[o.cityI],loc=LOCALITIES[o.locI];
   let d=city.foot*loc.foot*DX().demM;
@@ -629,8 +687,12 @@ function demandIdx(o){
   if(isWknd())d*=1.26;
   if(o.style==='value')d*=1.1;if(o.style==='premium')d*=.94;
   d*=1+Math.min(.15,o.campaigns.length*.05);
+  if(o.loyalty&&o.loyalty.active)d*=1+clamp(o.loyalty.members/((o.seats||40)*30),0,.18);
+  d*=rivalEdge(o);
+  if(G.fest)d*=G.fest.demM;
   if(o._shut)d=0;
   return clamp(d,.1,2.8);}
+function wx(o){return WEATHER[o.weather]||WEATHER.clear;}
 function chOpen(o){return Object.keys(o.channels).filter(k=>o.channels[k].on&&k!=='walkin');}
 function freeTable(o,size){let best=null;
   o.tables.forEach(t=>{if(t.state==='free'&&t.cap>=size&&(!best||t.cap<best.cap))best=t;});
@@ -677,7 +739,7 @@ function simOutlet(o){
   const open=isOpen(o,G.hour)&&!o._shut;
   // 1) bussing: cleaners reset dirty tables
   const cln=staffOn(o,'cleaner').length;
-  let toClean=cln*4;
+  let toClean=Math.round(cln*4*(1+equipBonus(o).buss));
   o.tables.forEach(t=>{if(t.state==='dirty'&&toClean>0){t.state='free';toClean--;}});
   if(!open&&!isOpen(o,G.hour)){ // closed hours: reset floor, recover staff
     o.tables.forEach(t=>{if(t.state==='dirty')t.state='free';});
@@ -708,7 +770,8 @@ function simOutlet(o){
   // 5) new walk-ins
   const mix=LOCALITIES[o.locI].mix;
   const dIdx=demandIdx(o);
-  let exp=o.seats>0?o.tables.length*hourCurve(mix,G.hour)*2.7*dIdx:0;
+  const W=wx(o);
+  let exp=o.seats>0?o.tables.length*hourCurve(mix,G.hour)*2.7*dIdx*W.walkM:0;
   let n=Math.floor(exp)+(Math.random()<exp%1?1:0);
   for(let i=0;i<n;i++){
     const arch=archeAt(mix,G.hour);
@@ -724,7 +787,7 @@ function simOutlet(o){
   if(o.areas.includes('pickup'))tk*=1.3;
   spawnCounter(o,tk,'walkin',mix);
   // 8) delivery orders per channel
-  const delBase=(o.seats||42)*hourCurve('balanced',G.hour)*3.6*c.del*dIdx;
+  const delBase=(o.seats||42)*hourCurve('balanced',G.hour)*3.6*c.del*dIdx*W.delM;
   chOpen(o).forEach(ch=>{
     let e=delBase*o.channels[ch].pop;
     if(ch==='catering')e=G.hour===12||G.hour===19?o.channels.catering.pop*2.2*dIdx:0;
@@ -796,7 +859,7 @@ function serveOrder(o,q){
     // counter / delivery satisfaction & review inline
     const arch=q.arch||'office';
     let sat=68-(Math.max(0,waitMin-30))*1.1-cc.missing*8+supQ(o)*14-14+(staffOn(o,'delivery').length?4:(q.ch==='swiggy'||q.ch==='zomato'?-6:0));
-    const errRate=(staffOn(o,'delivery').length?.008:.02)*(o.kq.length>5?2.2:1);
+    const errRate=(staffOn(o,'delivery').length?.008:.02)*(o.kq.length>5?2.2:1)*(1-equipBonus(o).err);
     if(q.ch!=='walkin'&&Math.random()<errRate){sat-=25;o.revToday-=Math.round(gross*.3);G.cash-=Math.round(gross*.3);
       o._delErr=(o._delErr||0)+1;
       if(Math.random()<.3)logEv(o,'delivery','Wrong order packed in the rush — partial refund issued.');}
@@ -831,7 +894,7 @@ function departParty(o,p){
   // --- satisfaction components ---
   const city=CITIES[o.cityI];const c=CONCEPTS[o.concept];
   const chefs=kitchenOn(o);const chefSkill=chefs.length?chefs.reduce((a,s)=>a+s.skill,0)/chefs.length:40;
-  const food=clamp(34+chefSkill*.42+(supQ(o)-1)*70+(p.missing?-p.missing*9:0)+(o.hygiene<50?-12:0)+rnd(-5,5),5,98);
+  const food=clamp(34+chefSkill*.42+(supQ(o)-1)*70+equipBonus(o).food+(p.missing?-p.missing*9:0)+(o.hygiene<50?-12:0)+rnd(-5,5),5,98);
   const wait=clamp(88-Math.max(0,(p.waitMin||25)-15-ARCHE[p.arch].patience)*2,5,98);
   const srv=staffOn(o,'server');const ratio=srv.length/Math.max(1,o.parties.length*.45);
   const friendly=srv.length?srv.reduce((a,s)=>a+s.friendly,0)/srv.length:50;
@@ -895,7 +958,7 @@ function pushReview(o,r){
 function supFor(o,cat){return o.market.find(s=>s.id===o.suppliers[cat]);}
 function placeOrder(o,ing,qty){
   const cat=ING[ing].cat,s=supFor(o,cat);if(!s||qty<=0)return false;
-  let cost=Math.round(ING[ing].cost*s.priceM*qty);
+  let cost=Math.round(ING[ing].cost*s.priceM*mktIdx(ing)*qty);
   if(qty*ING[ing].cost>4000&&s.bulk)cost=Math.round(cost*(1-s.bulk/100));
   if(o.perks&&o.perks.warehouse)cost=Math.round(cost*.94);
   cost=Math.round(cost*DX().costM);
@@ -920,14 +983,15 @@ function spoilage(o){
   let waste=0;
   // capacity pressure: overflow cold storage spoils fastest
   const coldQty=ING_ORDER.filter(k=>ING[k].store==='cold').reduce((a,k)=>a+invQty(o,k),0);
-  const coldCap=o.caps.cold*(o.areas.includes('coldstore')?2:1);
+  const coldCap=o.caps.cold*(o.areas.includes('coldstore')?2:1)*(1+equipBonus(o).cold);
   const over=coldQty>coldCap;
+  const overLoss=o.equipUp&&o.equipUp.chiller?.05:.12;
   ING_ORDER.forEach(k=>{
     const arr=o.inv[k];if(!arr)return;
     for(let i=arr.length-1;i>=0;i--){
       const b=arr[i];
       if(b.exp<=G.day){waste+=b.q*ING[k].cost;arr.splice(i,1);}
-      else if(over&&ING[k].store==='cold'){const l=b.q*.12;b.q-=l;waste+=l*ING[k].cost;}
+      else if(over&&ING[k].store==='cold'){const l=b.q*overLoss;b.q-=l;waste+=l*ING[k].cost;}
     }});
   // pilferage: 1%/day of dry stock without a manager on the books
   if(!(o.staff.manager||[]).length&&!o.perks.hqops){
@@ -977,6 +1041,24 @@ function dayRollover(){
       s.morale=clamp(s.morale+strain+(o.perks.training?.3:0)+rnd(-1,1),10,100);
       if(o.perks.training&&G.day%7===0)s.skill=clamp(s.skill+1,30,99);
       if(s.morale<25&&Math.random()<.25){quitStaff(o,s);}});
+    // weather rolls fresh each day
+    o.weather=rollWeather();
+    // local competition: rival drifts toward its target rating & runs the odd promo
+    if(o.rival){const R=o.rival;
+      R.rating=+clamp(R.rating+(R.targetRating-R.rating)*.05+rnd(-.03,.03),2.5,4.8).toFixed(2);
+      if(R.promo){R.promoLeft--;if(R.promoLeft<=0){R.promo=false;}}
+      else if(Math.random()<.06){R.promo=true;R.promoLeft=ri(3,7);R.priceIdx=+clamp(R.priceIdx-.05,.82,1.15).toFixed(2);
+        logEv(o,'market',R.name+' launched a promotion nearby — expect some diners to stray.');}
+      else if(Math.random()<.04){R.priceIdx=+clamp(R.priceIdx+rnd(-.03,.04),.85,1.18).toFixed(2);}
+    }
+    // loyalty membership: satisfied covers enrol; a slice churns; redemptions cost
+    if(o.loyalty&&o.loyalty.active){
+      const enrol=Math.round(o.coversToday*.1*clamp((o.rating-2.8)/1.3,0,1.3));
+      o.loyalty.members=Math.max(0,Math.round(o.loyalty.members*.992)+enrol);
+      const redeem=Math.round(o.loyalty.members*3*DX().costM);
+      G.cash-=redeem;o.expToday+=redeem;o.moOther=(o.moOther||0)+redeem;
+      if(enrol>0&&o.loyalty.members>0&&G.day%7===0)o.reputation=clamp(o.reputation+.4,0,100);
+    }
     // reservations for today
     genReservations(o);
     // random events
@@ -992,6 +1074,15 @@ function dayRollover(){
     o.revToday=0;o.expToday=0;o.coversToday=0;o.ordersToday=0;o.wasteToday=0;o.tipsToday=0;
     o.waitLost=0;o.walkouts=0;o.chToday={};o._shut=false;
   });
+  driftMarket();
+  // festival calendar (chain-wide): a multi-day demand spike every few weeks
+  if(G.fest){G.fest.left--;if(G.fest.left<=0){toast('The '+G.fest.name+' rush is over.','');G.fest=null;G.festCooldown=ri(14,26);}}
+  else if((G.festCooldown=(G.festCooldown||0)-1)<=0){
+    const name=FESTIVALS[(G.day+ (G._festSeq=(G._festSeq||0)+1))%FESTIVALS.length];
+    G.fest={name,left:ri(2,4),demM:+rnd(1.25,1.6).toFixed(2)};
+    G.outlets.forEach(o=>logEv(o,'market',name+' is here — expect a rush. Stock up and staff up.'));
+    toast('🪔 '+name+' has arrived — demand is surging for '+G.fest.left+' days.','pos');
+  }
   if(G.day%30===1&&G.day>1)monthlySettle();
   checkProgression();
   saveGame();
@@ -1131,7 +1222,15 @@ function launchCampaign(o,k,byGM){
   o.campaigns.push({k,left:M.days,cost});
   logEv(o,'marketing',(byGM?'[GM] ':'')+'Launched '+M.name+' — '+M.days+' days, '+cr(cost)+'.');
   if(!byGM)toast(M.name+' is live.','pos');
+  if(k==='loyaltyPush'&&o.loyalty&&o.loyalty.active)o.loyalty.members+=Math.round((o.seats||40)*1.2);
   return true;}
+window.launchLoyalty=()=>{const o=R();const cost=Math.round(220000*DX().costM);
+  if(o.loyalty.active){toast('Your membership programme is already running.','');return;}
+  if(G.cash<cost){toast('You need '+cr(cost)+' to set up the programme.','warn');return;}
+  G.cash-=cost;o.expToday+=cost;o.moOther=(o.moOther||0)+cost;
+  o.loyalty.active=true;o.loyalty.members=Math.round((o.seats||40)*.6);
+  logEv(o,'marketing','Launched the loyalty membership programme — regulars now earn rewards.');
+  toast('Membership programme is live. Happy diners will start enrolling.','pos');renderTab();};
 
 /* ============================ EXPANSION & PROJECTS ============================ */
 function startProject(o,k){
@@ -1251,7 +1350,7 @@ function renderTop(){
     kpi('Kitchen Q',o.kq.length+(o.waiting.length?' <small>+'+o.waiting.length+' waiting</small>':''),o.kq.length>6?'down':'')+
     kpi('Awareness',Math.round(o.awareness),'');
   $('#clkT').textContent=String(G.hour).padStart(2,'0')+':00';
-  $('#clkD').textContent=dayLabel();
+  $('#clkD').textContent=dayLabel()+' · '+(WEATHER[o.weather]||WEATHER.clear).ic+(G.fest?' 🪔':'');
 }
 function kpi(k,v,cls){return `<div class="kpi"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;}
 function refreshLive(){
@@ -1294,6 +1393,7 @@ function tabOverview(o){
   return pageHead(o.name,c.ic+' '+c.name+' · '+o.cuisine+' · '+LOCALITIES[o.locI].name+', '+CITIES[o.cityI].name+' · open '+String(c.hours[0]).padStart(2,'0')+':00–'+String(c.hours[1]%24).padStart(2,'0')+':00'
     +(o._shut?' · <b style="color:var(--neg)">SHUT BY INSPECTOR TODAY</b>':''),
     `<span class="pill ${isOpen(o,G.hour)&&!o._shut?'green':'red'}">${isOpen(o,G.hour)&&!o._shut?'OPEN':'CLOSED'}</span>`)+
+  (G.fest?`<div class="card" style="border-left:3px solid var(--gold);margin-bottom:12px"><div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">🪔</span><div><b>${G.fest.name} rush — ${G.fest.left} day(s) left</b><div class="muted sm">Demand is up about ${Math.round((G.fest.demM-1)*100)}%. Keep the pantry deep and the brigade fully staffed, or the queues will cost you.</div></div></div></div>`:'')+
   `<div class="cards cols-4">
     ${ovCard('Cash',cr(G.cash),G.loans.length?G.loans.length+' loan(s) live':'debt-free')}
     ${ovCard('Revenue Today',cr(o.revToday),y?'yesterday '+cr(y.rev):'first day')}
@@ -1302,6 +1402,7 @@ function tabOverview(o){
   </div>
   <div class="cards cols-3" style="margin-top:12px">
     <div class="card"><h3>The Floor — Live</h3>
+      ${row('Today\'s weather',(WEATHER[o.weather]||WEATHER.clear).ic+' '+(WEATHER[o.weather]||WEATHER.clear).name+(wx(o).walkM<.9?' · fewer walk-ins, more delivery':wx(o).walkM>1.05?' · great for dine-in':''))}
       ${row('Tables seated',occ+' / '+o.tables.length)}
       ${row('Waiting for a table',o.waiting.length+' parties')}
       ${row('Kitchen queue',o.kq.length+' orders · '+Math.round(o._queueMin||0)+' min of work')}
@@ -1383,8 +1484,21 @@ function tabKitchen(o){
   </div>
   <div class="card" style="margin-top:12px"><h3>Brigade on Duty</h3>
     ${kitchenOn(o).map(s=>row(ROLES[s.role].name+' '+s.name+' <span class="muted sm">skill '+s.skill+'</span>','fatigue '+moodPill(100-s.fatigue))).join('')||'<div class="muted sm">Nobody in the kitchen this hour — orders will stall.</div>'}
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Equipment Upgrades</h3>
+    <div class="muted sm" style="margin-bottom:6px">One-time capital purchases that permanently upgrade the kitchen. They carry over across every day — and, unlike wear, never degrade.</div>
+    ${EQUIP_UP.map(u=>{const own=o.equipUp&&o.equipUp[u.k];const cost=Math.round(u.cost*DX().costM);
+      return `<div class="shopitem"><div class="si-ic">${u.ic}</div><div class="si-b"><div class="si-t">${u.name}${own?' <span class="pill green">INSTALLED</span>':''}</div><div class="si-d">${u.d}</div></div>
+      <div style="text-align:right"><div class="b">${cr(cost)}</div><button class="btn ${own?'':'primary'}" style="margin-top:4px;padding:4px 12px;font-size:11px" ${own?'disabled':''} onclick="buyEquip('${u.k}')">${own?'installed':'install'}</button></div></div>`;}).join('')}
   </div>`;
 }
+window.buyEquip=k=>{const o=R();const u=EQUIP_UP.find(x=>x.k===k);if(!u)return;
+  if(o.equipUp[k]){toast('Already installed.','');return;}
+  const cost=Math.round(u.cost*DX().costM);
+  if(G.cash<cost){toast('Not enough cash — '+cr(cost)+' needed.','warn');return;}
+  G.cash-=cost;o.expToday+=cost;o.moOther=(o.moOther||0)+cost;o.equipUp[k]=true;
+  logEv(o,'ops','Installed '+u.name+' in the kitchen ('+cr(cost)+').');
+  toast(u.name+' installed.','pos');renderTab();};
 window.repairEquip=()=>{const o=R();const c=Math.round((100-o.equip)*4500*DX().costM);
   if(o.equip>=96){toast('Equipment already in good shape.','');return;}
   if(G.cash<c){toast('Not enough cash.','warn');return;}
@@ -1472,7 +1586,7 @@ function tabInventory(o){
   const use=activeIngUse(o);
   const coldQty=ING_ORDER.filter(k=>ING[k].store==='cold').reduce((a,k)=>a+invQty(o,k),0);
   const dryQty=ING_ORDER.filter(k=>ING[k].store==='dry').reduce((a,k)=>a+invQty(o,k),0);
-  const coldCap=o.caps.cold*(o.areas.includes('coldstore')?2:1);
+  const coldCap=o.caps.cold*(o.areas.includes('coldstore')?2:1)*(1+equipBonus(o).cold);
   return pageHead('Inventory','FIFO batches with real expiry. Perishables over cold capacity spoil fast; stockouts 86 dishes mid-service.',
     `<span class="pill ${o.wasteToday?'red':'green'}">waste today ${cr(o.wasteToday)}</span>
      <label class="tag ${o.autoPar?'on':''}" onclick="togglePar()">auto-restock to par ${o.autoPar?'ON':'OFF'}</label>`)+
@@ -1497,8 +1611,19 @@ function tabInventory(o){
 window.togglePar=()=>{R().autoPar=!R().autoPar;toast('Auto-restock '+(R().autoPar?'enabled — orders placed daily to par.':'disabled — you buy manually now.'),'');renderTab();};
 function tabProcure(o){
   const use=activeIngUse(o);
-  return pageHead('Procurement','Pick a supplier per category — price, quality, lead time and reliability all trade off. Quality feeds straight into food scores.',
+  const mkTag=k=>{const x=mktIdx(k);const pct=Math.round((x-1)*100);
+    return x>=1.08?`<span class="pill red">▲ ${pct}%</span>`:x<=.92?`<span class="pill green">▼ ${pct}%</span>`:`<span class="pill blue">≈ par</span>`;};
+  const volatile=ING_ORDER.filter(k=>(use[k]>0.01||invQty(o,k)>0)).sort((a,b)=>Math.abs(mktIdx(b)-1)-Math.abs(mktIdx(a)-1));
+  const cheap=volatile.filter(k=>mktIdx(k)<=.94).slice(0,4),dear=volatile.filter(k=>mktIdx(k)>=1.08).slice(0,4);
+  return pageHead('Procurement','Pick a supplier per category, and time your buying — commodity prices move daily. Buy deep when a staple is cheap; hold off when it spikes.',
     `<span class="pill blue">${o.pending.length} deliveries inbound</span>`)+
+  `<div class="card" style="margin-bottom:12px"><h3>Ingredient Market ${G.fest?'<span class="pill gold">FESTIVAL PRICING</span>':''}</h3>
+    <div class="cards cols-2">
+      <div><div class="muted sm b">Cheap right now — stock up</div>${cheap.length?cheap.map(k=>row(ING[k].name,mkTag(k))).join(''):'<div class="muted sm">Nothing notably cheap today.</div>'}</div>
+      <div><div class="muted sm b">Running dear — buy light</div>${dear.length?dear.map(k=>row(ING[k].name,mkTag(k))).join(''):'<div class="muted sm">No spikes today.</div>'}</div>
+    </div>
+    <div class="muted sm" style="margin-top:6px">Prices are a chain-wide index against baseline. Festivals and supply shocks push perishables up; a warehouse (Chain HQ) softens every bill.</div>
+  </div>`+
   SUP_CATS.map(cat=>{
     const sups=o.market.filter(s=>s.cat===cat);
     const ings=ING_ORDER.filter(k=>ING[k].cat===cat&&(use[k]>0.01||invQty(o,k)>0));
@@ -1510,8 +1635,8 @@ function tabProcure(o){
       </tbody></table></div>
       <div class="wrapf" style="margin-top:8px">${ings.map(k=>{
         const q3=Math.ceil((use[k]||1)*3);const s=supFor(o,cat);
-        const est=cr(Math.round(ING[k].cost*(s?s.priceM:1)*q3*DX().costM));
-        return `<button class="btn" onclick="buyIng('${k}',${q3})">${ING[k].name} +${q3}${ING[k].unit} · ${est}</button>`;}).join('')}</div>
+        const est=cr(Math.round(ING[k].cost*(s?s.priceM:1)*mktIdx(k)*q3*DX().costM));
+        return `<button class="btn" onclick="buyIng('${k}',${q3})">${ING[k].name} +${q3}${ING[k].unit} · ${est} ${mkTag(k)}</button>`;}).join('')}</div>
     </div>`;}).join('')+
   `<div class="card"><h3>Inbound Deliveries</h3>
     ${o.pending.map(p=>{const s=o.market.find(x=>x.id===p.sup);
@@ -1606,6 +1731,25 @@ function tabMarketing(o){
         return row(M.ic+' '+M.name,cp.left+'d left · '+cr(cp.cost));}).join('')||'<div class="muted sm">Nothing running. Awareness is bleeding ~0.35/day.</div>'}
     </div>
   </div>
+  <div class="card" style="margin-top:12px"><h3>Loyalty Membership ${o.loyalty.active?'<span class="pill green">ACTIVE</span>':'<span class="pill blue">NOT RUNNING</span>'}</h3>
+    ${o.loyalty.active?
+      row('Members enrolled','<b>'+o.loyalty.members.toLocaleString('en-IN')+'</b>')+
+      row('Repeat-visit demand floor','+'+Math.round(clamp(o.loyalty.members/((o.seats||40)*30),0,.18)*100)+'%')+
+      row('Est. monthly rewards cost',cr(Math.round(o.loyalty.members*3*DX().costM*30)))+
+      '<div class="muted sm" style="margin-top:6px">Satisfied diners keep enrolling (faster at higher ratings); a small share churns each day. Run a Loyalty Campaign below to add a burst of members.</div>'
+      :'<div class="muted sm">Turn one-time diners into regulars. Members drive a repeat-visit floor under your demand — worth most once you already have footfall and a solid rating.</div>'
+      +`<button class="btn primary" style="margin-top:8px" onclick="launchLoyalty()">Launch programme — ${cr(Math.round(220000*DX().costM))}</button>`}
+  </div>
+  ${o.rival?(()=>{const R=o.rival;const edge=rivalEdge(o);
+    const you=priceIdxOf(o);
+    const verdict=edge>=1.08?['You\'re winning the street','green']:edge<=.92?['They\'re pulling diners from you','red']:['Neck and neck','gold'];
+    return `<div class="card" style="margin-top:12px"><h3>Local Competition ${R.promo?'<span class="pill red">RIVAL PROMO LIVE</span>':''}</h3>
+      <div class="row"><span class="lab">Nearby rival</span><span class="val">${R.name}</span></div>
+      ${row('Their rating',R.rating.toFixed(1)+'★ vs your '+o.rating.toFixed(1)+'★')}
+      ${row('Their pricing',R.priceIdx<you-0.02?'cheaper than you':R.priceIdx>you+0.02?'pricier than you':'about the same')}
+      ${row('Head-to-head',`<span class="pill ${verdict[1]}">${verdict[0]}</span>`)}
+      <div class="muted sm" style="margin-top:6px">Out-rate them, out-price them, or out-market them and their diners drift your way. When they run a promo, a good campaign of your own blunts it.</div>
+    </div>`;})():''}
   <div class="card" style="margin-top:12px"><h3>Campaign Desk</h3>
     ${MKT_ORDER.map(k=>{const M=MKT[k];const cost=Math.round(M.cost*DX().costM);
       const live=o.campaigns.some(c=>c.k===k);
