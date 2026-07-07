@@ -1,0 +1,1910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RASOI — Restaurant Operations Simulator</title>
+<style>
+:root{
+  --bg:#f6f6f3;--bg2:#f1f1ec;--panel:#ffffff;--panel2:#f3f3ee;
+  --line:#e3e3db;--line2:#d4d4ca;--ink:#151513;--mut:#5c5c55;--mut2:#8e8e85;
+  --gold:#8a6a1e;--pos:#1e5c3a;--neg:#7a2430;--warn:#b45f14;--info:#44505c;
+  --serif:Georgia,'Times New Roman',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;overflow:hidden}
+button{font-family:inherit;cursor:pointer;color:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#c9c9bf;border-radius:6px;border:2px solid var(--bg)}
+::-webkit-scrollbar-track{background:transparent}
+#app{display:none;grid-template-columns:212px 1fr;grid-template-rows:56px 1fr;height:100vh}
+#topbar{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:0 16px;background:#fff;border-bottom:1px solid var(--line)}
+.tb-logo{display:flex;align-items:center;gap:9px;min-width:0}
+.logo{width:32px;height:32px;border-radius:7px;background:#151513;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none}
+.tb-prop{font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpis{display:flex;gap:0;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.kpis::-webkit-scrollbar{display:none}
+.kpi{padding:0 13px;border-right:1px solid var(--line);cursor:pointer;flex:none}
+.kpi:last-child{border-right:none}
+.kpi .k{font-size:9.5px;letter-spacing:.7px;color:var(--mut2);text-transform:uppercase;font-weight:700}
+.kpi .v{font-size:14.5px;font-weight:700;margin-top:1px;white-space:nowrap}
+.kpi .v small{font-size:10px;color:var(--mut2);font-weight:500}
+.up{color:var(--pos)}.down{color:var(--neg)}
+.clockbox{display:flex;align-items:center;gap:9px;flex:none}
+.clock .t{font-size:15px;font-weight:700}.clock .d{font-size:10px;color:var(--mut)}
+.speeds{display:flex;gap:4px}
+.sp{width:30px;height:30px;border-radius:4px;background:#fff;border:1px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.sp.on{background:#151513;color:#fff;border-color:#151513}
+#side{background:#fff;border-right:1px solid var(--line);overflow-y:auto;padding:12px 0 22px}
+.glab{font-size:9.5px;letter-spacing:1.1px;color:var(--mut2);font-weight:700;padding:12px 18px 4px}
+.nav{display:flex;align-items:center;gap:8px;padding:7px 12px;margin:1px 8px;border-radius:8px;font-size:12.5px;color:#3c3c36;cursor:pointer;font-weight:520}
+.nav:hover{background:var(--panel2)}
+.nav.on{background:#151513;color:#fff}
+.nav .badge{margin-left:auto;background:var(--neg);color:#fff;font-size:10px;font-weight:700;border-radius:9px;padding:1px 6px}
+#main{grid-column:2;grid-row:2;overflow-y:auto;padding:20px 22px 60px;min-width:0}
+#scrim{display:none}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:3px double var(--line2);padding-bottom:12px;margin-bottom:16px;flex-wrap:wrap}
+.page-head h2{font-size:21px;font-weight:500;font-family:var(--serif)}
+.page-head .desc{color:var(--mut);font-size:12px;margin-top:2px;max-width:640px}
+.cards{display:grid;gap:12px}.cols-2{grid-template-columns:1fr 1fr}.cols-3{grid-template-columns:1fr 1fr 1fr}.cols-4{grid-template-columns:repeat(4,1fr)}
+.card{background:#fff;border:1px solid #e7e6df;border-radius:3px;padding:13px 15px;box-shadow:0 1px 0 rgba(20,20,18,.03),0 1px 3px rgba(20,20,18,.05);min-width:0}
+.card h3{font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px;font-weight:700}
+.stat{font-size:21px;font-weight:600;font-family:var(--serif);letter-spacing:-.01em}
+.delta{font-size:11px;color:var(--mut);margin-top:2px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--panel2)}
+.row:last-child{border-bottom:none}
+.lab{color:var(--mut);font-size:12px}.val{font-weight:600;font-size:12.5px;text-align:right}
+.muted{color:var(--mut)}.sm{font-size:11px}.b{font-weight:700}.gold{color:var(--gold)}
+.pill{font-size:10px;font-weight:700;padding:2px 8px;border-radius:2px;letter-spacing:.3px;border:1px solid currentColor;background:transparent}
+.pill.green{color:var(--pos);background:rgba(30,92,58,.08)}
+.pill.red{color:var(--neg);background:rgba(122,36,48,.08)}
+.pill.gold{color:var(--gold);background:rgba(138,106,30,.08)}
+.pill.blue{color:var(--info);background:rgba(68,80,92,.08)}
+.btn{background:#fff;border:1px solid #c7c7bd;border-radius:2px;color:var(--ink);padding:7px 13px;font-size:12px;font-weight:600}
+.btn:hover{border-color:#151513}
+.btn.primary{background:#151513;border-color:#151513;color:#fff}
+.btn.primary:hover{background:#33332f}
+.btn:disabled{opacity:.4;cursor:default}
+.tag{background:#fff;border:1px solid var(--line2);border-radius:2px;color:#44443f;padding:4px 10px;font-size:11px;font-weight:600}
+.tag.on{background:#151513;border-color:#151513;color:#fff}
+.wrapf{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.notice{background:var(--panel2);border:1px solid var(--line2);border-radius:3px;padding:9px 12px;font-size:12px;color:#3c3c36;margin:8px 0}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px}
+thead th{border-bottom:1.5px solid #d9d8d0;color:#5c5c55;font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;text-align:left;padding:6px 8px;font-weight:700}
+tbody td{padding:6px 8px;border-bottom:1px solid var(--panel2)}
+tbody tr:hover{background:#faf9f5}
+input,select{background:#fff;border:1px solid var(--line2);color:var(--ink);border-radius:2px;padding:5px 8px;font-size:12px;font-family:inherit}
+.shopitem{display:flex;align-items:center;gap:10px;border:1px solid #e7e6df;border-radius:3px;padding:10px 12px;margin-bottom:8px}
+.shopitem:hover{border-color:#c9c7bc}
+.si-ic{font-size:20px;flex:none}.si-b{flex:1;min-width:0}
+.si-t{font-weight:700;font-size:12.5px}.si-d{font-size:11px;color:var(--mut);margin-top:1px}
+.barwrap{background:var(--panel2);border-radius:3px;height:7px;overflow:hidden;flex:1;min-width:60px}
+.bar{height:100%;border-radius:3px}
+#toasts{position:fixed;right:16px;bottom:16px;z-index:400;display:flex;flex-direction:column;gap:7px}
+.toast{background:#fff;border:1px solid var(--line2);border-left:3px solid var(--gold);border-radius:3px;padding:9px 13px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.08);max-width:320px}
+.toast.pos{border-left-color:var(--pos)}.toast.neg{border-left-color:var(--neg)}.toast.warn{border-left-color:var(--warn)}
+#modal{display:none;position:fixed;inset:0;background:rgba(20,20,18,.35);z-index:300;align-items:center;justify-content:center;padding:18px}
+#mbox{background:#fff;border-radius:4px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;padding:18px}
+.mhead{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.mic{width:38px;height:38px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:19px;background:var(--panel2)}
+.mhead h3{font-size:15px}.ms{font-size:11px;color:var(--mut)}
+.fitem{display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px solid var(--panel2);font-size:11.5px}
+.fitem .dot{width:6px;height:6px;border-radius:50%;flex:none;position:relative;top:-1px}
+.fitem .txt{flex:1}.fitem .ft{color:var(--mut2);font-size:10px;flex:none}
+/* cameras */
+.camfeed{background:#fff;border:1px solid var(--line);margin-bottom:12px}
+.camhead{display:flex;align-items:center;gap:12px;padding:7px 12px;border-bottom:1px solid var(--line);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px;letter-spacing:.8px;color:var(--mut)}
+.camtitle{font-weight:700;color:var(--ink)}
+.camtime{margin-left:auto}
+.camlive{display:inline-flex;align-items:center;gap:5px;color:var(--pos);font-weight:700}
+.camlive i{width:7px;height:7px;border-radius:50%;background:var(--pos);display:inline-block;animation:camblink 2.2s infinite}
+@keyframes camblink{0%,100%{opacity:1}50%{opacity:.25}}
+.camview svg{display:block;width:100%;height:auto}
+.cambig .camview svg{max-height:400px}
+.caminfo{display:flex;gap:16px;flex-wrap:wrap;padding:7px 12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--mut)}
+.caminfo b{color:var(--ink)}
+.camlayout{display:grid;grid-template-columns:1.55fr 1fr;gap:12px;align-items:start}
+.camlayout .camfeed{margin-bottom:0}
+.camright{display:flex;flex-direction:column;gap:12px}
+.camsel{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.camsel select{flex:1}
+.camWalk{animation:camdrift var(--dd,8s) ease-in-out infinite alternate}
+@keyframes camdrift{from{transform:translateX(0)}to{transform:translateX(26px)}}
+.camWalk2{animation:camdrift2 var(--dd,10s) ease-in-out infinite alternate}
+@keyframes camdrift2{from{transform:translateX(0)}to{transform:translateX(-22px)}}
+/* wizard + landing */
+#setup{position:fixed;inset:0;background:var(--bg);z-index:200;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:26px 14px}
+.wiz{background:#fff;border:1px solid var(--line);border-radius:4px;max-width:680px;width:100%;padding:26px;margin:auto}
+.wizhead h2{font-family:var(--serif);font-size:24px;font-weight:500}
+.stepdots{display:flex;gap:6px;margin:10px 0 16px}
+.stepdot{width:26px;height:4px;border-radius:2px;background:var(--line2)}
+.stepdot.on{background:#151513}
+.pick{border:1px solid var(--line2);border-radius:3px;padding:10px 12px;cursor:pointer}
+.pick:hover{border-color:#151513}
+.pick.sel{border-color:#151513;background:var(--panel2);outline:1px solid #151513}
+.pick .pt{font-weight:700;font-size:12.5px}.pick .pd{font-size:11px;color:var(--mut);margin-top:2px}
+.grid-c{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.fl{display:block;font-size:11px;font-weight:700;color:var(--mut);letter-spacing:.4px;margin:10px 0 4px;text-transform:uppercase}
+#landing{position:fixed;inset:0;background:#141410;z-index:250;display:flex;align-items:center;justify-content:center;padding:20px}
+.plate{border:1px solid #3a3a30;outline:1px solid #3a3a30;outline-offset:6px;max-width:520px;width:100%;text-align:center;padding:52px 34px;color:#e8e6da}
+.plate .k{font-size:11px;letter-spacing:4px;color:#9a9782}
+.plate h1{font-family:var(--serif);font-size:52px;font-weight:500;letter-spacing:6px;margin:12px 0 4px}
+.plate .rule{width:60px;height:2px;background:#8a6a1e;margin:14px auto}
+.plate .sub{font-size:13px;color:#cfccba}
+.plate .d{font-size:11px;color:#8a8874;max-width:360px;margin:10px auto 30px;line-height:1.6}
+@media(max-width:980px){
+  #app{display:block!important;height:auto!important;min-height:100vh}
+  html,body{overflow:auto!important;height:auto!important}
+  #topbar{position:sticky;top:0;z-index:40;flex-wrap:wrap;height:auto!important;padding:8px 10px;gap:6px 8px}
+  .kpis{flex:1 1 100%;order:10;padding:2px 0 4px}
+  #side{position:fixed;left:0;top:0;bottom:0;width:78vw;max-width:270px;z-index:60;transform:translateX(-100%);transition:transform .25s;padding-top:14px}
+  #app.navopen #side{transform:none}
+  #scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:55;display:none}
+  #app.navopen #scrim{display:block}
+  #main{padding:12px 12px 80px}
+  .cols-2,.cols-3,.cols-4{grid-template-columns:1fr!important}
+  .camlayout{grid-template-columns:1fr}
+  table{min-width:480px}
+  #hamb{display:flex!important}
+  .page-head{flex-direction:column}
+}
+#hamb{display:none;width:34px;height:34px;border-radius:6px;background:#fff;border:1px solid var(--line2);align-items:center;justify-content:center;font-size:15px;flex:none}
+</style>
+</head>
+<body>
+<div id="landing">
+  <div class="plate">
+    <div class="k">THE KITCHEN LEDGER</div>
+    <h1>RASOI</h1>
+    <div class="rule"></div>
+    <div class="sub">A Restaurant Operations Simulation</div>
+    <div class="d">An empty dining room, a cold kitchen, and a city full of appetites. Menus, margins, morale — every cover is yours to win.</div>
+    <button onclick="landStart()" style="padding:12px 32px;border:1px solid #a67c34;border-radius:3px;background:#c99a4b;color:#241a08;font-weight:700;font-size:13px;letter-spacing:.08em;cursor:pointer">FIRE THE FIRST ORDER</button>
+    <span id="contBtn"></span>
+    <div style="margin-top:26px;font-size:10px;letter-spacing:2px;color:#6a6858">OFFLINE · SINGLE FILE · SAVES TO THIS DEVICE</div>
+  </div>
+</div>
+<div id="setup" style="display:none"><div class="wiz">
+  <div class="wizhead"><h2 id="wizTitle">Found your restaurant</h2></div>
+  <div class="stepdots"><div class="stepdot on" data-s="0"></div><div class="stepdot" data-s="1"></div><div class="stepdot" data-s="2"></div><div class="stepdot" data-s="3"></div></div>
+  <div id="wizbody"></div>
+  <div style="display:flex;gap:8px;justify-content:space-between;margin-top:18px">
+    <button class="btn" id="wizBack">Back</button>
+    <button class="btn primary" id="wizNext">Continue</button>
+  </div>
+</div></div>
+<div id="app">
+  <div id="topbar">
+    <button id="hamb" onclick="document.getElementById('app').classList.toggle('navopen')">☰</button>
+    <div class="tb-logo"><div class="logo">Rs</div><div><b>RASOI</b><div class="tb-prop" id="tbProp">—</div></div></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="clockbox">
+      <div class="clock"><div class="t" id="clkT">07:00</div><div class="d" id="clkD">Day 1</div></div>
+      <div class="speeds">
+        <button class="sp" id="spP" title="Pause">❚❚</button>
+        <button class="sp on" data-sp="1">1×</button><button class="sp" data-sp="2">2×</button>
+        <button class="sp" data-sp="4">4×</button><button class="sp" data-sp="8">8×</button>
+      </div>
+    </div>
+  </div>
+  <div id="side"></div>
+  <div id="scrim" onclick="document.getElementById('app').classList.remove('navopen')"></div>
+  <div id="main"></div>
+</div>
+<div id="toasts"></div>
+<div id="modal"><div id="mbox"></div></div>
+<script>
+/* =======================================================================
+   RASOI — Restaurant Operations Simulator
+   Built on the AATITHYA framework: same state architecture, tick loop,
+   silhouette-minimal UI, CCTV engine, manager delegation and financial
+   discipline — every mechanic redesigned for the restaurant business.
+   ======================================================================= */
+
+/* ---------------- helpers ---------------- */
+const $=(s,r)=>(r||document).querySelector(s);
+const $$=(s,r)=>Array.from((r||document).querySelectorAll(s));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const ri=(a,b)=>Math.floor(rnd(a,b+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const cr=n=>{n=Math.round(n);const a=Math.abs(n),s='₹';
+  if(a>=1e7)return s+(n/1e7).toFixed(2)+' Cr';
+  if(a>=1e5)return s+(n/1e5).toFixed(2)+' L';
+  return s+n.toLocaleString('en-IN');};
+const cr0=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+function hash32(s){let h=9;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),387420489);return h>>>0;}
+function srng(seed){let a=seed>>>0;return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function barInline(p,c){return `<span class="barwrap" style="display:inline-block;vertical-align:middle;width:70px"><span class="bar" style="width:${clamp(p,0,100)}%;background:${c||'#8a6a1e'}"></span></span>`;}
+function barH(p,c){return `<div class="barwrap" style="margin-top:6px"><div class="bar" style="width:${clamp(p,0,100)}%;background:${c||'#8a6a1e'}"></div></div>`;}
+function row(l,v){return `<div class="row"><span class="lab">${l}</span><span class="val">${v}</span></div>`;}
+function ovCard(t,v,sub,bar){return `<div class="card"><h3>${t}</h3><div class="stat">${v}</div><div class="delta">${sub||''}</div>${bar||''}</div>`;}
+function toast(msg,cls){const t=document.createElement('div');t.className='toast '+(cls||'');t.textContent=msg;$('#toasts').appendChild(t);setTimeout(()=>t.remove(),4200);}
+function moodPill(s){return s>=75?'<span class="pill green">'+Math.round(s)+'</span>':s>=50?'<span class="pill gold">'+Math.round(s)+'</span>':'<span class="pill red">'+Math.round(s)+'</span>';}
+
+/* ---------------- DATA: concepts ---------------- */
+const CONCEPTS={
+ fine:   {name:'Fine Dining',ic:'🥂',cost:9000000, ticket:2.6,seats:36,kitchen:3,hours:[12,23],take:.04,del:.02,amb:3,staffM:1.6,d:'White tablecloths and tasting menus. Small covers, huge tickets, zero tolerance for error.'},
+ cafe:   {name:'Premium Café',ic:'☕',cost:3500000, ticket:.9, seats:34,kitchen:1,hours:[8,22], take:.22,del:.14,amb:2,staffM:1.0,d:'Specialty coffee, all-day plates, laptop crowd. Ambience is the product.'},
+ casual: {name:'Casual Dining',ic:'🍽️',cost:5000000,ticket:1.3,seats:52,kitchen:2,hours:[11,23],take:.14,del:.18,amb:2,staffM:1.2,d:'The dependable neighbourhood favourite. Volume with comfort.'},
+ fast:   {name:'Fast Food',ic:'🍔',cost:4200000, ticket:.55,seats:44,kitchen:1,hours:[10,23],take:.38,del:.26,amb:1,staffM:1.0,d:'Speed is the brand. Thin margins, big throughput, ruthless efficiency.'},
+ family: {name:'Family Restaurant',ic:'👨‍👩‍👧',cost:5600000,ticket:1.15,seats:64,kitchen:2,hours:[11,23],take:.12,del:.14,amb:2,staffM:1.25,d:'Big tables, birthday cakes, Sunday rushes that test the kitchen.'},
+ qsr:    {name:'QSR Counter',ic:'🥡',cost:2600000, ticket:.45,seats:18,kitchen:1,hours:[10,23],take:.55,del:.30,amb:1,staffM:.8,d:'Order at the counter, out in minutes. Real estate efficiency perfected.'},
+ drive:  {name:'Drive-Thru',ic:'🚗',cost:6500000, ticket:.6, seats:22,kitchen:2,hours:[7,24], take:.62,del:.16,amb:1,staffM:1.1,d:'Cars, headsets and 90-second service windows. Location is everything.'},
+ bakery: {name:'Bakery',ic:'🥐',cost:2900000, ticket:.5, seats:14,kitchen:2,hours:[7,21], take:.58,del:.12,amb:2,staffM:.9,d:'Ovens on at 4 AM. Fresh trays sell out or get written off.'},
+ dessert:{name:'Dessert Café',ic:'🍰',cost:3100000, ticket:.6, seats:26,kitchen:1,hours:[11,24],take:.30,del:.22,amb:2,staffM:.9,d:'Evenings and weekends. Instagram does half your marketing.'},
+ cloud:  {name:'Cloud Kitchen',ic:'📦',cost:1800000, ticket:.8, seats:0, kitchen:2,hours:[10,24],take:.15,del:.85,amb:0,staffM:.7,d:'No dining room, no décor — just a kitchen and the delivery apps. Pure margin play.'},
+ pizza:  {name:'Pizzeria',ic:'🍕',cost:3800000, ticket:.95,seats:38,kitchen:2,hours:[11,24],take:.28,del:.34,amb:2,staffM:1.0,d:'Dough, fire and speed. Delivery-heavy with a loyal dine-in core.'},
+ south:  {name:'South Indian',ic:'🥞',cost:3200000, ticket:.5, seats:48,kitchen:2,hours:[7,22], take:.24,del:.16,amb:1,staffM:1.1,d:'Breakfast is the battlefield. Dosas at dawn, filter coffee by the litre.'}
+};
+const CONCEPT_ORDER=['fine','cafe','casual','fast','family','qsr','drive','bakery','dessert','cloud','pizza','south'];
+const CUISINES=['North Indian','South Indian','Multi-Cuisine','Italian','Pan-Asian','Continental','Bakery & Café','American'];
+/* ---------------- DATA: cities & localities ---------------- */
+const CITIES=[
+ {name:'Mumbai',tier:1,foot:1.35,rent:1.6,spend:1.30},
+ {name:'Delhi NCR',tier:1,foot:1.30,rent:1.4,spend:1.25},
+ {name:'Bengaluru',tier:1,foot:1.28,rent:1.35,spend:1.28},
+ {name:'Hyderabad',tier:1,foot:1.15,rent:1.1,spend:1.12},
+ {name:'Pune',tier:2,foot:1.05,rent:.95,spend:1.05},
+ {name:'Chennai',tier:1,foot:1.12,rent:1.05,spend:1.08},
+ {name:'Jaipur',tier:2,foot:.92,rent:.8,spend:.92},
+ {name:'Kochi',tier:2,foot:.88,rent:.78,spend:.95}];
+const LOCALITIES=[
+ {name:'High Street',foot:1.35,rent:1.5,mix:'balanced'},
+ {name:'Mall Food Zone',foot:1.5,rent:1.7,mix:'family'},
+ {name:'Office District',foot:1.2,rent:1.25,mix:'office'},
+ {name:'University Zone',foot:1.15,rent:.9,mix:'student'},
+ {name:'Residential Colony',foot:.85,rent:.75,mix:'family'},
+ {name:'Transit Hub',foot:1.3,rent:1.2,mix:'transit'},
+ {name:'Old City Lanes',foot:1.0,rent:.7,mix:'tourist'}];
+/* ---------------- DATA: customer archetypes ---------------- */
+const ARCHE={
+ student:{name:'Students',ic:'🎒',budget:.55,patience:14,grp:[2,4],tip:0,rev:.14,loyal:.22},
+ office: {name:'Office Crowd',ic:'💼',budget:1.0,patience:9, grp:[1,3],tip:.02,rev:.12,loyal:.30},
+ family: {name:'Families',ic:'👨‍👩‍👧',budget:1.15,patience:16,grp:[3,6],tip:.03,rev:.18,loyal:.26},
+ couple: {name:'Couples',ic:'💑',budget:1.25,patience:13,grp:[2,2],tip:.05,rev:.22,loyal:.20},
+ biz:    {name:'Business Meets',ic:'🤝',budget:1.7,patience:10,grp:[2,4],tip:.06,rev:.10,loyal:.18},
+ tourist:{name:'Tourists',ic:'📷',budget:1.2,patience:15,grp:[2,5],tip:.04,rev:.28,loyal:.04},
+ night:  {name:'Late-Night',ic:'🌙',budget:.9,patience:18,grp:[2,4],tip:.03,rev:.10,loyal:.16}};
+const ARCH_ORDER=Object.keys(ARCHE);
+/* hourly demand curves (share of daily walk-in demand per hour, by mix) */
+function hourCurve(mix,h){
+  const base={7:.02,8:.04,9:.04,10:.03,11:.05,12:.10,13:.12,14:.08,15:.04,16:.04,17:.05,18:.06,19:.09,20:.11,21:.08,22:.04,23:.02,0:.01}[h]||0;
+  let m=1;
+  if(mix==='office'&&(h===12||h===13))m=1.5; if(mix==='office'&&h>=20)m=.6;
+  if(mix==='student'&&(h>=16&&h<=19))m=1.4;
+  if(mix==='family'&&(h>=19&&h<=21))m=1.35; if(mix==='family'&&h>=22)m=.5;
+  if(mix==='transit'&&(h>=8&&h<=10))m=1.5;
+  if(mix==='tourist'&&(h>=12&&h<=16))m=1.3;
+  return base*m;
+}
+function archeAt(mix,h){
+  const w={student:.8,office:1,family:1,couple:.8,biz:.5,tourist:.6,night:.2};
+  if(mix==='office'){w.office=2.4;w.biz=1.4;}
+  if(mix==='student'){w.student=2.8;w.couple=1.1;}
+  if(mix==='family'){w.family=2.4;}
+  if(mix==='tourist'){w.tourist=2.6;}
+  if(mix==='transit'){w.office=1.6;w.tourist=1.4;}
+  if(h>=22||h<2){w.night=2.5;w.family=.2;w.office=.3;}
+  if(h>=12&&h<=14){w.office*=1.5;}
+  if(h>=19&&h<=21){w.family*=1.4;w.couple*=1.5;}
+  let tot=0;for(const k in w)tot+=w[k];
+  let r=Math.random()*tot;
+  for(const k in w){r-=w[k];if(r<=0)return k;}
+  return 'couple';
+}
+/* ---------------- DATA: ingredients (spoilage, storage) ---------------- */
+const ING={
+ veg:    {name:'Vegetables & Produce',unit:'kg', cost:60,  shelf:3, store:'cold',cat:'Produce'},
+ meat:   {name:'Meat & Poultry',      unit:'kg', cost:280, shelf:3, store:'cold',cat:'Meat & Seafood'},
+ seafood:{name:'Seafood',             unit:'kg', cost:420, shelf:2, store:'cold',cat:'Meat & Seafood'},
+ dairy:  {name:'Dairy & Paneer',      unit:'kg', cost:120, shelf:4, store:'cold',cat:'Dairy & Bakery'},
+ flour:  {name:'Flour & Grains',      unit:'kg', cost:45,  shelf:30,store:'dry', cat:'Dairy & Bakery'},
+ coffee: {name:'Coffee Beans',        unit:'kg', cost:900, shelf:45,store:'dry', cat:'Beverages & Coffee'},
+ tea:    {name:'Tea & Infusions',     unit:'kg', cost:500, shelf:60,store:'dry', cat:'Beverages & Coffee'},
+ bev:    {name:'Beverages & Syrups',  unit:'ltr',cost:90,  shelf:60,store:'dry', cat:'Beverages & Coffee'},
+ spice:  {name:'Spices & Oils',       unit:'kg', cost:350, shelf:60,store:'dry', cat:'Produce'},
+ choc:   {name:'Chocolate & Sugar',   unit:'kg', cost:240, shelf:45,store:'dry', cat:'Dairy & Bakery'},
+ pack:   {name:'Packaging',           unit:'pc', cost:14,  shelf:999,store:'dry',cat:'Packaging & Cleaning'},
+ clean:  {name:'Cleaning Supplies',   unit:'pc', cost:55,  shelf:999,store:'dry',cat:'Packaging & Cleaning'},
+ gas:    {name:'Cooking Gas',         unit:'kg', cost:95,  shelf:999,store:'dry',cat:'Gas & Equipment'}};
+const ING_ORDER=Object.keys(ING);
+const SUP_CATS=['Produce','Meat & Seafood','Dairy & Bakery','Beverages & Coffee','Packaging & Cleaning','Gas & Equipment'];
+/* ---------------- DATA: menu library ---------------- */
+/* rec: ingredient units consumed per plate; prep: kitchen-minutes; st: station */
+const DISH_LIB={
+ // starters & snacks
+ samosa:   {name:'Samosa Platter',cat:'Starters',cui:['North Indian','Multi-Cuisine'],st:'fryer', price:120, rec:{veg:.08,flour:.05,spice:.01},prep:6, appeal:{student:1.5,family:1.2}},
+ paneer:   {name:'Paneer Tikka',cat:'Starters',cui:['North Indian','Multi-Cuisine'],st:'grill', price:280, rec:{dairy:.18,veg:.06,spice:.02},prep:12,appeal:{family:1.3,couple:1.2}},
+ wings:    {name:'Chilli Chicken Wings',cat:'Starters',cui:['Pan-Asian','American','Multi-Cuisine'],st:'fryer',price:320,rec:{meat:.22,spice:.02},prep:11,appeal:{student:1.3,night:1.5}},
+ fries:    {name:'Loaded Fries',cat:'Starters',cui:['American','Multi-Cuisine'],st:'fryer',price:180,rec:{veg:.2,dairy:.04},prep:7,appeal:{student:1.7}},
+ soup:     {name:'Soup of the Day',cat:'Starters',cui:['Continental','Pan-Asian','Multi-Cuisine'],st:'wok',price:190,rec:{veg:.12,dairy:.03},prep:8,appeal:{biz:1.3}},
+ // mains
+ butterchk:{name:'Butter Chicken',cat:'Mains',cui:['North Indian','Multi-Cuisine'],st:'wok',price:420,rec:{meat:.25,dairy:.08,spice:.03},prep:16,appeal:{family:1.4,tourist:1.5}},
+ dalmakh:  {name:'Dal Makhani',cat:'Mains',cui:['North Indian','Multi-Cuisine'],st:'wok',price:280,rec:{veg:.05,dairy:.09,spice:.02},prep:12,appeal:{family:1.3}},
+ biryani:  {name:'Dum Biryani',cat:'Mains',cui:['North Indian','Multi-Cuisine'],st:'oven',price:380,rec:{meat:.2,flour:.12,spice:.04},prep:18,appeal:{student:1.3,family:1.4,office:1.3}},
+ thali:    {name:'Grand Thali',cat:'Mains',cui:['North Indian','South Indian','Multi-Cuisine'],st:'wok',price:340,rec:{veg:.18,dairy:.06,flour:.1,spice:.03},prep:14,appeal:{family:1.6,tourist:1.3}},
+ dosa:     {name:'Masala Dosa',cat:'Mains',cui:['South Indian','Multi-Cuisine'],st:'grill',price:160,rec:{flour:.12,veg:.08,spice:.01},prep:9,appeal:{student:1.4,office:1.3,tourist:1.2}},
+ idli:     {name:'Idli-Vada Set',cat:'Mains',cui:['South Indian'],st:'grill',price:120,rec:{flour:.1,spice:.01},prep:7,appeal:{office:1.4}},
+ pasta:    {name:'Alfredo Pasta',cat:'Mains',cui:['Italian','Continental','Multi-Cuisine'],st:'wok',price:360,rec:{flour:.14,dairy:.1,veg:.05},prep:13,appeal:{couple:1.4,student:1.2}},
+ margh:    {name:'Margherita Pizza',cat:'Mains',cui:['Italian','Multi-Cuisine'],st:'oven',price:340,rec:{flour:.2,dairy:.12,veg:.05},prep:14,appeal:{student:1.4,couple:1.3,family:1.3}},
+ pepper:   {name:'Pepperoni Pizza',cat:'Mains',cui:['Italian','American','Multi-Cuisine'],st:'oven',price:420,rec:{flour:.2,dairy:.1,meat:.12},prep:15,appeal:{night:1.5,student:1.3}},
+ burger:   {name:'Classic Smash Burger',cat:'Mains',cui:['American','Multi-Cuisine'],st:'grill',price:260,rec:{meat:.16,flour:.08,veg:.05,dairy:.03},prep:9,appeal:{student:1.5,office:1.2,night:1.4}},
+ vburger:  {name:'Veggie Burger',cat:'Mains',cui:['American','Multi-Cuisine'],st:'grill',price:200,rec:{veg:.14,flour:.08,dairy:.03},prep:8,appeal:{student:1.3}},
+ noodles:  {name:'Hakka Noodles',cat:'Mains',cui:['Pan-Asian','Multi-Cuisine'],st:'wok',price:240,rec:{flour:.12,veg:.1},prep:10,appeal:{student:1.4,night:1.3}},
+ thaicurry:{name:'Thai Green Curry',cat:'Mains',cui:['Pan-Asian'],st:'wok',price:380,rec:{veg:.14,dairy:.05,spice:.03},prep:14,appeal:{couple:1.4,biz:1.2}},
+ grillfish:{name:'Grilled Fish',cat:'Mains',cui:['Continental','Multi-Cuisine'],st:'grill',price:520,rec:{seafood:.24,veg:.06},prep:16,appeal:{biz:1.5,couple:1.3}},
+ steak:    {name:'Pepper Steak',cat:'Mains',cui:['Continental','American'],st:'grill',price:640,rec:{meat:.3,veg:.08,dairy:.03},prep:18,appeal:{biz:1.7,couple:1.4}},
+ // bakery & desserts
+ croiss:   {name:'Butter Croissant',cat:'Bakery',cui:['Bakery & Café','Continental'],st:'oven',price:140,rec:{flour:.08,dairy:.06},prep:5,appeal:{office:1.4,couple:1.2}},
+ sourdough:{name:'Sourdough Loaf',cat:'Bakery',cui:['Bakery & Café'],st:'oven',price:220,rec:{flour:.3},prep:8,appeal:{family:1.2}},
+ brownie:  {name:'Fudge Brownie',cat:'Desserts',cui:['Bakery & Café','American','Multi-Cuisine','Continental'],st:'dessert',price:180,rec:{choc:.09,flour:.05,dairy:.04},prep:6,appeal:{student:1.4,couple:1.4}},
+ cheesecake:{name:'Baked Cheesecake',cat:'Desserts',cui:['Bakery & Café','Continental','Multi-Cuisine'],st:'dessert',price:260,rec:{dairy:.14,choc:.03,flour:.03},prep:7,appeal:{couple:1.6}},
+ gulab:    {name:'Gulab Jamun',cat:'Desserts',cui:['North Indian','South Indian','Multi-Cuisine'],st:'dessert',price:120,rec:{dairy:.08,choc:.02},prep:5,appeal:{family:1.5}},
+ sundae:   {name:'Sundae Tower',cat:'Desserts',cui:['American','Multi-Cuisine'],st:'dessert',price:220,rec:{dairy:.1,choc:.08},prep:6,appeal:{student:1.6,family:1.4}},
+ // coffee & beverages
+ espresso: {name:'Espresso',cat:'Coffee',cui:['Bakery & Café','Italian','Continental','Multi-Cuisine'],st:'coffee',price:120,rec:{coffee:.012},prep:3,appeal:{office:1.5,biz:1.3}},
+ cappu:    {name:'Cappuccino',cat:'Coffee',cui:['Bakery & Café','Italian','Continental','Multi-Cuisine'],st:'coffee',price:180,rec:{coffee:.014,dairy:.05},prep:4,appeal:{office:1.5,couple:1.3,student:1.2}},
+ coldbrew: {name:'Cold Brew',cat:'Coffee',cui:['Bakery & Café','Multi-Cuisine'],st:'coffee',price:220,rec:{coffee:.02},prep:3,appeal:{student:1.4,office:1.3}},
+ filter:   {name:'Filter Coffee',cat:'Coffee',cui:['South Indian'],st:'coffee',price:60,rec:{coffee:.01,dairy:.03},prep:3,appeal:{office:1.6,family:1.2}},
+ chai:     {name:'Masala Chai',cat:'Coffee',cui:['North Indian','South Indian','Multi-Cuisine','Bakery & Café'],st:'coffee',price:70,rec:{tea:.008,dairy:.04,spice:.005},prep:3,appeal:{student:1.4,office:1.4}},
+ shake:    {name:'Thick Shake',cat:'Beverages',cui:['American','Bakery & Café','Multi-Cuisine'],st:'coffee',price:240,rec:{dairy:.12,choc:.05,bev:.05},prep:5,appeal:{student:1.7,family:1.3}},
+ fresh:    {name:'Fresh Juice',cat:'Beverages',cui:['Multi-Cuisine','Continental','South Indian','Bakery & Café'],st:'coffee',price:140,rec:{veg:.15,bev:.02},prep:4,appeal:{tourist:1.3,family:1.2}},
+ mocktail: {name:'Signature Mocktail',cat:'Beverages',cui:['Multi-Cuisine','Continental','Pan-Asian','Italian','American'],st:'coffee',price:260,rec:{bev:.18},prep:5,appeal:{couple:1.6,night:1.4}}};
+const DISH_ORDER=Object.keys(DISH_LIB);
+const STATIONS={prep:{name:'Prep Line',ic:'🔪'},grill:{name:'Grill & Tawa',ic:'🍳'},wok:{name:'Curry & Wok',ic:'🥘'},fryer:{name:'Fryer',ic:'🍟'},oven:{name:'Oven & Bakery',ic:'🔥'},coffee:{name:'Coffee Bar',ic:'☕'},dessert:{name:'Dessert Counter',ic:'🍨'}};
+/* ---------------- DATA: staff roles ---------------- */
+const ROLES={
+ chef:    {name:'Chef',sal:38000,st:['grill','wok','oven'],speed:1.5},
+ linecook:{name:'Line Cook',sal:19000,st:['fryer','prep','grill','wok'],speed:1.0},
+ barista: {name:'Barista',sal:20000,st:['coffee','dessert'],speed:1.2},
+ server:  {name:'Server',sal:16000,st:[],speed:1},
+ cashier: {name:'Cashier',sal:17000,st:[],speed:1},
+ cleaner: {name:'Steward / Dishwash',sal:13500,st:[],speed:1},
+ delivery:{name:'Delivery Coordinator',sal:18000,st:[],speed:1},
+ manager: {name:'Restaurant Manager',sal:55000,st:[],speed:1}};
+const ROLE_ORDER=Object.keys(ROLES);
+const HIRE_TIERS=[{name:'Junior',skill:52,salM:.8},{name:'Experienced',skill:73,salM:1},{name:'Senior',skill:90,salM:1.35}];
+const FIRST=['Aarav','Vihaan','Advika','Ishaan','Meera','Kabir','Anaya','Rohan','Diya','Arjun','Sara','Dev','Naina','Kunal','Priya','Rahul','Tara','Vivaan','Zoya','Nikhil'];
+const LAST=['Sharma','Patel','Reddy','Iyer','Khan','Das','Nair','Kulkarni','Bose','Mehta','Fernandes','Kapoor','Joshi','Rao','Chopra'];
+const rname=()=>pick(FIRST)+' '+pick(LAST);
+let staffSeq=1;
+function mkStaff(role,tier){const t=HIRE_TIERS[tier==null?1:tier];
+  return {id:staffSeq++,role,name:rname(),tier:tier==null?1:tier,skill:clamp(t.skill+ri(-6,6),30,98),
+    speed:+(rnd(.85,1.15)).toFixed(2),friendly:ri(45,95),fatigue:0,morale:ri(62,80),
+    sal:Math.round(ROLES[role].sal*t.salM/500)*500};}
+/* ---------------- DATA: suppliers ---------------- */
+const SUP_N1=['Sharma','Metro','Prime','Golden','City','Apex','Crown','Delta','Everest','Falcon','Nila','Orient'];
+const SUP_N2={'Produce':'Farms','Meat & Seafood':'Cold Chain','Dairy & Bakery':'Dairies','Beverages & Coffee':'Roasters','Packaging & Cleaning':'Supplies','Gas & Equipment':'Traders'};
+let supSeq=1;
+function mkSupplier(cat,tilt){
+  const t=tilt||pick(['cheap','fast','quality','reliable','balanced']);
+  const s={id:'s'+(supSeq++),cat,name:pick(SUP_N1)+' '+(SUP_N2[cat]||'Trading'),
+    priceM:+rnd(.88,1.14).toFixed(2),q:+rnd(.88,1.12).toFixed(2),lead:pick([0,0,1,1,2]),
+    rel:+rnd(.86,.985).toFixed(2),credit:pick([0,0,7,15]),bulk:pick([0,5,8,12]),rep:ri(40,70)};
+  if(t==='cheap'){s.priceM=+rnd(.8,.9).toFixed(2);s.q=+rnd(.85,.95).toFixed(2);s.rel=+rnd(.84,.92).toFixed(2);}
+  if(t==='fast'){s.lead=0;s.priceM=+rnd(1.02,1.14).toFixed(2);}
+  if(t==='quality'){s.q=+rnd(1.06,1.16).toFixed(2);s.priceM=+rnd(1.05,1.2).toFixed(2);}
+  if(t==='reliable'){s.rel=+rnd(.96,.99).toFixed(2);s.credit=pick([7,15]);}
+  return s;}
+/* ---------------- DATA: marketing ---------------- */
+const MKT={
+ insta:{name:'Instagram Reels',ic:'📸',cost:120000,days:14,aw:.30,ch:'direct',seg:'student'},
+ google:{name:'Google Ads',ic:'🔍',cost:150000,days:14,aw:.25,ch:'direct'},
+ zomatoAds:{name:'Zomato Ads',ic:'🛵',cost:100000,days:10,aw:.10,ch:'zomato'},
+ swiggyAds:{name:'Swiggy Ads',ic:'🛴',cost:100000,days:10,aw:.10,ch:'swiggy'},
+ influencer:{name:'Food Influencer',ic:'🌟',cost:180000,days:10,aw:.42,seg:'couple'},
+ festival:{name:'Festival Special',ic:'🪔',cost:140000,days:12,aw:.28,seg:'family'},
+ student:{name:'Student Offer',ic:'🎒',cost:70000,days:14,aw:.18,seg:'student'},
+ happy:{name:'Happy Hours',ic:'🕔',cost:60000,days:14,aw:.12,seg:'office'},
+ catering:{name:'Corporate Catering Push',ic:'🏢',cost:160000,days:21,aw:.12,seg:'biz'},
+ loyaltyPush:{name:'Loyalty Campaign',ic:'💳',cost:90000,days:14,aw:.15}};
+const MKT_ORDER=Object.keys(MKT);
+/* ---------------- DATA: delivery channels ---------------- */
+const CHANNELS={
+ walkin:{name:'Walk-in',ic:'🚶',comm:0},
+ swiggy:{name:'Swiggy',ic:'🛴',comm:.25},
+ zomato:{name:'Zomato',ic:'🛵',comm:.24},
+ direct:{name:'Direct Orders',ic:'🌐',comm:.05},
+ phone:{name:'Phone Orders',ic:'📞',comm:0},
+ catering:{name:'Corporate Catering',ic:'🏢',comm:.08}};
+/* ---------------- DATA: expansion areas ---------------- */
+const AREAS={
+ outdoor:{name:'Outdoor Seating',ic:'🌿',cost:450000,days:6,seats:12,d:'12 covers of terrace seating — ambience up, weather-exposed.',amb:.5},
+ privdine:{name:'Private Dining Room',ic:'🚪',cost:900000,days:10,seats:10,d:'A 10-seat private room; unlocks business dinners at premium tickets.',amb:.5},
+ pickup:{name:'Pickup Counter',ic:'🥡',cost:280000,days:4,d:'Dedicated takeaway lane — faster takeaway, less dining-room chaos.'},
+ drivelane:{name:'Drive-Thru Lane',ic:'🚗',cost:1400000,days:14,d:'A second service window for cars. Drive-thru concepts only.',need:'drive'},
+ bakedisp:{name:'Bakery Display',ic:'🥐',cost:320000,days:5,d:'A lit display case — impulse bakery/dessert sales all day.'},
+ coldstore:{name:'Walk-in Cold Store',ic:'❄️',cost:520000,days:6,d:'Doubles cold-storage capacity; perishables last longer at scale.'},
+ staffroom:{name:'Staff Room',ic:'🛋️',cost:260000,days:4,d:'A break room — fatigue recovers faster, morale climbs.'},
+ decor:{name:'Interior Refresh',ic:'🖼️',cost:600000,days:8,d:'A design overhaul — ambience +1 tier, reviews notice.',amb:1}};
+const AREA_ORDER=Object.keys(AREAS);
+const LOAN_PRODUCTS=[
+ {n:'Working Capital',mult:.4,rate:.14,mo:12},
+ {n:'Equipment Finance',mult:.8,rate:.115,mo:24},
+ {n:'Expansion Loan',mult:1.5,rate:.10,mo:48},
+ {n:'Term Loan',mult:2.4,rate:.09,mo:72},
+ {n:'Bridge Facility',mult:.6,rate:.17,mo:9}];
+function loanEMI(amt,rate,mo){const r=rate/12;return Math.round(amt*r/(1-Math.pow(1+r,-mo)));}
+const NAME_A=['Amber','Saffron','Cardamom','Copper','Ember','Clove','Basil','Tamarind','Juniper','Charcoal','Butter','Honey','Pepper','Cinnamon','Marigold'];
+const NAME_B=['Kitchen','Table','House','Bistro','Diner','Eatery','Canteen','Pantry','Oven','Skillet','Court','Bazaar','& Co.','Room','Works'];
+const genRestName=()=>pick(NAME_A)+' '+pick(NAME_B);
+/* ============================ STATE & SETUP ============================ */
+const DIFFS={
+ easy:  {name:'Homestyle',costM:.9, demM:1.18,cashM:1.3,d:'Forgiving costs, hungry crowds. Learn the trade.'},
+ normal:{name:'Seasoned', costM:1,  demM:1,   cashM:1,  d:'The real numbers of the restaurant business.'},
+ hard:  {name:'Cutthroat',costM:1.12,demM:.86,cashM:.75,d:'Thin margins, fickle diners, brutal rent. Survive.'}};
+let G=null;
+const R=()=>G.outlets[G.cur];
+const DX=()=>DIFFS[G.diff]||DIFFS.normal;
+const DOW=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const dow=()=>((G.day-1)%7);
+const isWknd=()=>dow()>=5;
+const dayLabel=()=>'Day '+G.day+' · '+DOW[dow()];
+
+function mkTables(seats){
+  const t=[];let left=seats,id=1;
+  while(left>0){const cap=left>=6&&Math.random()<.25?6:left>=4&&Math.random()<.6?4:2;
+    t.push({id:id++,cap:Math.min(cap,Math.max(2,left)),state:'free',party:null});left-=cap;}
+  return t;
+}
+function menuPriceM(o){const c=CONCEPTS[o.concept];
+  let m=clamp(.72+c.ticket*.42,.8,2.2);
+  if(o.style==='premium')m*=1.12; if(o.style==='value')m*=.9;
+  return m;}
+function dishFits(o,k){const d=DISH_LIB[k];return d.cui.includes(o.cuisine);}
+function mkMenuItem(o,k){const d=DISH_LIB[k];
+  return {k,price:Math.round(d.price*menuPriceM(o)/10)*10,active:false,special:false,
+    sold:0,rev:0,icost:0,waste:0,ratS:0,ratN:0,since:G?G.day:1};}
+function ingCostPlate(k,o){const d=DISH_LIB[k];let c=0;
+  for(const g in d.rec)c+=ING[g].cost*d.rec[g];
+  if(o&&o.perks&&o.perks.central)c*=.88;
+  return c;}
+function starterStaff(o){
+  const c=CONCEPTS[o.concept],st={};ROLE_ORDER.forEach(r=>st[r]=[]);
+  st.chef.push(mkStaff('chef',1));
+  for(let i=0;i<c.kitchen;i++)st.linecook.push(mkStaff('linecook',i?0:1));
+  const hasCoffee=o.menu.some(m=>m.active&&['coffee','dessert'].includes(DISH_LIB[m.k].st));
+  if(hasCoffee)st.barista.push(mkStaff('barista',1));
+  const srv=Math.max(1,Math.ceil(o.seats/18));
+  for(let i=0;i<srv;i++)st.server.push(mkStaff('server',i?0:1));
+  st.cashier.push(mkStaff('cashier',0));
+  st.cleaner.push(mkStaff('cleaner',0));
+  if(c.del>=.2)st.delivery.push(mkStaff('delivery',0));
+  Object.values(st).flat().forEach(s=>s.sh=Math.random()<.5?'A':'B');
+  // both shifts need line coverage for tiny teams: default everyone full-day at start
+  Object.values(st).flat().forEach(s=>s.sh='F');
+  return st;}
+function newOutlet(opts){
+  const c=CONCEPTS[opts.concept];
+  const o={id:'o'+(G?G.outlets.length+1:1),name:opts.name,concept:opts.concept,cuisine:opts.cuisine,
+    cityI:opts.cityI,locI:opts.locI,style:opts.style||'balanced',
+    seats:c.seats,tables:mkTables(c.seats),areas:[],projects:[],
+    menu:[],combos:[],inv:{},pending:[],suppliers:{},market:[],parLevel:{},autoPar:true,
+    staff:null,mgr:{kitchen:false,procure:false,marketing:false,hiring:false,pricing:false,menu:false,schedule:false},
+    channels:{walkin:{on:true,pop:1},swiggy:{on:false,pop:.35},zomato:{on:false,pop:.35},direct:{on:true,pop:.15},phone:{on:true,pop:.1},catering:{on:false,pop:.05}},
+    campaigns:[],awareness:18,reputation:45,rating:3.6,ratS:0,ratN:0,
+    clean:92,hygiene:88,equip:92,amb:c.amb+(opts.invest===2?.5:opts.invest===0?-.4:0),
+    parties:[],kq:[],waiting:[],resv:[],waitLost:0,walkouts:0,
+    revToday:0,expToday:0,coversToday:0,ordersToday:0,wasteToday:0,tipsToday:0,
+    chToday:{},analytics:[],reviews:[],events:[],
+    salBill:0,rentMo:0,openedDay:G?G.day:1,perks:{},insp:{last:0,score:null},
+    caps:{cold:60,dry:220}};
+  const city=CITIES[o.cityI],loc=LOCALITIES[o.locI];
+  o.rentMo=Math.round(c.cost*.028*city.rent*loc.rent/1000)*1000;
+  // menu: all cuisine-fit dishes exist; activate a starter card
+  DISH_ORDER.filter(k=>dishFits(o,k)).forEach(k=>o.menu.push(mkMenuItem(o,k)));
+  o.menu.slice(0,Math.min(9,o.menu.length)).forEach(m=>m.active=true);
+  // ensure at least one beverage active
+  const bev=o.menu.find(m=>['Coffee','Beverages'].includes(DISH_LIB[m.k].cat));
+  if(bev)bev.active=true;
+  o.staff=starterStaff(o);
+  Object.values(o.staff).flat().forEach(s=>o.salBill+=s.sal);
+  // supplier marketplace: 3 per category
+  SUP_CATS.forEach(cat=>{['balanced','cheap','quality'].forEach(t=>o.market.push(mkSupplier(cat,t)));});
+  SUP_CATS.forEach(cat=>{o.suppliers[cat]=o.market.find(s=>s.cat===cat).id;});
+  // starter inventory: ~3 days of expected usage on active dishes
+  ING_ORDER.forEach(k=>{o.inv[k]=[];});
+  activeIngUse(o,true);
+  return o;
+}
+function activeIngUse(o,seed){
+  // expected daily usage per ingredient from active menu; optionally seed stock
+  const use={};ING_ORDER.forEach(k=>use[k]=0);
+  const covers=(o.seats||30)*2.6;
+  const act=o.menu.filter(m=>m.active);
+  act.forEach(m=>{const d=DISH_LIB[m.k];const share=covers*1.8/Math.max(1,act.length);
+    for(const g in d.rec)use[g]+=d.rec[g]*share;});
+  use.pack+= covers*(CONCEPTS[o.concept].take+CONCEPTS[o.concept].del)*1.2;
+  use.clean+=2.5;use.gas+=covers*.045;
+  if(seed){ING_ORDER.forEach(k=>{if(use[k]>0.01){const q=Math.ceil(use[k]*3);
+    o.inv[k].push({q,exp:(G?G.day:1)+ING[k].shelf});}});}
+  o._use=use;return use;
+}
+function invQty(o,k){return (o.inv[k]||[]).reduce((a,b)=>a+b.q,0);}
+function consume(o,k,q){let need=q;const arr=o.inv[k]||[];
+  while(need>0&&arr.length){const b=arr[0];const t=Math.min(b.q,need);b.q-=t;need-=t;if(b.q<=0.0005)arr.shift();}
+  return q-need;}
+function canCook(o,k){const d=DISH_LIB[k];
+  for(const g in d.rec)if(invQty(o,g)<d.rec[g])return false;
+  return true;}
+function isOpen(o,h){const [a,b]=CONCEPTS[o.concept].hours;return b>=24?(h>=a||h<b-24):(h>=a&&h<b);}
+function openHours(o){const [a,b]=CONCEPTS[o.concept].hours;return b-a;}
+
+/* ---------------- game creation ---------------- */
+const wiz={step:0,name:'',cuisine:'Multi-Cuisine',concept:'cafe',cityI:0,locI:0,diff:'normal',invest:1,style:'balanced'};
+function startGame(){
+  const c=CONCEPTS[wiz.concept];
+  const investM=[.85,1,1.35][wiz.invest];
+  G={ver:1,day:1,hour:Math.max(7,c.hours[0]),dow:0,speed:1,paused:false,tab:'overview',cur:0,
+    diff:wiz.diff,cash:0,outlets:[],loans:[],log:[],guestDB:{},seq:1,
+    chain:{hq:false,perks:{},royalty:0,franchises:[]},prog:[],brandVal:0,camsOwned:{}};
+  const budget=Math.round(c.cost*investM*DIFFS[wiz.diff].cashM);
+  G.cash=Math.round(budget*.42);            // cost of fitout sunk; working capital remains
+  const o=newOutlet({name:wiz.name||genRestName(),concept:wiz.concept,cuisine:wiz.cuisine,
+    cityI:wiz.cityI,locI:wiz.locI,style:wiz.style,invest:wiz.invest});
+  G.outlets.push(o);
+  logEv(o,'open','Doors open. '+o.name+' — '+CONCEPTS[o.concept].name+' in '+LOCALITIES[o.locI].name+', '+CITIES[o.cityI].name+'.');
+  $('#landing').style.display='none';$('#setup').style.display='none';
+  $('#app').style.display='grid';
+  buildNav();renderTop();renderTab();saveGame();
+}
+function logEv(o,cat,txt){G.log.unshift({d:G.day,h:G.hour,o:o?o.name:'',cat,txt});if(G.log.length>240)G.log.pop();}
+
+/* ---------------- save / load ---------------- */
+const SAVEKEY='rasoiSave1';
+function saveGame(){try{localStorage.setItem(SAVEKEY,JSON.stringify(G));}catch(e){}}
+function loadGame(){try{const s=localStorage.getItem(SAVEKEY);if(!s)return false;G=JSON.parse(s);return !!(G&&G.outlets&&G.outlets.length);}catch(e){return false;}}
+function wipeGame(){localStorage.removeItem(SAVEKEY);location.reload();}
+
+/* ---------------- landing & wizard ---------------- */
+function landStart(){$('#landing').style.display='none';$('#setup').style.display='flex';wiz.step=0;renderWiz();}
+function landContinue(){if(loadGame()){$('#landing').style.display='none';$('#app').style.display='grid';buildNav();renderTop();renderTab();}}
+function pickBtn(sel,label,desc,on,extra){return `<div class="pick ${sel?'sel':''}" onclick="${on}">${extra||''}<div class="pt">${label}</div><div class="pd">${desc}</div></div>`;}
+window.wSet=(k,v)=>{wiz[k]=v;renderWiz();};
+window.wName=v=>{wiz.name=v;};
+window.wGen=()=>{wiz.name=genRestName();$('#wName').value=wiz.name;};
+function renderWiz(){
+  $$('.stepdot').forEach((d,i)=>d.classList.toggle('on',i<=wiz.step));
+  const B=$('#wizbody');
+  if(wiz.step===0){
+    $('#wizTitle').textContent='Identity & Cuisine';
+    B.innerHTML=`<label class="fl">Restaurant name</label>
+      <div style="display:flex;gap:8px"><input id="wName" value="${wiz.name}" oninput="wName(this.value)" style="flex:1" placeholder="e.g. Saffron Table">
+      <button class="btn" onclick="wGen()">Suggest ✦</button></div>
+      <label class="fl">Cuisine</label><div class="grid-c">${CUISINES.map(c=>pickBtn(wiz.cuisine===c,c,'',`wSet('cuisine','${c}')`)).join('')}</div>
+      <label class="fl">Brand positioning</label><div class="grid-c">
+      ${pickBtn(wiz.style==='value','Value','Sharper prices, bigger crowds, thinner margins.',`wSet('style','value')`)}
+      ${pickBtn(wiz.style==='balanced','Balanced','Fair prices, honest portions.',`wSet('style','balanced')`)}
+      ${pickBtn(wiz.style==='premium','Premium','Higher tickets — and higher expectations.',`wSet('style','premium')`)}</div>`;
+  }else if(wiz.step===1){
+    $('#wizTitle').textContent='Choose your concept';
+    B.innerHTML=`<div class="grid-c">${CONCEPT_ORDER.map(k=>{const c=CONCEPTS[k];
+      return pickBtn(wiz.concept===k,c.ic+' '+c.name,c.d+' · Setup '+cr(c.cost)+' · '+(c.seats||'no')+' seats · '+String(c.hours[0]).padStart(2,'0')+':00–'+String(c.hours[1]%24).padStart(2,'0')+':00',`wSet('concept','${k}')`);}).join('')}</div>`;
+  }else if(wiz.step===2){
+    $('#wizTitle').textContent='Where will you cook?';
+    B.innerHTML=`<label class="fl">City</label><div class="grid-c">${CITIES.map((c,i)=>pickBtn(wiz.cityI===i,c.name,'Tier '+c.tier+' · footfall ×'+c.foot+' · rent ×'+c.rent+' · spend ×'+c.spend,`wSet('cityI',${i})`)).join('')}</div>
+      <label class="fl">Locality</label><div class="grid-c">${LOCALITIES.map((l,i)=>pickBtn(wiz.locI===i,l.name,'footfall ×'+l.foot+' · rent ×'+l.rent+' · crowd: '+l.mix,`wSet('locI',${i})`)).join('')}</div>`;
+  }else{
+    $('#wizTitle').textContent='Terms of engagement';
+    const c=CONCEPTS[wiz.concept];const investM=[.85,1,1.35][wiz.invest];
+    const cash=Math.round(c.cost*investM*DIFFS[wiz.diff].cashM*.42);
+    B.innerHTML=`<label class="fl">Difficulty</label><div class="grid-c">
+      ${Object.keys(DIFFS).map(k=>pickBtn(wiz.diff===k,DIFFS[k].name,DIFFS[k].d,`wSet('diff','${k}')`)).join('')}</div>
+      <label class="fl">Investment</label><div class="grid-c">
+      ${pickBtn(wiz.invest===0,'Lean · '+cr(c.cost*.85),'Second-hand equipment, spartan fitout.',`wSet('invest',0)`)}
+      ${pickBtn(wiz.invest===1,'Standard · '+cr(c.cost),'Solid kit, decent interiors.',`wSet('invest',1)`)}
+      ${pickBtn(wiz.invest===2,'Ambitious · '+cr(Math.round(c.cost*1.35)),'Showpiece interiors, premium equipment.',`wSet('invest',2)`)}</div>
+      <div class="notice"><b>${wiz.name||'(unnamed)'}</b> — ${c.name}, ${wiz.cuisine} · ${LOCALITIES[wiz.locI].name}, ${CITIES[wiz.cityI].name}<br>
+      Opening working capital after fitout: <b>${cr(cash)}</b> · Rent ≈ <b>${cr(Math.round(c.cost*.028*CITIES[wiz.cityI].rent*LOCALITIES[wiz.locI].rent/1000)*1000)}/mo</b></div>`;
+  }
+  $('#wizBack').style.visibility=wiz.step?'visible':'hidden';
+  $('#wizNext').textContent=wiz.step===3?'Open the Doors':'Continue';
+}
+$('#wizBack').onclick=()=>{if(wiz.step>0){wiz.step--;renderWiz();}};
+$('#wizNext').onclick=()=>{
+  if(wiz.step===0&&!wiz.name.trim()){wiz.name=genRestName();}
+  if(wiz.step<3){wiz.step++;renderWiz();}else startGame();};
+/* ============================ SIMULATION ============================ */
+const abs=()=>G.day*24+G.hour;
+function shiftWin(o,s){if(s.sh==='F')return true;
+  const [a,b]=CONCEPTS[o.concept].hours;const len=b-a;
+  const pos=((G.hour-a)+24)%24;if(pos>=len)return false;
+  return s.sh==='A'?pos<len/2+1:pos>=len/2-1;}
+function onDuty(o,s){return isOpen(o,G.hour)&&!s.off&&shiftWin(o,s);}
+function staffOn(o,role){return (o.staff[role]||[]).filter(s=>onDuty(o,s));}
+function kitchenOn(o){return ['chef','linecook','barista'].flatMap(r=>staffOn(o,r));}
+function stationsCovered(o){const set=new Set();kitchenOn(o).forEach(s=>ROLES[s.role].st.forEach(x=>set.add(x)));return set;}
+function kitchenCapMin(o){let cap=0;kitchenOn(o).forEach(s=>{
+  cap+=60*ROLES[s.role].speed*(s.skill/70)*(1-s.fatigue/170)*(.72+s.morale/260);});
+  return cap*(.72+o.equip/350)*(o.perks.training?1.06:1);}
+function demandIdx(o){
+  const city=CITIES[o.cityI],loc=LOCALITIES[o.locI];
+  let d=city.foot*loc.foot*DX().demM;
+  d*=.55+(o.awareness/100)*.9;
+  d*=.68+(o.rating-3)*.3;
+  d*=1+(o.reputation-45)*.004;
+  if(isWknd())d*=1.26;
+  if(o.style==='value')d*=1.1;if(o.style==='premium')d*=.94;
+  d*=1+Math.min(.15,o.campaigns.length*.05);
+  if(o._shut)d=0;
+  return clamp(d,.1,2.8);}
+function chOpen(o){return Object.keys(o.channels).filter(k=>o.channels[k].on&&k!=='walkin');}
+function freeTable(o,size){let best=null;
+  o.tables.forEach(t=>{if(t.state==='free'&&t.cap>=size&&(!best||t.cap<best.cap))best=t;});
+  return best;}
+function pickDish(o,arch,st){ // weighted pick among active cookable dishes
+  const pool=o.menu.filter(m=>m.active&&canCook(o,m.k));
+  if(!pool.length)return null;
+  let tot=0;const w=pool.map(m=>{const d=DISH_LIB[m.k];
+    let x=(d.appeal[arch]||1)*(m.special?1.35:1);
+    if(st&&d.st!==st)x*=.5;
+    x*=clamp(1.6-m.price/(DISH_LIB[m.k].price*menuPriceM(o)*1.6),.35,1.6); // price sensitivity vs anchor
+    tot+=x;return x;});
+  let r=Math.random()*tot;
+  for(let i=0;i<pool.length;i++){r-=w[i];if(r<=0)return pool[i];}
+  return pool[pool.length-1];}
+function buildOrderItems(o,arch,size,dine){
+  const items=[];const n=Math.max(1,Math.round(size*(dine?rnd(1.5,2.1):rnd(1.1,1.5))));
+  for(let i=0;i<n;i++){const m=pickDish(o,arch);if(!m)break;
+    items.push({k:m.k,price:m.price});}
+  // dine-in groups often add beverages/desserts
+  if(dine&&Math.random()<.6){const m=pickDish(o,arch);if(m&&['Coffee','Beverages','Desserts'].includes(DISH_LIB[m.k].cat))items.push({k:m.k,price:m.price});}
+  return items;}
+function cookConsume(o,items){ // consume ingredients, return {icost,fresh,missing}
+  let icost=0,fresh=1,missing=0;
+  items.forEach(it=>{const d=DISH_LIB[it.k];
+    for(const g in d.rec){const got=consume(o,g,d.rec[g]);
+      icost+=ING[g].cost*d.rec[g];
+      if(got<d.rec[g]-0.0001)missing++;}
+    const m=o.menu.find(x=>x.k===it.k);if(m)m.icost+=ingCostPlate(it.k);});
+  return {icost,fresh,missing};}
+function supQ(o){ // avg quality multiplier of chosen suppliers
+  let q=0,n=0;SUP_CATS.forEach(c=>{const s=o.market.find(x=>x.id===o.suppliers[c]);if(s){q+=s.q;n++;}});
+  return n?q/n:1;}
+
+/* ---- hourly heart ---- */
+function tickHour(){
+  G.outlets.forEach(o=>simOutlet(o));
+  G.hour++;
+  if(G.hour>=24){G.hour=0;G.day++;dayRollover();}
+  renderTop();refreshLive();
+  if(G.hour%6===0)saveGame();
+}
+function simOutlet(o){
+  const open=isOpen(o,G.hour)&&!o._shut;
+  // 1) bussing: cleaners reset dirty tables
+  const cln=staffOn(o,'cleaner').length;
+  let toClean=cln*4;
+  o.tables.forEach(t=>{if(t.state==='dirty'&&toClean>0){t.state='free';toClean--;}});
+  if(!open&&!isOpen(o,G.hour)){ // closed hours: reset floor, recover staff
+    o.tables.forEach(t=>{if(t.state==='dirty')t.state='free';});
+    o.parties=o.parties.filter(p=>p.stage!=='done');
+    Object.values(o.staff).flat().forEach(s=>{s.fatigue=Math.max(0,s.fatigue-(o.areas.includes('staffroom')?9:6));});
+    o.clean=clamp(o.clean+3,0,100);
+    return;}
+  if(!open)return;
+  // 2) departures: parties served an hour+ ago leave
+  o.parties.forEach(p=>{
+    if(p.stage==='served'&&abs()-p.servedAt>=1){departParty(o,p);}
+  });
+  o.parties=o.parties.filter(p=>p.stage!=='done');
+  // 4) waiting queue: seat or lose patience
+  o.waiting=o.waiting.filter(w=>{
+    const t=freeTable(o,w.size);
+    if(t){seatParty(o,w,t);return false;}
+    w.waitH=(w.waitH||0)+1;
+    if(w.waitH*60>ARCHE[w.arch].patience*2.2){o.waitLost+=w.size;return false;}
+    return true;});
+  // 5) reservations arriving this hour
+  o.resv.filter(r=>r.d===G.day&&r.h===G.hour).forEach(r=>{
+    const t=freeTable(o,r.size);
+    if(t)seatParty(o,{size:r.size,arch:r.arch,resv:true},t);
+    else{o.reputation=clamp(o.reputation-1.2,0,100);o.waitLost+=r.size;
+      logEv(o,'floor','A '+r.size+'-cover reservation found no table. Word gets around.');}});
+  o.resv=o.resv.filter(r=>!(r.d===G.day&&r.h<=G.hour));
+  // 5) new walk-ins
+  const mix=LOCALITIES[o.locI].mix;
+  const dIdx=demandIdx(o);
+  let exp=o.seats>0?o.tables.length*hourCurve(mix,G.hour)*2.7*dIdx:0;
+  let n=Math.floor(exp)+(Math.random()<exp%1?1:0);
+  for(let i=0;i<n;i++){
+    const arch=archeAt(mix,G.hour);
+    const size=clamp(ri(ARCHE[arch].grp[0],ARCHE[arch].grp[1]),1,8);
+    const t=freeTable(o,size);
+    if(t)seatParty(o,{size,arch},t);
+    else if(o.waiting.length<8&&(o._queueMin||0)<240)o.waiting.push({size,arch,waitH:0});
+    else o.waitLost+=size;
+  }
+  // 7) takeaway counter orders
+  const c=CONCEPTS[o.concept];
+  let tk=exp*c.take+(o.seats===0?0:0);
+  if(o.areas.includes('pickup'))tk*=1.3;
+  spawnCounter(o,tk,'walkin',mix);
+  // 8) delivery orders per channel
+  const delBase=(o.seats||42)*hourCurve('balanced',G.hour)*3.6*c.del*dIdx;
+  chOpen(o).forEach(ch=>{
+    let e=delBase*o.channels[ch].pop;
+    if(ch==='catering')e=G.hour===12||G.hour===19?o.channels.catering.pop*2.2*dIdx:0;
+    spawnCounter(o,e,ch,mix);});
+  // 8) kitchen: process the queue (same-hour service possible)
+  let cap=kitchenCapMin(o);
+  for(const q of o.kq){
+    if(cap<=0)break;
+    const take=Math.min(cap,q.left);q.left-=take;cap-=take;
+    if(q.left<=0.01)serveOrder(o,q);
+  }
+  o.kq=o.kq.filter(q=>q.left>0.01);
+  o._kcap=kitchenCapMin(o);o._queueMin=o.kq.reduce((a,q)=>a+q.left,0);
+  // stale orders: cancellations & walkouts after ~2 unserved hours
+  o.kq=o.kq.filter(q=>{
+    const ageMin=(abs()-q.placed)*60;
+    if(ageMin>90+q.patience*2){cancelOrder(o,q);return false;}
+    return true;});
+  // 9) wear: cleanliness, fatigue, hygiene
+  const load=o.parties.length+o.kq.length;
+  o.clean=clamp(o.clean-(load*.35)+cln*1.4,25,100);
+  o.hygiene=clamp(o.hygiene+(o.clean>75?.2:-.4)-(invQty(o,'clean')<1?.6:0),20,100);
+  kitchenOn(o).forEach(s=>{s.fatigue=clamp(s.fatigue+(o.kq.length>3?4:2),0,100);});
+  staffOn(o,'server').forEach(s=>{s.fatigue=clamp(s.fatigue+(o.parties.length>6?3:1.5),0,100);});
+  consume(o,'clean',cln*.06+.04);
+  consume(o,'gas',Math.min(invQty(o,'gas'),(o.coversToday>0?.5:.2)+o.kq.length*.15));
+  o._utilAcc=(o._utilAcc||0)+120+load*22;   // power+water accrual, billed monthly
+}
+function seatParty(o,w,t){
+  t.state='seated';
+  const p={id:'p'+(G.seq++),size:w.size,arch:w.arch,table:t.id,at:abs(),stage:'ordered',
+    resv:!!w.resv,waitedH:w.waitH||0,items:buildOrderItems(o,w.arch,w.size,true)};
+  t.party=p.id;o.parties.push(p);
+  if(!p.items.length){ // nothing cookable — walk right back out
+    p.stage='done';t.state='free';t.party=null;o.walkouts+=w.size;
+    logEv(o,'kitchen','A party of '+w.size+' left — nothing on the menu could be cooked.');
+    return;}
+  const patience=ARCHE[w.arch].patience+(w.resv?4:0);
+  const prep=p.items.reduce((a,it)=>a+DISH_LIB[it.k].prep*(stationsCovered(o).has(DISH_LIB[it.k].st)?1:1.7),0);
+  o.kq.push({id:p.id,items:p.items,left:prep,min:prep,party:p.id,ch:'walkin',dine:true,placed:abs(),patience});
+}
+function spawnCounter(o,expected,ch,mix){
+  let n=Math.floor(expected)+(Math.random()<expected%1?1:0);
+  const covSet=stationsCovered(o);
+  for(let i=0;i<n;i++){
+    const arch=ch==='catering'?'biz':archeAt(mix,G.hour);
+    const items=buildOrderItems(o,arch,ch==='catering'?ri(6,14):ri(1,2),false);
+    if(!items.length)continue;
+    if(invQty(o,'pack')<items.length){o.waitLost++;continue;} // no packaging, no parcel
+    consume(o,'pack',items.length);
+    const prep=items.reduce((a,it)=>a+DISH_LIB[it.k].prep*(covSet.has(DISH_LIB[it.k].st)?1:1.7),0);
+    o.kq.push({id:'c'+(G.seq++),items,left:prep,min:prep,party:null,ch,dine:false,placed:abs(),patience:22,arch});
+  }
+}
+function serveOrder(o,q){
+  const cc=cookConsume(o,q.items);
+  let gross=q.items.reduce((a,it)=>a+it.price,0);
+  const comm=CHANNELS[q.ch]?CHANNELS[q.ch].comm:0;
+  const net=Math.round(gross*(1-comm));
+  o.revToday+=net;o.moRev=(o.moRev||0)+net;G.cash+=net;
+  o.ordersToday++;o.chToday[q.ch]=(o.chToday[q.ch]||0)+1;
+  o.channels[q.ch]&&(o.channels[q.ch].vol=(o.channels[q.ch].vol||0)+1);
+  q.items.forEach(it=>{const m=o.menu.find(x=>x.k===it.k);if(m){m.sold++;m.rev+=it.price;}});
+  const waitMin=(abs()-q.placed)*60+q.min*.5; // dishes fire in parallel across the line
+  if(q.dine){
+    const p=o.parties.find(x=>x.id===q.party);
+    if(p){p.stage='served';p.servedAt=abs();p.bill=gross;p.waitMin=waitMin+p.waitedH*60;p.missing=cc.missing;}
+  }else{
+    // counter / delivery satisfaction & review inline
+    const arch=q.arch||'office';
+    let sat=68-(Math.max(0,waitMin-30))*1.1-cc.missing*8+supQ(o)*14-14+(staffOn(o,'delivery').length?4:(q.ch==='swiggy'||q.ch==='zomato'?-6:0));
+    const errRate=(staffOn(o,'delivery').length?.008:.02)*(o.kq.length>5?2.2:1);
+    if(q.ch!=='walkin'&&Math.random()<errRate){sat-=25;o.revToday-=Math.round(gross*.3);G.cash-=Math.round(gross*.3);
+      o._delErr=(o._delErr||0)+1;
+      if(Math.random()<.3)logEv(o,'delivery','Wrong order packed in the rush — partial refund issued.');}
+    sat=clamp(sat+rnd(-6,6),5,98);
+    addRating(o,satToStars(sat));
+    if(Math.random()<ARCHE[arch].rev*.8)pushReview(o,{arch,sat,dine:false,ch:q.ch,waitMin,missing:cc.missing});
+    o.coversToday+= (q.ch==='catering'?8:1);
+  }
+  o.tipsToday+=Math.round(gross*(ARCHE[q.arch||'office']?ARCHE[q.arch||'office'].tip:0)*.5);
+}
+function cancelOrder(o,q){
+  if(q.dine){
+    const p=o.parties.find(x=>x.id===q.party);
+    if(p){p.stage='done';const t=o.tables.find(x=>x.id===p.table);if(t){t.state='dirty';t.party=null;}
+      o.walkouts+=p.size;addRating(o,1);
+      if(Math.random()<.5)pushReview(o,{arch:p.arch,sat:12,dine:true,ch:'walkin',waitMin:999,walkout:true});
+      logEv(o,'kitchen','Party of '+p.size+' walked out — the kitchen never got to their order.');}
+  }else{
+    addRating(o,1);
+    if(Math.random()<.3)pushReview(o,{arch:q.arch||'office',sat:15,dine:false,ch:q.ch,waitMin:999,cancel:true});
+  }
+  o.reputation=clamp(o.reputation-.5,0,100);
+}
+function satToStars(s){return s>=85?5:s>=68?4:s>=50?3:s>=32?2:1;}
+function addRating(o,stars){o.ratN++;o.recent=o.recent||[];o.recent.push(stars);
+  if(o.recent.length>200)o.recent.shift();
+  o.rating=clamp(Math.round((o.recent.reduce((a,b)=>a+b,0)/o.recent.length)*10)/10,1,5);}
+function departParty(o,p){
+  p.stage='done';
+  const t=o.tables.find(x=>x.id===p.table);if(t){t.state='dirty';t.party=null;}
+  o.coversToday+=p.size;
+  // --- satisfaction components ---
+  const city=CITIES[o.cityI];const c=CONCEPTS[o.concept];
+  const chefs=kitchenOn(o);const chefSkill=chefs.length?chefs.reduce((a,s)=>a+s.skill,0)/chefs.length:40;
+  const food=clamp(34+chefSkill*.42+(supQ(o)-1)*70+(p.missing?-p.missing*9:0)+(o.hygiene<50?-12:0)+rnd(-5,5),5,98);
+  const wait=clamp(88-Math.max(0,(p.waitMin||25)-15-ARCHE[p.arch].patience)*2,5,98);
+  const srv=staffOn(o,'server');const ratio=srv.length/Math.max(1,o.parties.length*.45);
+  const friendly=srv.length?srv.reduce((a,s)=>a+s.friendly,0)/srv.length:50;
+  const service=clamp(34+Math.min(1.25,ratio)*32+friendly*.22+rnd(-4,4),5,98);
+  const ambExp={fine:3,biz:2.4,couple:2.2,tourist:1.8,family:1.6,office:1.3,student:1,night:1}[p.arch]||1.5;
+  const amb=clamp(46+(o.amb-ambExp)*13+(o.clean-70)*.35+rnd(-4,4),5,98);
+  const perHead=p.bill/p.size;
+  const expect=ARCHE[p.arch].budget*city.spend*c.ticket*300+120;
+  const value=clamp(66+((expect-perHead)/expect)*55+rnd(-5,5),5,98);
+  const sat=clamp(food*.34+wait*.2+service*.16+amb*.14+value*.16,3,99);
+  addRating(o,satToStars(sat));
+  o.reputation=clamp(o.reputation+(sat-58)*.012,0,100);
+  G.cash+=Math.round(p.bill*ARCHE[p.arch].tip*(service>65?1:.4));
+  // loyalty / return pool
+  const key=p.arch;
+  G.guestDB[key]=G.guestDB[key]||{visits:0,satAvg:60};
+  const e=G.guestDB[key];e.visits+=p.size;e.satAvg=e.satAvg*.9+sat*.1;
+  if(Math.random()<ARCHE[p.arch].rev*(sat<35?1.8:sat>85?1.25:1))
+    pushReview(o,{arch:p.arch,sat,dine:true,ch:'walkin',waitMin:p.waitMin,asp:{food,wait,service,amb,value},resv:p.resv});
+}
+/* ============================ REVIEWS ============================ */
+const RV_FOOD_HI=['The {dish} was genuinely superb — you can taste the kitchen cares.','Best {dish} I\'ve had in {city} in a long while.','Every plate came out hot and confident. The {dish} stole the table.','Flavours were spot on; the {dish} is worth the trip alone.'];
+const RV_FOOD_LO=['The {dish} arrived lukewarm and under-seasoned.','Food was a letdown — my {dish} tasted like it sat under the pass too long.','Half our order felt rushed; the {dish} was frankly forgettable.'];
+const RV_WAIT_HI=['Service was quick even at rush hour.','Barely waited despite a full house.'];
+const RV_WAIT_LO=['We waited far too long — {wait} minutes before food showed up.','The kitchen clearly couldn\'t keep up; endless wait.','Watched three tables seated after us get served first.'];
+const RV_SRV_HI=['Staff were warm and attentive without hovering.','Our server remembered everything without writing it down. Class.'],
+      RV_SRV_LO=['Couldn\'t catch anyone\'s eye for ten minutes.','Staff seemed stretched thin and it showed.'];
+const RV_AMB_HI=['Lovely room — you want to linger.','The space is done up beautifully; great for {arch}.'],
+      RV_AMB_LO=['The place needs a deep clean, honestly.','Tables sticky, floor tired. Ambience lets the food down.'];
+const RV_VAL_HI=['Fair prices for what lands on the table.','Great value — we\'ll be back.'],
+      RV_VAL_LO=['Priced well above what the experience justifies.','Bill stung for what we got.'];
+const RV_DEL_LO=['Order arrived wrong — had to chase a refund.','Packaging was a mess by the time it reached us.'];
+const RV_WALK=['Left after ages of waiting — never got our food.','Gave up and walked out. Nobody seemed to notice.'];
+const RV_NAMES=['Ankit','Shreya','Manav','Ritu','Farhan','Lakshmi','Joel','Pooja','Sameer','Ishita','Vikram','Neha','Arnav','Kavya','Dhruv','Sonal'];
+function pushReview(o,r){
+  const who=pick(RV_NAMES)+' '+pick(LAST).charAt(0)+'.';
+  const stars=satToStars(r.sat);
+  const dishM=o.menu.filter(m=>m.sold>0);
+  const dish=dishM.length?DISH_LIB[pick(dishM).k].name:'food';
+  const bits=[];
+  if(r.walkout||r.cancel)bits.push(pick(RV_WALK));
+  else{
+    const a=r.asp||{};
+    bits.push((a.food??r.sat)>=68?pick(RV_FOOD_HI):pick(RV_FOOD_LO));
+    if((a.wait??70)<50||r.waitMin>60)bits.push(pick(RV_WAIT_LO));else if((a.wait??0)>=80&&Math.random()<.5)bits.push(pick(RV_WAIT_HI));
+    if(a.service!=null&&Math.random()<.6)bits.push(a.service>=68?pick(RV_SRV_HI):a.service<48?pick(RV_SRV_LO):'');
+    if(a.amb!=null&&Math.random()<.5)bits.push(a.amb>=70?pick(RV_AMB_HI):a.amb<45?pick(RV_AMB_LO):'');
+    if(a.value!=null&&Math.random()<.5)bits.push(a.value>=70?pick(RV_VAL_HI):a.value<45?pick(RV_VAL_LO):'');
+    if(!r.dine&&r.missing)bits.push(pick(RV_DEL_LO));
+  }
+  const txt=bits.filter(Boolean).join(' ')
+    .replace(/\{dish\}/g,dish).replace(/\{city\}/g,CITIES[o.cityI].name)
+    .replace(/\{wait\}/g,Math.min(90,Math.round(r.waitMin||45)))
+    .replace(/\{arch\}/g,ARCHE[r.arch].name.toLowerCase());
+  o.reviews.unshift({d:G.day,stars,who,arch:r.arch,ch:r.ch,dine:r.dine,txt,asp:r.asp||null});
+  if(o.reviews.length>400)o.reviews.pop();
+  o.awareness=clamp(o.awareness+(stars>=4?.15:stars<=2?-.1:0),0,100);
+}
+
+/* ============================ PROCUREMENT & INVENTORY ============================ */
+function supFor(o,cat){return o.market.find(s=>s.id===o.suppliers[cat]);}
+function placeOrder(o,ing,qty){
+  const cat=ING[ing].cat,s=supFor(o,cat);if(!s||qty<=0)return false;
+  let cost=Math.round(ING[ing].cost*s.priceM*qty);
+  if(qty*ING[ing].cost>4000&&s.bulk)cost=Math.round(cost*(1-s.bulk/100));
+  if(o.perks&&o.perks.warehouse)cost=Math.round(cost*.94);
+  cost=Math.round(cost*DX().costM);
+  if(G.cash<cost){toast('Not enough cash for that order.','warn');return false;}
+  G.cash-=cost;o.expToday+=cost;o.moFood=(o.moFood||0)+cost;
+  o.pending.push({ing,qty,cost,sup:s.id,day:G.day+s.lead,fail:Math.random()>s.rel});
+  return true;}
+function arriveDeliveries(o){
+  o.pending=o.pending.filter(p=>{
+    if(p.day>G.day)return true;
+    const s=o.market.find(x=>x.id===p.sup);
+    if(p.fail){ // reliability miss: arrives a day late, partial
+      p.fail=false;p.day=G.day+1;p.qty=Math.round(p.qty*.7);
+      if(Math.random()<.4)logEv(o,'procure',(s?s.name:'Supplier')+' shorted a delivery — '+ING[p.ing].name+' arriving late and light.');
+      if(s)s.rep=Math.max(0,s.rep-4);
+      return true;}
+    o.inv[p.ing].push({q:p.qty,exp:G.day+ING[p.ing].shelf});
+    if(s)s.rep=Math.min(100,s.rep+1);
+    return false;});
+}
+function spoilage(o){
+  let waste=0;
+  // capacity pressure: overflow cold storage spoils fastest
+  const coldQty=ING_ORDER.filter(k=>ING[k].store==='cold').reduce((a,k)=>a+invQty(o,k),0);
+  const coldCap=o.caps.cold*(o.areas.includes('coldstore')?2:1);
+  const over=coldQty>coldCap;
+  ING_ORDER.forEach(k=>{
+    const arr=o.inv[k];if(!arr)return;
+    for(let i=arr.length-1;i>=0;i--){
+      const b=arr[i];
+      if(b.exp<=G.day){waste+=b.q*ING[k].cost;arr.splice(i,1);}
+      else if(over&&ING[k].store==='cold'){const l=b.q*.12;b.q-=l;waste+=l*ING[k].cost;}
+    }});
+  // pilferage: 1%/day of dry stock without a manager on the books
+  if(!(o.staff.manager||[]).length&&!o.perks.hqops){
+    ING_ORDER.filter(k=>ING[k].store==='dry').forEach(k=>{(o.inv[k]||[]).forEach(b=>{waste+=b.q*.01*ING[k].cost;b.q*=.99;});});
+  }
+  waste=Math.round(waste);
+  if(waste>0){o.wasteToday+=waste;o.moWaste=(o.moWaste||0)+waste;}
+}
+function parTargets(o){
+  const use=activeIngUse(o);
+  const t={};ING_ORDER.forEach(k=>{if(use[k]>0.01){const s=supFor(o,ING[k].cat);t[k]=Math.ceil(use[k]*(2.5+(s?s.lead:1)));}});
+  return t;}
+function autoRestock(o){
+  const t=parTargets(o);
+  for(const k in t){
+    const have=invQty(o,k)+o.pending.filter(p=>p.ing===k).reduce((a,p)=>a+p.qty,0);
+    if(have<t[k]*.6)placeOrder(o,k,Math.ceil(t[k]-have));
+  }
+}
+
+/* ============================ DAY & MONTH ROLLOVER ============================ */
+function dayRollover(){
+  G.outlets.forEach(o=>{
+    arriveDeliveries(o);
+    spoilage(o);
+    // projects
+    o.projects.forEach(p=>p.left--);
+    o.projects=o.projects.filter(p=>{
+      if(p.left>0)return true;
+      finishProject(o,p);return false;});
+    // campaigns
+    o.campaigns.forEach(cp=>cp.left--);
+    o.campaigns=o.campaigns.filter(cp=>{
+      if(cp.left<=0){logEv(o,'marketing',MKT[cp.k].name+' campaign has wrapped up.');return false;}return true;});
+    o.awareness=clamp(o.awareness-.35,2,100);
+    o.campaigns.forEach(cp=>{const M=MKT[cp.k];
+      o.awareness=clamp(o.awareness+M.aw*3.2,0,100);
+      if(M.ch&&o.channels[M.ch])o.channels[M.ch].pop=clamp(o.channels[M.ch].pop+.012,0,1.2);});
+    // channel evolution: direct grows with reputation, apps with volume
+    if(o.channels.direct.on)o.channels.direct.pop=clamp(o.channels.direct.pop+(o.reputation-50)*.0009,.05,1);
+    ['swiggy','zomato'].forEach(ch=>{const C=o.channels[ch];
+      if(C.on)C.pop=clamp(C.pop+((C.vol||0)>8?.008:-.002)+(o.rating-3.8)*.004,.1,1.2);C.vol=0;});
+    // staff recovery, morale & training
+    Object.values(o.staff).flat().forEach(s=>{
+      s.fatigue=clamp(s.fatigue-(o.areas.includes('staffroom')?34:24),0,100);
+      const strain=s.fatigue>60?-2:s.fatigue>35?-.5:1;
+      s.morale=clamp(s.morale+strain+(o.perks.training?.3:0)+rnd(-1,1),10,100);
+      if(o.perks.training&&G.day%7===0)s.skill=clamp(s.skill+1,30,99);
+      if(s.morale<25&&Math.random()<.25){quitStaff(o,s);}});
+    // reservations for today
+    genReservations(o);
+    // random events
+    dailyEvents(o);
+    // manager automations
+    runManagers(o);
+    // analytics
+    const profit=o.revToday-o.expToday;
+    const occ=o.seats?Math.round(Math.min(100,(o.coversToday/(o.seats*3.4))*100)):0;
+    o.analytics.push({d:G.day-1,rev:o.revToday,exp:o.expToday,profit,covers:o.coversToday,orders:o.ordersToday,
+      occ,waste:o.wasteToday,rating:o.rating,aw:Math.round(o.awareness),lost:o.waitLost+o.walkouts});
+    if(o.analytics.length>200)o.analytics.shift();
+    o.revToday=0;o.expToday=0;o.coversToday=0;o.ordersToday=0;o.wasteToday=0;o.tipsToday=0;
+    o.waitLost=0;o.walkouts=0;o.chToday={};o._shut=false;
+  });
+  if(G.day%30===1&&G.day>1)monthlySettle();
+  checkProgression();
+  saveGame();
+}
+function quitStaff(o,s){
+  o.staff[s.role]=o.staff[s.role].filter(x=>x.id!==s.id);
+  logEv(o,'staff',s.name+' ('+ROLES[s.role].name+') quit — burnt out and underpaid.');
+  toast(s.name+' has quit '+o.name+'.','neg');
+}
+function genReservations(o){
+  if(o.seats===0)return;
+  const n=Math.round(o.seats/14*clamp((o.rating-3.2)/1.4,0,1.4)*(isWknd()?1.5:1));
+  for(let i=0;i<n;i++){
+    const h=pick([13,19,20,20,21]);
+    const arch=pick(['couple','family','biz','biz','couple']);
+    o.resv.push({d:G.day,h,size:clamp(ri(ARCHE[arch].grp[0],ARCHE[arch].grp[1]+1),2,8),arch,name:rname()});
+  }
+}
+function dailyEvents(o){
+  const r=Math.random();
+  if(r<.03){o.equip=clamp(o.equip-ri(8,18),20,100);
+    logEv(o,'ops','Equipment breakdown in the kitchen — output suffers until repairs.');toast(o.name+': equipment breakdown.','warn');}
+  else if(r<.045){o.awareness=clamp(o.awareness+8,0,100);
+    logEv(o,'marketing','A post about '+o.name+' is doing the rounds online. Awareness jumps.');toast(o.name+' went (mildly) viral! ','pos');}
+  // health inspection roughly every ~40 days
+  if(G.day-o.insp.last>ri(34,48)){
+    o.insp.last=G.day;
+    const score=Math.round(o.hygiene*.7+o.clean*.2+(invQty(o,'clean')>0?10:0));
+    o.insp.score=score;
+    if(score<50){const fine=Math.round(120000*DX().costM);G.cash-=fine;o.expToday+=fine;o.moOther=(o.moOther||0)+fine;
+      o._shut=true;o.reputation=clamp(o.reputation-10,0,100);
+      logEv(o,'ops','FAILED health inspection (score '+score+'). Fined '+cr(fine)+' and shut for the day.');
+      toast(o.name+' failed its health inspection!','neg');}
+    else logEv(o,'ops','Health inspection passed — score '+score+'/100.');
+  }
+  if(o.equip<70&&Math.random()<.5){ // slow decay if unrepaired
+    o.equip=clamp(o.equip-1,20,100);}
+}
+function monthlySettle(){
+  let note=[];
+  G.outlets.forEach(o=>{
+    let sal=0;Object.values(o.staff).flat().forEach(s=>sal+=s.sal);
+    o.salBill=sal;
+    const util=Math.round((o._utilAcc||0));o._utilAcc=0;
+    const rent=o.rentMo;
+    const out=sal+util+rent;
+    G.cash-=out;o.expToday+=out;
+    o.moSal=sal;o.moUtil=util;o.moRentX=rent;
+    const rev=o.moRev||0,food=o.moFood||0,waste=o.moWaste||0,other=o.moOther||0;
+    const profit=rev-food-sal-util-rent-other;
+    let tax=0;
+    if(profit>0){tax=Math.round(profit*.25);G.cash-=tax;o.expToday+=tax;}
+    o.lastMonth={rev,food,sal,util,rent,waste,other,tax,profit:profit-tax};
+    note.push(o.name+': '+(profit-tax>=0?'+':'')+cr(profit-tax));
+    o.moRev=0;o.moFood=0;o.moWaste=0;o.moOther=0;
+    logEv(o,'finance','Month settled — revenue '+cr(rev)+', net '+cr(profit-tax)+' (rent '+cr(rent)+', payroll '+cr(sal)+', power & water '+cr(util)+(tax?', tax '+cr(tax):'')+').');
+  });
+  // loans EMI
+  G.loans=G.loans.filter(l=>{
+    G.cash-=l.emi;l.termLeft--;l.paid+=l.emi;
+    if(l.termLeft<=0){toast('Loan "'+l.n+'" fully repaid.','pos');return false;}
+    return true;});
+  // franchise royalties
+  if(G.chain.franchises.length){
+    const roy=G.chain.franchises.reduce((a,f)=>a+f.roy,0);
+    G.cash+=roy;G.chain.royalty+=roy;
+    toast('Franchise royalties received: '+cr(roy),'pos');}
+  toast('Monthly books closed. '+note.join(' · '),'');
+  updBrandVal();
+}
+function updBrandVal(){
+  const annual=G.outlets.reduce((a,o)=>a+((o.lastMonth?o.lastMonth.profit:0)*12),0);
+  const assets=G.outlets.reduce((a,o)=>a+CONCEPTS[o.concept].cost*.5,0);
+  const brand=G.outlets.reduce((a,o)=>a+o.awareness*o.reputation*400,0);
+  G.brandVal=Math.max(0,Math.round(annual*6+assets+brand+G.chain.franchises.length*2500000));
+}
+
+/* ============================ MANAGERS (delegation) ============================ */
+function hasGM(o){return (o.staff.manager||[]).length>0;}
+function runManagers(o){
+  if(!hasGM(o)){ // par-based restock still available without GM
+    if(o.autoPar&&o.mgr.procure)o.mgr.procure=false;
+    if(o.autoPar)autoRestock(o);
+    return;}
+  if(o.mgr.procure||o.autoPar)autoRestock(o);
+  if(o.mgr.pricing&&G.day%3===0){
+    o.menu.filter(m=>m.active).forEach(m=>{
+      const d=DISH_LIB[m.k];const cost=ingCostPlate(m.k,o);
+      const margin=1-cost/Math.max(1,m.price);
+      const anchor=d.price*menuPriceM(o);
+      if(margin<.6&&m.price<anchor*1.35)m.price=Math.round(m.price*1.03/10)*10;
+      else if(m.sold<2&&m.price>anchor*.8)m.price=Math.round(m.price*.97/10)*10;
+    });}
+  if(o.mgr.menu&&G.day%10===0&&G.day-o.openedDay>12){
+    const act=o.menu.filter(m=>m.active);
+    if(act.length>6){
+      const worst=act.slice().sort((a,b)=>(a.sold)-(b.sold))[0];
+      if(worst&&worst.sold<act.reduce((x,m)=>x+m.sold,0)/act.length*.25){
+        worst.active=false;logEv(o,'menu','[GM] Retired "'+DISH_LIB[worst.k].name+'" — it wasn\'t selling.');}}
+    const inact=o.menu.filter(m=>!m.active);
+    if(inact.length&&act.length<14){const add=pick(inact);add.active=true;add.since=G.day;
+      logEv(o,'menu','[GM] Added "'+DISH_LIB[add.k].name+'" to the card.');}}
+  if(o.mgr.marketing&&o.awareness<45&&!o.campaigns.length){
+    const k=pick(MKT_ORDER.filter(x=>MKT[x].cost<G.cash*.25));
+    if(k){launchCampaign(o,k,true);}}
+  if(o.mgr.hiring&&G.day%5===0)managerHiring(o);
+  if(o.mgr.schedule){Object.values(o.staff).flat().forEach((s,i)=>{s.sh=openHours(o)>11?(i%2?'A':'B'):'F';});}
+  if(o.mgr.kitchen){ // repairs + 86 handled implicitly; keep equipment healthy
+    if(o.equip<75){const c=Math.round((100-o.equip)*4500*DX().costM);
+      if(G.cash>c+300000){G.cash-=c;o.expToday+=c;o.moOther=(o.moOther||0)+c;o.equip=96;
+        logEv(o,'ops','[GM] Called the service techs — kitchen equipment back to spec ('+cr(c)+').');}}}
+}
+function serviceStrain(o){
+  const a=o.analytics.slice(-5);if(!a.length)return{kit:0,floor:0};
+  const lost=a.reduce((x,y)=>x+y.lost,0)/a.length;
+  return {kit:lost>6?1:0,floor:(o.seats&&staffOn(o,'server').length===0)?1:0};}
+function managerHiring(o){
+  let hired=0;
+  const need=[];
+  const kcap=kitchenCapMin(o);
+  const a=o.analytics.slice(-5);
+  const lost=a.length?a.reduce((x,y)=>x+y.lost,0)/a.length:0;
+  if(lost>8&&(o.staff.chef.length+o.staff.linecook.length)<7)need.push(o.staff.chef.length<2?'chef':'linecook');
+  if(o.seats>0&&o.staff.server.length<Math.ceil(o.seats/16))need.push('server');
+  if(o.staff.cleaner.length<1+(o.seats>40?1:0))need.push('cleaner');
+  if(CONCEPTS[o.concept].del>=.2&&!o.staff.delivery.length)need.push('delivery');
+  need.slice(0,2).forEach(r=>{
+    const s=mkStaff(r,1);const joinCost=s.sal;
+    if(G.cash>joinCost*4){o.staff[r].push(s);hired++;
+      logEv(o,'staff','[GM] Hired '+s.name+' as '+ROLES[r].name+' ('+cr0(s.sal)+'/mo).');}});
+  return hired;
+}
+function launchCampaign(o,k,byGM){
+  const M=MKT[k];const cost=Math.round(M.cost*DX().costM);
+  if(G.cash<cost){if(!byGM)toast('Not enough cash for that campaign.','warn');return false;}
+  G.cash-=cost;o.expToday+=cost;o.moOther=(o.moOther||0)+cost;
+  o.campaigns.push({k,left:M.days,cost});
+  logEv(o,'marketing',(byGM?'[GM] ':'')+'Launched '+M.name+' — '+M.days+' days, '+cr(cost)+'.');
+  if(!byGM)toast(M.name+' is live.','pos');
+  return true;}
+
+/* ============================ EXPANSION & PROJECTS ============================ */
+function startProject(o,k){
+  const A=AREAS[k];const cost=Math.round(A.cost*DX().costM);
+  if(o.areas.includes(k)||o.projects.some(p=>p.k===k)){toast('Already built or underway.','warn');return;}
+  if(A.need&&o.concept!==A.need){toast('That build only suits a '+CONCEPTS[A.need].name+'.','warn');return;}
+  if(G.cash<cost){toast('Not enough cash — '+cr(cost)+' needed.','warn');return;}
+  G.cash-=cost;o.expToday+=cost;o.moOther=(o.moOther||0)+cost;
+  o.projects.push({k,left:A.days,total:A.days,cost});
+  logEv(o,'expand','Work begins: '+A.name+' ('+A.days+' days, '+cr(cost)+').');
+  renderTab();}
+function finishProject(o,p){
+  const A=AREAS[p.k];o.areas.push(p.k);
+  if(A.seats){const add=mkTables(A.seats);add.forEach(t=>{t.id=o.tables.length+1;o.tables.push(t);});o.seats+=A.seats;}
+  if(A.amb)o.amb+=A.amb;
+  if(p.k==='decor')o.clean=100;
+  logEv(o,'expand',A.name+' is open for business.');
+  toast(o.name+': '+A.name+' completed!','pos');}
+function openOutlet(cityI,locI,conceptK){
+  const c=CONCEPTS[conceptK];
+  const cost=Math.round(c.cost*.9*DX().costM); // experience discount on second fitout
+  if(G.cash<cost){toast('You need '+cr(cost)+' to fit out this outlet.','warn');return;}
+  G.cash-=cost;
+  const o=newOutlet({name:R().name+' · '+CITIES[cityI].name,concept:conceptK,cuisine:R().cuisine,cityI,locI,style:R().style,invest:1});
+  o.awareness=clamp(12+R().awareness*.25,0,100);
+  G.outlets.push(o);
+  G.cur=G.outlets.length-1;
+  logEv(o,'expand','New outlet opened: '+o.name+'.');
+  toast('Outlet #'+G.outlets.length+' is open — '+o.name,'pos');
+  buildNav();renderTop();G.tab='overview';renderTab();}
+
+/* ============================ LOANS ============================ */
+function maxLoan(){
+  const rev=G.outlets.reduce((a,o)=>a+(o.lastMonth?o.lastMonth.rev:o.revToday*22),0);
+  return clamp(Math.round(rev*2.2+G.brandVal*.12),400000,80000000);}
+window.takeLoanProduct=i=>{
+  const P0=LOAN_PRODUCTS[i];if(!P0)return;
+  const amt=Math.round(maxLoan()*P0.mult);
+  if(amt<50000){toast('Your borrowing capacity is too thin for this product.','warn');return;}
+  const fee=Math.round(amt*.01);
+  G.cash+=amt-fee;
+  G.loans.push({n:P0.n,principal:amt,rate:P0.rate/12,annual:P0.rate,emi:loanEMI(amt,P0.rate,P0.mo),termLeft:P0.mo,term:P0.mo,paid:0});
+  logEv(R(),'finance','Drew down '+cr(amt)+' — '+P0.n+' at '+(P0.rate*100).toFixed(1)+'% APR, '+P0.mo+' months.');
+  toast(P0.n+' credited: '+cr(amt-fee)+' (1% processing fee).','pos');
+  renderTab();};
+
+/* ============================ PROGRESSION ============================ */
+const PROG_DEFS=[
+ {k:'open',name:'Doors Open',d:'Serve your first day.',ic:'🚪',c:()=>G.day>1},
+ {k:'covers100',name:'The Hundred',d:'100+ covers in a single day.',ic:'💯',c:()=>G.outlets.some(o=>o.analytics.some(a=>a.covers>=100))},
+ {k:'profitMo',name:'In the Black',d:'Close a month in profit.',ic:'📈',c:()=>G.outlets.some(o=>o.lastMonth&&o.lastMonth.profit>0)},
+ {k:'rate45',name:'Neighbourhood Favourite',d:'Hold a 4.5★ rating over 60+ reviews.',ic:'⭐',c:()=>G.outlets.some(o=>o.rating>=4.5&&o.ratN>=60)},
+ {k:'aware80',name:'Festival Invite',d:'Reach 80 awareness — the food festival calls.',ic:'🎪',c:()=>G.outlets.some(o=>o.awareness>=80),fx:o=>{G.outlets.forEach(x=>x.reputation=clamp(x.reputation+5,0,100));}},
+ {k:'celeb',name:'Celebrity Chef',d:'Employ a chef with 95+ skill.',ic:'👨‍🍳',c:()=>G.outlets.some(o=>o.staff.chef.some(s=>s.skill>=95))},
+ {k:'bestcafe',name:'City\'s Best',d:'4.5★ + 70 awareness — named the city\'s best table.',ic:'🏆',c:()=>G.outlets.some(o=>o.rating>=4.5&&o.awareness>=70&&o.ratN>=80)},
+ {k:'chain2',name:'Second Fire',d:'Open a second outlet.',ic:'🏢',c:()=>G.outlets.length>=2},
+ {k:'chain3',name:'Restaurant Group',d:'Run three outlets.',ic:'🌆',c:()=>G.outlets.length>=3},
+ {k:'star',name:'Guide Star',d:'Fine dining at 4.7★ with 85+ reputation.',ic:'✨',c:()=>G.outlets.some(o=>o.concept==='fine'&&o.rating>=4.7&&o.reputation>=85&&o.ratN>=100)},
+ {k:'franchise',name:'Franchise-Ready',d:'Brand valuation crosses ₹5 Cr — franchising unlocks.',ic:'📜',c:()=>G.brandVal>=50000000},
+ {k:'ipo',name:'Ring the Bell',d:'Brand valuation crosses ₹50 Cr — the street wants your stock.',ic:'🔔',c:()=>G.brandVal>=500000000}];
+function checkProgression(){
+  PROG_DEFS.forEach(P=>{
+    if(G.prog.some(p=>p.k===P.k))return;
+    if(P.c()){G.prog.push({k:P.k,d:G.day});
+      if(P.fx)P.fx();
+      toast('🏅 Milestone: '+P.name,'pos');
+      logEv(R(),'progress','Milestone unlocked — '+P.name+': '+P.d);}});
+  // franchise offers once unlocked
+  if(G.prog.some(p=>p.k==='franchise')&&Math.random()<.05&&G.chain.franchises.length<12){
+    const city=pick(CITIES);
+    G.chain.offers=G.chain.offers||[];
+    if(G.chain.offers.length<3)G.chain.offers.push({id:'f'+(G.seq++),city:city.name,fee:Math.round(rnd(15,40))*100000,roy:Math.round(rnd(40,120))*1000});
+  }
+}
+window.acceptFranchise=id=>{
+  const i=(G.chain.offers||[]).findIndex(f=>f.id===id);if(i<0)return;
+  const f=G.chain.offers.splice(i,1)[0];
+  G.cash+=f.fee;G.chain.franchises.push(f);
+  toast('Franchise signed in '+f.city+' — '+cr(f.fee)+' fee, '+cr(f.roy)+'/mo royalty.','pos');
+  renderTab();};
+/* ============================ UI SHELL ============================ */
+const NAVS=[
+ ['OPERATIONS',[['overview','⌂','Overview'],['floor','🍽️','Dining Floor'],['kitchen','🔥','Kitchen'],['orders','🧾','Orders & Delivery']]],
+ ['PRODUCT',[['menu','📖','Menu Engineering'],['inventory','📦','Inventory'],['procure','🚚','Procurement']]],
+ ['PEOPLE',[['staff','👥','Staff & Managers'],['reviews','⭐','Reviews']]],
+ ['GROWTH',[['marketing','📣','Marketing'],['finance','💰','Finance'],['expand','🏗️','Expansion'],['progress','🏅','Progression']]],
+ ['CHAIN',[['hq','🏛️','Chain HQ'],['cameras','📺','CCTV']]],
+ ['SYSTEM',[['settings','⚙️','Settings']]]];
+function buildNav(){
+  const S=$('#side');let h='';
+  if(G.outlets.length>1){
+    h+='<div class="glab">OUTLETS</div>';
+    G.outlets.forEach((o,i)=>{h+=`<div class="nav ${G.cur===i?'on':''}" onclick="switchOutlet(${i})"><span>${CONCEPTS[o.concept].ic}</span> ${o.name.length>20?o.name.slice(0,20)+'…':o.name}</div>`;});
+  }
+  NAVS.forEach(([g,items])=>{
+    h+='<div class="glab">'+g+'</div>';
+    items.forEach(([k,ic,name])=>{
+      let badge='';
+      if(k==='floor'&&R().waiting.length)badge='<span class="badge">'+R().waiting.length+'</span>';
+      if(k==='kitchen'&&R().kq.length>4)badge='<span class="badge">'+R().kq.length+'</span>';
+      h+=`<div class="nav ${G.tab===k?'on':''}" onclick="goTab('${k}')"><span>${ic}</span> ${name}${badge}</div>`;});
+  });
+  S.innerHTML=h;
+}
+window.goTab=k=>{G.tab=k;buildNav();renderTab();document.getElementById('app').classList.remove('navopen');};
+window.switchOutlet=i=>{G.cur=i;buildNav();renderTop();renderTab();};
+function renderTop(){
+  if(!G)return;
+  const o=R();
+  $('#tbProp').textContent=o.name+' · '+CONCEPTS[o.concept].name+' · '+CITIES[o.cityI].name;
+  const y=o.analytics.length?o.analytics[o.analytics.length-1]:null;
+  $('#kpis').innerHTML=
+    kpi('Cash',cr(G.cash),G.cash<200000?'down':'')+
+    kpi('Today',cr(o.revToday),'')+
+    kpi('Covers',o.coversToday+(y?' <small>y′day '+y.covers+'</small>':''),'')+
+    kpi('Rating',o.rating.toFixed(1)+'★ <small>'+o.ratN+'</small>',o.rating>=4.2?'up':o.rating<3.2?'down':'')+
+    kpi('Kitchen Q',o.kq.length+(o.waiting.length?' <small>+'+o.waiting.length+' waiting</small>':''),o.kq.length>6?'down':'')+
+    kpi('Awareness',Math.round(o.awareness),'');
+  $('#clkT').textContent=String(G.hour).padStart(2,'0')+':00';
+  $('#clkD').textContent=dayLabel();
+}
+function kpi(k,v,cls){return `<div class="kpi"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;}
+function refreshLive(){
+  const ae=document.activeElement;
+  if(ae&&(ae.tagName==='INPUT'||ae.tagName==='SELECT'))return;
+  if(['overview','floor','kitchen','orders','cameras','inventory'].includes(G.tab))renderTab();
+  buildNav();
+}
+function pageHead(t,d,a){return `<div class="page-head"><div><h2>${t}</h2><div class="desc">${d}</div></div><div class="wrapf">${a||''}</div></div>`;}
+function spark(arr,key,color){
+  if(arr.length<2)return '<div class="muted sm">Data builds up as days pass.</div>';
+  const v=arr.map(a=>a[key]);const mx=Math.max(...v,1),mn=Math.min(...v,0);
+  const W=260,H=48;
+  const pts=v.map((x,i)=>((i/(v.length-1))*W).toFixed(1)+','+(H-((x-mn)/Math.max(1,mx-mn))*H+2).toFixed(1)).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H+4}" style="width:100%;height:52px"><polyline points="${pts}" fill="none" stroke="${color||'#151513'}" stroke-width="1.5"/></svg>`;
+}
+function starsTxt(n){return '★'.repeat(Math.round(n))+'☆'.repeat(5-Math.round(n));}
+
+/* ============================ TABS ============================ */
+function renderTab(){
+  const o=R();const M=$('#main');
+  const T={overview:tabOverview,floor:tabFloor,kitchen:tabKitchen,orders:tabOrders,menu:tabMenu,
+    inventory:tabInventory,procure:tabProcure,staff:tabStaff,reviews:tabReviews,marketing:tabMarketing,
+    finance:tabFinance,expand:tabExpand,progress:tabProgress,hq:tabHQ,cameras:tabCameras,settings:tabSettings};
+  M.innerHTML=(T[G.tab]||tabOverview)(o);
+}
+function tabOverview(o){
+  const c=CONCEPTS[o.concept];
+  const y=o.analytics[o.analytics.length-1];
+  const occ=o.tables.filter(t=>t.state==='seated').length;
+  const alerts=[];
+  const use=activeIngUse(o);
+  ING_ORDER.forEach(k=>{if(use[k]>0.05&&invQty(o,k)<use[k]*.8)alerts.push('Low stock: '+ING[k].name+' ('+invQty(o,k).toFixed(1)+' '+ING[k].unit+' left)');});
+  if(o.hygiene<55)alerts.push('Hygiene slipping ('+Math.round(o.hygiene)+') — a failed inspection shuts you down.');
+  if(o.equip<65)alerts.push('Kitchen equipment degraded ('+Math.round(o.equip)+'%) — output is suffering.');
+  const tired=Object.values(o.staff).flat().filter(s=>s.fatigue>70).length;
+  if(tired)alerts.push(tired+' staff running on fumes — burnout means resignations.');
+  if(G.cash<o.salBill)alerts.push('Cash below one payroll cycle — arrange credit before month-end.');
+  const last14=o.analytics.slice(-14);
+  return pageHead(o.name,c.ic+' '+c.name+' · '+o.cuisine+' · '+LOCALITIES[o.locI].name+', '+CITIES[o.cityI].name+' · open '+String(c.hours[0]).padStart(2,'0')+':00–'+String(c.hours[1]%24).padStart(2,'0')+':00'
+    +(o._shut?' · <b style="color:var(--neg)">SHUT BY INSPECTOR TODAY</b>':''),
+    `<span class="pill ${isOpen(o,G.hour)&&!o._shut?'green':'red'}">${isOpen(o,G.hour)&&!o._shut?'OPEN':'CLOSED'}</span>`)+
+  `<div class="cards cols-4">
+    ${ovCard('Cash',cr(G.cash),G.loans.length?G.loans.length+' loan(s) live':'debt-free')}
+    ${ovCard('Revenue Today',cr(o.revToday),y?'yesterday '+cr(y.rev):'first day')}
+    ${ovCard('Covers Today',o.coversToday,(o.waitLost+o.walkouts)?'<span style="color:var(--neg)">'+(o.waitLost+o.walkouts)+' lost to waits</span>':'no one lost yet')}
+    ${ovCard('Rating',o.rating.toFixed(1)+'★','from '+o.ratN+' ratings',barH(o.rating/5*100,o.rating>=4?'#1e5c3a':'#8a6a1e'))}
+  </div>
+  <div class="cards cols-3" style="margin-top:12px">
+    <div class="card"><h3>The Floor — Live</h3>
+      ${row('Tables seated',occ+' / '+o.tables.length)}
+      ${row('Waiting for a table',o.waiting.length+' parties')}
+      ${row('Kitchen queue',o.kq.length+' orders · '+Math.round(o._queueMin||0)+' min of work')}
+      ${row('Reservations tonight',o.resv.filter(r=>r.d===G.day).length)}
+      ${row('Cleanliness',moodPill(o.clean))}
+    </div>
+    <div class="card"><h3>Standing</h3>
+      ${row('Reputation',moodPill(o.reputation))}
+      ${row('Awareness',Math.round(o.awareness)+'/100')}${barH(o.awareness,'#44505c')}
+      ${row('Hygiene',moodPill(o.hygiene))}
+      ${row('Last inspection',o.insp.score==null?'not yet':o.insp.score+'/100 (day '+o.insp.last+')')}
+    </div>
+    <div class="card"><h3>Revenue — last 14 days</h3>${spark(last14,'rev','#1e5c3a')}
+      <div class="muted sm">Net profit</div>${spark(last14,'profit','#8a6a1e')}</div>
+  </div>
+  ${alerts.length?`<div class="card" style="margin-top:12px;border-left:3px solid var(--warn)"><h3>Needs Attention</h3>${alerts.map(a=>'<div class="fitem"><span class="dot" style="background:var(--warn)"></span><span class="txt">'+a+'</span></div>').join('')}</div>`:''}
+  <div class="card" style="margin-top:12px"><h3>Operations Log</h3>
+    ${G.log.slice(0,14).map(e=>`<div class="fitem"><span class="dot" style="background:${{finance:'#8a6a1e',ops:'#b45f14',staff:'#44505c',marketing:'#1e5c3a'}[e.cat]||'#8e8e85'}"></span><span class="txt">${e.txt}</span><span class="ft">D${e.d} ${String(e.h).padStart(2,'0')}:00</span></div>`).join('')||'<div class="muted sm">Quiet so far.</div>'}
+  </div>`;
+}
+function tabFloor(o){
+  const dirty=o.tables.filter(t=>t.state==='dirty').length;
+  const tbl=o.tables.map(t=>{
+    const col=t.state==='seated'?'#151513':t.state==='dirty'?'#b45f14':'#fff';
+    const ink=t.state==='seated'?'#fff':'#151513';
+    const p=o.parties.find(x=>x.id===t.party);
+    return `<div title="Table ${t.id} · ${t.cap} seats · ${t.state}${p?' · '+ARCHE[p.arch].name:''}" style="width:52px;height:44px;border:1.5px solid ${t.state==='dirty'?'#b45f14':'#151513'};border-radius:3px;background:${col};color:${ink};display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;font-weight:700">
+      <div>${t.cap}·${t.state==='seated'?(p?ARCHE[p.arch].ic:'●'):t.state==='dirty'?'✕':'○'}</div><div style="font-size:8.5px;opacity:.7">T${t.id}</div></div>`;}).join('');
+  return pageHead('Dining Floor','Seating, waiting queue and tonight\'s reservations. Dirty tables need stewards to turn them.',
+    `<span class="pill blue">${o.seats} seats</span><span class="pill ${dirty>3?'red':'green'}">${dirty} dirty</span>`)+
+  `<div class="cards cols-2">
+    <div class="card"><h3>Tables</h3>
+      ${o.seats===0?'<div class="notice">A cloud kitchen has no dining floor — the action is in Orders & Delivery.</div>':
+      `<div class="wrapf" style="gap:7px">${tbl}</div>
+       <div class="muted sm" style="margin-top:8px">● seated · ○ free · ✕ needs bussing — ${staffOn(o,'cleaner').length} steward(s) on duty turn ~${staffOn(o,'cleaner').length*4} tables/hr</div>`}
+    </div>
+    <div class="card"><h3>Waiting Queue (${o.waiting.length})</h3>
+      ${o.waiting.length?o.waiting.map(w=>row(ARCHE[w.arch].ic+' Party of '+w.size+' · '+ARCHE[w.arch].name,(w.waitH||0)*60+' min')).join(''):'<div class="muted sm">No queue right now.</div>'}
+      <div class="notice">Lost today: <b>${o.waitLost}</b> covers gave up waiting · <b>${o.walkouts}</b> walked out on the kitchen.</div>
+      <h3 style="margin-top:12px">Reservations — Today</h3>
+      ${o.resv.filter(r=>r.d===G.day).map(r=>row(r.name+' · '+ARCHE[r.arch].name,String(r.h).padStart(2,'0')+':00 · '+r.size+' covers')).join('')||'<div class="muted sm">No bookings on the sheet.</div>'}
+    </div>
+  </div>
+  <div class="cards cols-3" style="margin-top:12px">
+    ${ovCard('Cleanliness',Math.round(o.clean)+'/100','stewards on duty: '+staffOn(o,'cleaner').length,barH(o.clean,o.clean>70?'#1e5c3a':'#b45f14'))}
+    ${ovCard('Ambience','tier '+o.amb.toFixed(1),'diners compare it to what your prices promise')}
+    ${ovCard('Service cover',staffOn(o,'server').length+' servers','for '+o.parties.length+' active parties')}
+  </div>`;
+}
+function tabKitchen(o){
+  const cov=stationsCovered(o);
+  const cap=Math.round(kitchenCapMin(o));
+  const eightySix=o.menu.filter(m=>m.active&&!canCook(o,m.k));
+  return pageHead('Kitchen','The order queue, station coverage and equipment health. Capacity is cook-minutes per hour.',
+    `<span class="pill ${cap>0?'green':'red'}">${cap} min/hr capacity</span><span class="pill ${o.kq.length>5?'red':'blue'}">${o.kq.length} in queue</span>`)+
+  `<div class="cards cols-2">
+    <div class="card"><h3>Order Queue (${o.kq.length} · ${Math.round(o._queueMin||0)} min backlog)</h3>
+      ${o.kq.slice(0,12).map(q=>{const pct=(1-q.left/q.min)*100;
+        return `<div class="row"><span class="lab">${CHANNELS[q.ch]?CHANNELS[q.ch].ic:''} ${q.items.map(i=>DISH_LIB[i.k].name).slice(0,3).join(', ')}${q.items.length>3?' +'+(q.items.length-3):''}</span>
+          <span class="val" style="min-width:130px">${barInline(pct,pct>60?'#1e5c3a':'#8a6a1e')} ${Math.ceil(q.left)}m</span></div>`;}).join('')||'<div class="muted sm">The pass is clear.</div>'}
+    </div>
+    <div class="card"><h3>Stations</h3>
+      ${Object.keys(STATIONS).map(st=>{const on=cov.has(st);const usedBy=o.menu.filter(m=>m.active&&DISH_LIB[m.k].st===st).length;
+        return row(STATIONS[st].ic+' '+STATIONS[st].name+' <span class="muted sm">('+usedBy+' dishes)</span>',
+          on?'<span class="pill green">COVERED</span>':usedBy?'<span class="pill red">UNCOVERED ×1.7 slower</span>':'<span class="pill blue">idle</span>');}).join('')}
+      <div class="muted sm" style="margin-top:6px">Chefs cover grill/wok/oven · line cooks add fryer & prep · baristas run coffee & desserts.</div>
+    </div>
+  </div>
+  <div class="cards cols-3" style="margin-top:12px">
+    <div class="card"><h3>Equipment</h3><div class="stat">${Math.round(o.equip)}%</div>${barH(o.equip,o.equip>70?'#1e5c3a':'#7a2430')}
+      <div class="delta">Worn kit slows every station.</div>
+      <button class="btn" style="margin-top:8px" onclick="repairEquip()">Service call — ${cr(Math.round((100-o.equip)*4500*DX().costM))}</button></div>
+    <div class="card"><h3>Hygiene</h3><div class="stat">${Math.round(o.hygiene)}</div>${barH(o.hygiene,o.hygiene>65?'#1e5c3a':'#7a2430')}
+      <div class="delta">Inspectors call unannounced. Below 50 fails.</div>
+      <button class="btn" style="margin-top:8px" onclick="deepClean()">Deep clean — ${cr(Math.round(40000*DX().costM))}</button></div>
+    <div class="card"><h3>86'd (can't cook)</h3>
+      ${eightySix.length?eightySix.map(m=>row(DISH_LIB[m.k].name,'<span class="pill red">OUT OF STOCK</span>')).join(''):'<div class="muted sm">Every active dish is cookable.</div>'}
+      <div class="muted sm" style="margin-top:6px">Restock in Procurement — diners who can't order leave.</div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Brigade on Duty</h3>
+    ${kitchenOn(o).map(s=>row(ROLES[s.role].name+' '+s.name+' <span class="muted sm">skill '+s.skill+'</span>','fatigue '+moodPill(100-s.fatigue))).join('')||'<div class="muted sm">Nobody in the kitchen this hour — orders will stall.</div>'}
+  </div>`;
+}
+window.repairEquip=()=>{const o=R();const c=Math.round((100-o.equip)*4500*DX().costM);
+  if(o.equip>=96){toast('Equipment already in good shape.','');return;}
+  if(G.cash<c){toast('Not enough cash.','warn');return;}
+  G.cash-=c;o.expToday+=c;o.moOther=(o.moOther||0)+c;o.equip=98;logEv(o,'ops','Service techs restored the kitchen to spec ('+cr(c)+').');renderTab();};
+window.deepClean=()=>{const o=R();const c=Math.round(40000*DX().costM);
+  if(G.cash<c){toast('Not enough cash.','warn');return;}
+  G.cash-=c;o.expToday+=c;o.moOther=(o.moOther||0)+c;o.hygiene=clamp(o.hygiene+22,0,100);o.clean=100;
+  logEv(o,'ops','Overnight deep clean — hygiene and floor restored.');renderTab();};
+function menuClass(o,m){
+  // classic menu-engineering matrix, judged relative to the rest of the live card:
+  // a dish is "high" if it beats the median of active dishes on that axis
+  const act=o.menu.filter(x=>x.active);
+  const avgSold=act.reduce((a,x)=>a+x.sold,0)/Math.max(1,act.length);
+  const margins=act.map(x=>1-ingCostPlate(x.k,o)/Math.max(1,x.price)).sort((a,b)=>a-b);
+  const medMar=margins.length?margins[Math.floor(margins.length/2)]:.6;
+  const margin=1-ingCostPlate(m.k,o)/Math.max(1,m.price);
+  const hiPop=m.sold>=avgSold,hiMar=margin>=medMar;
+  return hiPop&&hiMar?['Star','green']:hiPop?['Plowhorse','gold']:hiMar?['Puzzle','blue']:['Dog','red'];
+}
+function tabMenu(o){
+  const act=o.menu.filter(m=>m.active),inact=o.menu.filter(m=>!m.active);
+  const rows=m=>{const d=DISH_LIB[m.k];const cost=ingCostPlate(m.k,o);const margin=(1-cost/Math.max(1,m.price))*100;
+    const cls=m.active?menuClass(o,m):null;
+    return `<tr><td class="b">${d.name}${m.special?' <span class="pill gold">SPECIAL</span>':''}</td><td>${d.cat}</td><td>${STATIONS[d.st].ic}</td>
+      <td><input type="number" value="${m.price}" style="width:72px" onchange="setPrice('${m.k}',this.value)"></td>
+      <td>${cr0(cost)}</td><td class="${margin<55?'':''}" style="color:${margin>=62?'var(--pos)':margin<50?'var(--neg)':'inherit'}">${margin.toFixed(0)}%</td>
+      <td>${m.sold}</td><td>${cr(m.rev)}</td><td>${d.prep}m</td>
+      <td>${cls?'<span class="pill '+cls[1]+'">'+cls[0]+'</span>':''}</td>
+      <td><button class="btn" style="padding:2px 8px;font-size:10.5px" onclick="toggleSpecial('${m.k}')">${m.special?'unmark':'★ special'}</button>
+      <button class="btn" style="padding:2px 8px;font-size:10.5px" onclick="toggleDish('${m.k}')">${m.active?'retire':'add'}</button></td></tr>`;};
+  return pageHead('Menu Engineering','Price every plate against its ingredient cost. Stars sell and earn; Dogs do neither — retire them.',
+    `<span class="pill blue">${act.length} live dishes</span><button class="btn" onclick="mkCombo()">+ Build a Combo</button>`)+
+  `<div class="card"><h3>The Card</h3><div class="tbl-wrap"><table><thead><tr><th>Dish</th><th>Course</th><th>Stn</th><th>Price</th><th>Plate cost</th><th>Margin</th><th>Sold</th><th>Revenue</th><th>Prep</th><th>Class</th><th></th></tr></thead>
+   <tbody>${act.map(rows).join('')}</tbody></table></div>
+   <div class="muted sm" style="margin-top:6px">One dish may be the chef's special (+35% appeal). Price sensitivity punishes gouging beyond ~1.6× the anchor.</div></div>
+  ${o.combos.length?`<div class="card" style="margin-top:12px"><h3>Combos</h3>${o.combos.map((cb,i)=>row(cb.name+' <span class="muted sm">'+cb.keys.map(k=>DISH_LIB[k].name).join(' + ')+'</span>',cr0(cb.price)+' · sold '+(cb.sold||0)+' · <button class="btn" style="padding:1px 7px;font-size:10px" onclick="rmCombo('+i+')">drop</button>')).join('')}</div>`:''}
+  <div class="card" style="margin-top:12px"><h3>Off the Card (${inact.length})</h3><div class="tbl-wrap"><table><thead><tr><th>Dish</th><th>Course</th><th>Stn</th><th>Price</th><th>Plate cost</th><th>Margin</th><th>Sold</th><th>Revenue</th><th>Prep</th><th></th><th></th></tr></thead>
+   <tbody>${inact.map(rows).join('')||'<tr><td colspan="11" class="muted sm">Everything your cuisine offers is on the card.</td></tr>'}</tbody></table></div></div>`;
+}
+window.setPrice=(k,v)=>{const m=R().menu.find(x=>x.k===k);if(!m)return;m.price=clamp(Math.round(+v/10)*10,20,5000);renderTab();};
+window.toggleDish=k=>{const o=R();const m=o.menu.find(x=>x.k===k);if(!m)return;
+  m.active=!m.active;if(m.active)m.since=G.day;
+  logEv(o,'menu',(m.active?'Added "':'Retired "')+DISH_LIB[k].name+'"'+(m.active?' to':' from')+' the card.');renderTab();};
+window.toggleSpecial=k=>{const o=R();o.menu.forEach(m=>{if(m.k!==k)m.special=false;});
+  const m=o.menu.find(x=>x.k===k);m.special=!m.special;renderTab();};
+window.mkCombo=()=>{const o=R();
+  const main=o.menu.find(m=>m.active&&DISH_LIB[m.k].cat==='Mains');
+  const side=o.menu.find(m=>m.active&&['Coffee','Beverages','Desserts','Starters'].includes(DISH_LIB[m.k].cat));
+  if(!main||!side){toast('Need an active main plus a beverage/dessert to build a combo.','warn');return;}
+  const price=Math.round((main.price+side.price)*.85/10)*10;
+  o.combos.push({name:DISH_LIB[main.k].name.split(' ')[0]+' Combo',keys:[main.k,side.k],price,sold:0});
+  toast('Combo created at 15% off the à la carte total.','pos');renderTab();};
+window.rmCombo=i=>{R().combos.splice(i,1);renderTab();};
+{const _bo=buildOrderItems;buildOrderItems=function(o,arch,size,dine){
+  if(o.combos&&o.combos.length&&Math.random()<({student:.35,family:.3,office:.25}[arch]||.12)){
+    const cb=pick(o.combos);
+    if(cb.keys.every(k=>canCook(o,k))){cb.sold=(cb.sold||0)+1;
+      const per=cb.price/cb.keys.length;
+      return cb.keys.map(k=>({k,price:Math.round(per)}));}}
+  return _bo(o,arch,size,dine);};}
+function tabOrders(o){
+  const c=CONCEPTS[o.concept];
+  return pageHead('Orders & Delivery','Takeaway, aggregators and direct orders. Apps bring volume and take their cut; direct grows with reputation.',
+    `<span class="pill blue">${o.ordersToday} orders today</span>`)+
+  `<div class="card"><h3>Channels</h3><div class="tbl-wrap"><table>
+    <thead><tr><th>Channel</th><th>Status</th><th>Commission</th><th>Popularity</th><th>Orders today</th><th></th></tr></thead><tbody>
+    ${Object.keys(CHANNELS).map(k=>{const C=CHANNELS[k];const ch=o.channels[k];
+      return `<tr><td class="b">${C.ic} ${C.name}</td>
+      <td>${ch.on?'<span class="pill green">LIVE</span>':'<span class="pill red">OFF</span>'}</td>
+      <td>${(C.comm*100).toFixed(0)}%</td>
+      <td style="min-width:120px">${barInline(ch.pop*100,'#44505c')} ${(ch.pop*100).toFixed(0)}</td>
+      <td>${o.chToday[k]||0}</td>
+      <td>${k==='walkin'?'':'<button class="btn" style="padding:3px 10px;font-size:11px" onclick="toggleCh(\''+k+'\')">'+(ch.on?'switch off':'go live')+'</button>'}</td></tr>`;}).join('')}
+  </tbody></table></div>
+  <div class="muted sm" style="margin-top:6px">This concept leans ${Math.round(c.take*100)}% takeaway / ${Math.round(c.del*100)}% delivery. A delivery coordinator (${staffOn(o,'delivery').length} on duty) protects order accuracy. Packaging stock: <b>${Math.round(invQty(o,'pack'))} pc</b> — parcels stop without it.</div></div>
+  <div class="cards cols-3" style="margin-top:12px">
+    ${ovCard('Takeaway lean',Math.round(c.take*100)+'%',o.areas.includes('pickup')?'pickup counter built (+30%)':'a pickup counter would add +30%')}
+    ${ovCard('Delivery lean',Math.round(c.del*100)+'%','of your walk-in scale flows to apps')}
+    ${ovCard('Corporate catering',o.channels.catering.on?'LIVE':'off','lunch & dinner bulk orders at 8% fee')}
+  </div>`;
+}
+window.toggleCh=k=>{const o=R();o.channels[k].on=!o.channels[k].on;
+  logEv(o,'delivery',CHANNELS[k].name+(o.channels[k].on?' switched on.':' switched off.'));renderTab();};
+function tabInventory(o){
+  const use=activeIngUse(o);
+  const coldQty=ING_ORDER.filter(k=>ING[k].store==='cold').reduce((a,k)=>a+invQty(o,k),0);
+  const dryQty=ING_ORDER.filter(k=>ING[k].store==='dry').reduce((a,k)=>a+invQty(o,k),0);
+  const coldCap=o.caps.cold*(o.areas.includes('coldstore')?2:1);
+  return pageHead('Inventory','FIFO batches with real expiry. Perishables over cold capacity spoil fast; stockouts 86 dishes mid-service.',
+    `<span class="pill ${o.wasteToday?'red':'green'}">waste today ${cr(o.wasteToday)}</span>
+     <label class="tag ${o.autoPar?'on':''}" onclick="togglePar()">auto-restock to par ${o.autoPar?'ON':'OFF'}</label>`)+
+  `<div class="cards cols-2">
+    ${ovCard('Cold storage',coldQty.toFixed(0)+' / '+coldCap+' kg',(coldQty>coldCap?'<span style="color:var(--neg)">OVERFLOWING — 12%/day extra spoilage</span>':'headroom OK'),barH(coldQty/coldCap*100,coldQty>coldCap?'#7a2430':'#44505c'))}
+    ${ovCard('Dry store',dryQty.toFixed(0)+' / '+o.caps.dry+' units','flour, beans, packaging, gas',barH(dryQty/o.caps.dry*100,'#44505c'))}
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Stock on Hand</h3><div class="tbl-wrap"><table>
+    <thead><tr><th>Ingredient</th><th>Store</th><th>On hand</th><th>Daily use</th><th>Days left</th><th>Expiring ≤2d</th><th>Par</th></tr></thead><tbody>
+    ${ING_ORDER.filter(k=>use[k]>0.01||invQty(o,k)>0).map(k=>{
+      const q=invQty(o,k);const u=use[k]||0;const days=u>0.01?q/u:99;
+      const expSoon=(o.inv[k]||[]).filter(b=>b.exp<=G.day+2).reduce((a,b)=>a+b.q,0);
+      const par=parTargets(o)[k]||0;
+      return `<tr><td class="b">${ING[k].name}</td><td>${ING[k].store==='cold'?'❄️ cold':'dry'}</td>
+        <td>${q.toFixed(1)} ${ING[k].unit}</td><td>${u.toFixed(1)}</td>
+        <td style="color:${days<1?'var(--neg)':days<2?'var(--warn)':'inherit'}">${days>90?'—':days.toFixed(1)}</td>
+        <td>${expSoon>0.05?'<span class="pill '+(expSoon>u?'red':'gold')+'">'+expSoon.toFixed(1)+'</span>':'—'}</td>
+        <td class="muted">${par||'—'}</td></tr>`;}).join('')}
+  </tbody></table></div>
+  <div class="muted sm" style="margin-top:6px">Oldest batches are used first (FIFO). Anything past its shelf life is written off at day's end — watch the Expiring column.</div></div>`;
+}
+window.togglePar=()=>{R().autoPar=!R().autoPar;toast('Auto-restock '+(R().autoPar?'enabled — orders placed daily to par.':'disabled — you buy manually now.'),'');renderTab();};
+function tabProcure(o){
+  const use=activeIngUse(o);
+  return pageHead('Procurement','Pick a supplier per category — price, quality, lead time and reliability all trade off. Quality feeds straight into food scores.',
+    `<span class="pill blue">${o.pending.length} deliveries inbound</span>`)+
+  SUP_CATS.map(cat=>{
+    const sups=o.market.filter(s=>s.cat===cat);
+    const ings=ING_ORDER.filter(k=>ING[k].cat===cat&&(use[k]>0.01||invQty(o,k)>0));
+    if(!ings.length)return '';
+    return `<div class="card" style="margin-bottom:12px"><h3>${cat}</h3>
+      <div class="tbl-wrap"><table><thead><tr><th></th><th>Supplier</th><th>Price</th><th>Quality</th><th>Lead</th><th>Reliability</th><th>Credit</th><th>Bulk disc.</th></tr></thead><tbody>
+      ${sups.map(s=>`<tr style="${o.suppliers[cat]===s.id?'background:#faf7ee':''}"><td><input type="radio" name="sup${cat.replace(/\W/g,'')}" ${o.suppliers[cat]===s.id?'checked':''} onchange="chooseSup('${cat}','${s.id}')"></td>
+        <td class="b">${s.name}</td><td>×${s.priceM}</td><td>×${s.q}</td><td>${s.lead}d</td><td>${(s.rel*100).toFixed(0)}%</td><td>${s.credit?s.credit+'d':'—'}</td><td>${s.bulk?s.bulk+'%':'—'}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="wrapf" style="margin-top:8px">${ings.map(k=>{
+        const q3=Math.ceil((use[k]||1)*3);const s=supFor(o,cat);
+        const est=cr(Math.round(ING[k].cost*(s?s.priceM:1)*q3*DX().costM));
+        return `<button class="btn" onclick="buyIng('${k}',${q3})">${ING[k].name} +${q3}${ING[k].unit} · ${est}</button>`;}).join('')}</div>
+    </div>`;}).join('')+
+  `<div class="card"><h3>Inbound Deliveries</h3>
+    ${o.pending.map(p=>{const s=o.market.find(x=>x.id===p.sup);
+      return row(ING[p.ing].name+' × '+p.qty+' '+ING[p.ing].unit+' <span class="muted sm">'+(s?s.name:'')+'</span>',(p.day<=G.day?'due today':'in '+(p.day-G.day)+'d')+' · '+cr(p.cost));}).join('')||'<div class="muted sm">Nothing on order.</div>'}
+  </div>`;
+}
+window.chooseSup=(cat,id)=>{R().suppliers[cat]=id;const s=R().market.find(x=>x.id===id);
+  logEv(R(),'procure','Switched '+cat+' to '+s.name+'.');renderTab();};
+window.buyIng=(k,q)=>{if(placeOrder(R(),k,q)){toast('Ordered '+q+' '+ING[k].unit+' of '+ING[k].name+'.','pos');renderTab();}};
+/* ============================ STAFF / REVIEWS / MARKETING ============================ */
+const MGR_AREAS=[['kitchen','Kitchen & Repairs','keeps equipment serviced and the line moving'],
+ ['procure','Procurement','orders every ingredient to par, daily'],
+ ['pricing','Pricing','nudges dish prices toward healthy margins'],
+ ['menu','Menu Curation','retires dogs, trials new dishes'],
+ ['marketing','Marketing','launches campaigns when awareness sags'],
+ ['hiring','Hiring Desk','fills service and kitchen gaps'],
+ ['schedule','Scheduling','splits the brigade into fair shifts']];
+function tabStaff(o){
+  const all=Object.values(o.staff).flat();
+  const gm=hasGM(o);
+  return pageHead('Staff & Managers','Hire the brigade, watch fatigue and morale, and delegate whole departments to a Restaurant Manager.',
+    `<span class="pill blue">${all.length} on payroll · ${cr(o.salBill)}/mo</span>`)+
+  `<div class="card"><h3>Manager Delegation ${gm?'<span class="pill green">GM ON STAFF</span>':'<span class="pill red">HIRE A MANAGER TO DELEGATE</span>'}</h3>
+    <div class="cards cols-2" style="margin-top:6px">
+    ${MGR_AREAS.map(([k,n,d])=>`<div class="pick ${o.mgr[k]?'sel':''}" onclick="${gm?`setMgr('${k}')`:''}" style="${gm?'':'opacity:.5;cursor:default'}">
+      <div class="pt">${o.mgr[k]?'🤝 ':'👤 '}${n} — ${o.mgr[k]?'Manager':'You'}</div><div class="pd">${d}</div></div>`).join('')}
+    </div>
+    <div class="muted sm" style="margin-top:6px">Anything left with “You” waits for your clicks. Your manager works every area you hand over.</div></div>
+  ${ROLE_ORDER.map(r=>{
+    const list=o.staff[r];
+    return `<div class="card" style="margin-top:12px"><h3>${ROLES[r].name} (${list.length})</h3>
+      ${list.map(s=>`<div class="row"><span class="lab"><b>${s.name}</b> · ${HIRE_TIERS[s.tier].name} · skill ${s.skill} · pace ×${s.speed}${r==='server'?' · warmth '+s.friendly:''}</span>
+        <span class="val">fatigue ${moodPill(100-s.fatigue)} morale ${moodPill(s.morale)} · ${cr0(s.sal)}/mo ·
+        <select onchange="setShift(${s.id},this.value)" style="font-size:11px"><option value="F" ${s.sh==='F'?'selected':''}>Full day</option><option value="A" ${s.sh==='A'?'selected':''}>Opening</option><option value="B" ${s.sh==='B'?'selected':''}>Closing</option></select>
+        <button class="btn" style="padding:2px 8px;font-size:10.5px" onclick="fireStaff(${s.id})">let go</button></span></div>`).join('')||'<div class="muted sm">Nobody in this role.</div>'}
+      <div class="wrapf" style="margin-top:8px">${HIRE_TIERS.map((t,i)=>`<button class="btn" onclick="hireStaff('${r}',${i})">Hire ${t.name} — ${cr0(Math.round(ROLES[r].sal*t.salM/500)*500)}/mo</button>`).join('')}</div>
+    </div>`;}).join('')}`;
+}
+window.setMgr=k=>{const o=R();if(!hasGM(o)){toast('Hire a Restaurant Manager first.','warn');return;}
+  o.mgr[k]=!o.mgr[k];logEv(o,'staff',(o.mgr[k]?'Delegated ':'Took back ')+k+' '+(o.mgr[k]?'to the manager.':'from the manager.'));renderTab();};
+window.setShift=(id,v)=>{const o=R();const s=Object.values(o.staff).flat().find(x=>x.id===id);if(s)s.sh=v;};
+window.hireStaff=(r,t)=>{const o=R();const s=mkStaff(r,t);
+  if(G.cash<s.sal*2){toast('Keep at least two months of their salary in hand.','warn');return;}
+  o.staff[r].push(s);o.salBill+=s.sal;
+  logEv(o,'staff','Hired '+s.name+' — '+HIRE_TIERS[t].name+' '+ROLES[r].name+' at '+cr0(s.sal)+'/mo.');
+  toast(s.name+' joins as '+ROLES[r].name+'.','pos');renderTab();};
+window.fireStaff=id=>{const o=R();
+  for(const r of ROLE_ORDER){const i=o.staff[r].findIndex(s=>s.id===id);
+    if(i>=0){const s=o.staff[r][i];const sev=Math.round(s.sal*.5);
+      G.cash-=sev;o.expToday+=sev;o.moOther=(o.moOther||0)+sev;o.salBill-=s.sal;
+      o.staff[r].splice(i,1);
+      Object.values(o.staff).flat().forEach(x=>x.morale=clamp(x.morale-3,10,100));
+      logEv(o,'staff','Let '+s.name+' go (half-month severance '+cr(sev)+'). The room noticed.');
+      renderTab();return;}}};
+function tabReviews(o){
+  const dist=[0,0,0,0,0];o.reviews.forEach(r=>dist[r.stars-1]++);
+  const tot=Math.max(1,o.reviews.length);
+  return pageHead('Reviews','Every review comes from an actual visit — the food, the wait, the room and the bill that diner experienced.',
+    `<span class="pill gold">${o.rating.toFixed(1)}★ · ${o.ratN} ratings</span>`)+
+  `<div class="cards cols-2">
+    <div class="card"><h3>Distribution</h3>
+      ${[5,4,3,2,1].map(s=>row(s+'★',barInline(dist[s-1]/tot*100,s>=4?'#1e5c3a':s===3?'#8a6a1e':'#7a2430')+' '+dist[s-1])).join('')}
+    </div>
+    <div class="card"><h3>What Diners Mention</h3>
+      ${(()=>{const asp={food:[],wait:[],service:[],amb:[],value:[]};
+        o.reviews.slice(0,80).forEach(r=>{if(r.asp)for(const k in asp)if(r.asp[k]!=null)asp[k].push(r.asp[k]);});
+        const L={food:'Food',wait:'Waiting time',service:'Service',amb:'Ambience & cleanliness',value:'Value for money'};
+        return Object.keys(asp).map(k=>{const a=asp[k];if(!a.length)return '';
+          const avg=a.reduce((x,y)=>x+y,0)/a.length;
+          return row(L[k],barInline(avg,avg>=65?'#1e5c3a':avg>=48?'#8a6a1e':'#7a2430')+' '+Math.round(avg));}).join('')||'<div class="muted sm">No detailed reviews yet.</div>';})()}
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Latest Reviews (${o.reviews.length})</h3>
+    ${o.reviews.slice(0,40).map(r=>`<div style="padding:9px 0;border-bottom:1px solid var(--panel2)">
+      <div style="display:flex;gap:8px;align-items:baseline"><b>${r.who}</b><span class="gold">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span>
+      <span class="muted sm">${ARCHE[r.arch].name} · ${r.dine?'dined in':CHANNELS[r.ch]?CHANNELS[r.ch].name:'order'} · day ${r.d}</span></div>
+      <div style="font-size:12.5px;margin-top:3px">${r.txt}</div></div>`).join('')||'<div class="muted sm">No reviews yet — serve some tables.</div>'}
+  </div>`;
+}
+function tabMarketing(o){
+  return pageHead('Marketing','Awareness decays every day; campaigns rebuild it and tilt who walks in. Apps notice ad spend too.',
+    `<span class="pill blue">awareness ${Math.round(o.awareness)}/100</span>`)+
+  `<div class="cards cols-2">
+    <div class="card"><h3>Brand Pulse</h3>
+      ${row('Awareness',Math.round(o.awareness)+'/100')}${barH(o.awareness,'#44505c')}
+      ${row('Reputation',Math.round(o.reputation)+'/100')}${barH(o.reputation,'#1e5c3a')}
+      ${row('Rating',o.rating.toFixed(1)+'★ over '+o.ratN)}
+      <div class="muted sm" style="margin-top:6px">Awareness drives footfall; reputation compounds from every satisfied cover and grows your direct channel.</div>
+    </div>
+    <div class="card"><h3>Live Campaigns</h3>
+      ${o.campaigns.map(cp=>{const M=MKT[cp.k];
+        return row(M.ic+' '+M.name,cp.left+'d left · '+cr(cp.cost));}).join('')||'<div class="muted sm">Nothing running. Awareness is bleeding ~0.35/day.</div>'}
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Campaign Desk</h3>
+    ${MKT_ORDER.map(k=>{const M=MKT[k];const cost=Math.round(M.cost*DX().costM);
+      const live=o.campaigns.some(c=>c.k===k);
+      return `<div class="shopitem"><div class="si-ic">${M.ic}</div><div class="si-b"><div class="si-t">${M.name}</div>
+        <div class="si-d">${M.days} days · +${(M.aw*3.2).toFixed(1)} awareness/day${M.seg?' · pulls '+ARCHE[M.seg].name.toLowerCase():''}${M.ch?' · boosts '+CHANNELS[M.ch].name:''}</div></div>
+        <div style="text-align:right"><div class="b">${cr(cost)}</div>
+        <button class="btn ${live?'':'primary'}" style="margin-top:4px;padding:4px 12px;font-size:11px" ${live?'disabled':''} onclick="launchC('${k}')">${live?'running':'launch'}</button></div></div>`;}).join('')}
+  </div>`;
+}
+window.launchC=k=>{if(launchCampaign(R(),k))renderTab();};
+
+/* ============================ FINANCE / EXPANSION / PROGRESSION / HQ ============================ */
+function tabFinance(o){
+  const lm=o.lastMonth;
+  const a=o.analytics.slice(-14);
+  const avgP=a.length?a.reduce((x,y)=>x+y.profit,0)/a.length:0;
+  const dailyFix=(o.rentMo+o.salBill)/30;
+  const runway=avgP-dailyFix<0?G.cash/Math.max(1,(dailyFix-avgP)):Infinity;
+  const cap=maxLoan();
+  return pageHead('Finance','Daily P&L, the monthly close, working-capital runway and a proper loan marketplace.',
+    `<span class="pill ${G.cash>o.salBill?'green':'red'}">${cr(G.cash)} cash</span>`)+
+  `<div class="cards cols-3">
+    ${ovCard('Today so far',cr(o.revToday-o.expToday),cr(o.revToday)+' in · '+cr(o.expToday)+' out')}
+    ${ovCard('Avg daily profit (14d)',cr(Math.round(avgP)),'before rent & payroll accrual')}
+    ${ovCard('Runway',runway===Infinity?'∞':Math.max(0,Math.round(runway))+' days','at current burn incl. fixed costs')}
+  </div>
+  <div class="cards cols-2" style="margin-top:12px">
+    <div class="card"><h3>Last Month — P&L</h3>
+      ${lm?row('Revenue','<span class="up">'+cr(lm.rev)+'</span>')+
+        row('Food purchases','−'+cr(lm.food))+
+        row('Payroll','−'+cr(lm.sal))+
+        row('Rent','−'+cr(lm.rent))+
+        row('Power, water & gas','−'+cr(lm.util))+
+        row('Marketing, repairs & other','−'+cr(lm.other))+
+        row('Spoilage written off','−'+cr(lm.waste))+
+        (lm.tax?row('Tax (25%)','−'+cr(lm.tax)):'')+
+        row('<b>Net</b>','<b class="'+(lm.profit>=0?'up':'down')+'">'+cr(lm.profit)+'</b>')
+       :'<div class="muted sm">First month still running — books close every 30 days.</div>'}
+    </div>
+    <div class="card"><h3>Fixed Commitments</h3>
+      ${row('Rent',cr(o.rentMo)+'/mo')}
+      ${row('Payroll',cr(o.salBill)+'/mo · '+Object.values(o.staff).flat().length+' staff')}
+      ${row('Loan EMIs',cr(G.loans.reduce((x,l)=>x+l.emi,0))+'/mo')}
+      ${G.loans.map(l=>row('· '+l.n,cr(l.emi)+'/mo · '+l.termLeft+' mo left')).join('')}
+      <div class="muted sm" style="margin-top:6px">Salaries, rent and utilities are billed at each monthly close. Profit is taxed at 25%.</div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Loan Marketplace</h3>
+    <div class="muted sm" style="margin-bottom:6px">Amounts scale with your borrowing capacity (${cr(cap)}). Compare the full cost before you commit.</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Product</th><th>Amount</th><th>Rate (APR)</th><th>Term</th><th>Monthly EMI</th><th>Total repayable</th><th></th></tr></thead><tbody>
+    ${LOAN_PRODUCTS.map((L,i)=>{const amt=Math.round(cap*L.mult);const emi=loanEMI(amt,L.rate,L.mo);
+      return `<tr><td class="b">${L.n}</td><td>${cr(amt)}</td><td>${(L.rate*100).toFixed(1)}%</td><td>${L.mo} mo</td><td>${cr(emi)}/mo</td><td>${cr(emi*L.mo)}</td>
+      <td><button class="btn ${i===2?'primary':''}" style="padding:3px 10px;font-size:11px" onclick="takeLoanProduct(${i})">Borrow</button></td></tr>`;}).join('')}
+    </tbody></table></div>
+    <div class="muted sm" style="margin-top:4px">A 1% processing fee applies on drawdown. EMIs auto-deduct at every monthly close.</div>
+  </div>`;
+}
+function tabExpand(o){
+  const canOutlet=o.rating>=4.0&&G.day-o.openedDay>=30;
+  return pageHead('Expansion','Build out this site, then take the brand to new cities. Projects complete over real days.',
+    `<span class="pill gold">brand value ${cr(G.brandVal)}</span>`)+
+  (o.projects.length?`<div class="card" style="margin-bottom:12px"><h3>Under Construction (${o.projects.length})</h3>
+    ${o.projects.map(p=>{const A=AREAS[p.k];const rem=Math.max(0,p.left-G.hour/24);const pct=clamp((1-rem/p.total)*100,0,100);
+      return row(A.ic+' '+A.name+' · '+cr(p.cost),barInline(pct,'#8a6a1e')+' '+(rem>=1?rem.toFixed(1)+'d left':Math.round(rem*24)+'h left'));}).join('')}
+  </div>`:'')+
+  `<div class="card"><h3>Build at ${o.name}</h3>
+    ${AREA_ORDER.map(k=>{const A=AREAS[k];const built=o.areas.includes(k);const busy=o.projects.some(p=>p.k===k);
+      const cost=Math.round(A.cost*DX().costM);
+      const blocked=A.need&&o.concept!==A.need;
+      return `<div class="shopitem" style="${blocked?'opacity:.45':''}"><div class="si-ic">${A.ic}</div>
+        <div class="si-b"><div class="si-t">${A.name}${built?' <span class="pill green">BUILT</span>':''}</div><div class="si-d">${A.d} · ${A.days} days to build</div></div>
+        <div style="text-align:right"><div class="b">${cr(cost)}</div>
+        <button class="btn" style="margin-top:4px;padding:4px 12px;font-size:11px" ${built||busy||blocked?'disabled':''} onclick="startProject(R(),'${k}')">${built?'done':busy?'building':'build'}</button></div></div>`;}).join('')}
+  </div>
+  <div class="card" style="margin-top:12px"><h3>Open a New Outlet</h3>
+    ${canOutlet?`<div class="grid-c">
+      <div><label class="fl">City</label><select id="xCity">${CITIES.map((c,i)=>`<option value="${i}">${c.name} (rent ×${c.rent})</option>`).join('')}</select></div>
+      <div><label class="fl">Locality</label><select id="xLoc">${LOCALITIES.map((l,i)=>`<option value="${i}">${l.name} (${l.mix})</option>`).join('')}</select></div>
+      <div><label class="fl">Concept</label><select id="xCon">${CONCEPT_ORDER.map(k=>`<option value="${k}" ${k===o.concept?'selected':''}>${CONCEPTS[k].name} — ${cr(Math.round(CONCEPTS[k].cost*.9*DX().costM))}</option>`).join('')}</select></div>
+      <div style="display:flex;align-items:flex-end"><button class="btn primary" onclick="openOutlet(+$('#xCity').value,+$('#xLoc').value,$('#xCon').value)">Sign the lease</button></div>
+    </div><div class="muted sm">Second fitouts run 10% cheaper — you've made these mistakes once already. New outlets inherit a slice of your awareness.</div>`
+    :'<div class="notice">Hold a <b>4.0★ rating</b> and <b>30 days</b> of trading before bankers will look at a second site. ('+o.rating.toFixed(1)+'★ · day '+(G.day-o.openedDay)+')</div>'}
+  </div>`;
+}
+function tabProgress(o){
+  return pageHead('Progression','The long game: milestones, awards, franchising and — eventually — the bell at the exchange.',
+    `<span class="pill gold">${G.prog.length}/${PROG_DEFS.length} milestones</span>`)+
+  `<div class="cards cols-3">
+    ${ovCard('Brand valuation',cr(G.brandVal),'profit multiple + assets + brand heat')}
+    ${ovCard('Outlets',G.outlets.length+(G.chain.franchises.length?' + '+G.chain.franchises.length+' franchised':''),'company-owned')}
+    ${ovCard('Royalties collected',cr(G.chain.royalty),G.chain.franchises.length?'from '+G.chain.franchises.length+' partners':'unlock franchising at ₹5 Cr valuation')}
+  </div>
+  ${(G.chain.offers||[]).length?`<div class="card" style="margin-top:12px;border-left:3px solid var(--gold)"><h3>Franchise Offers</h3>
+    ${G.chain.offers.map(f=>row('Partner in <b>'+f.city+'</b>','fee '+cr(f.fee)+' + '+cr(f.roy)+'/mo · <button class="btn primary" style="padding:2px 10px;font-size:11px" onclick="acceptFranchise(\''+f.id+'\')">sign</button>')).join('')}
+  </div>`:''}
+  <div class="card" style="margin-top:12px"><h3>Milestones</h3>
+    <div class="cards cols-2" style="margin-top:4px">
+    ${PROG_DEFS.map(P=>{const got=G.prog.find(p=>p.k===P.k);
+      return `<div class="pick" style="${got?'':'opacity:.45'};cursor:default"><div class="pt">${P.ic} ${P.name}${got?' <span class="pill green">DAY '+got.d+'</span>':''}</div><div class="pd">${P.d}</div></div>`;}).join('')}
+    </div>
+  </div>`;
+}
+const HQ_PERKS=[
+ ['central','Central Kitchen',4500000,'Base prep in one place — plate costs −12% chain-wide.'],
+ ['warehouse','Central Warehouse',2800000,'Bulk buying — every purchase order −6%.'],
+ ['training','Training Academy',2200000,'Skill +1/week, morale support, kitchens +6% output.'],
+ ['hqops','Corporate Office',3200000,'Audit & ops team — pilferage ends, managers sharper.']];
+function tabHQ(o){
+  if(G.outlets.length<2)return pageHead('Chain HQ','Headquarters unlocks once you run a second outlet.','')+
+    `<div class="notice">One kitchen is a restaurant; two is a company. Open a second outlet under <b>Expansion</b> to establish HQ — central kitchen, warehouse, training academy and franchising all live here.</div>`;
+  return pageHead('Chain HQ','Group-level view: benchmark outlets, buy shared infrastructure, run the franchise book.',
+    `<span class="pill gold">${cr(G.brandVal)} valuation</span>`)+
+  `<div class="card"><h3>Outlet Benchmark</h3><div class="tbl-wrap"><table>
+    <thead><tr><th>Outlet</th><th>Concept</th><th>City</th><th>Rating</th><th>Rev today</th><th>Last month net</th><th>Awareness</th><th></th></tr></thead><tbody>
+    ${G.outlets.map((x,i)=>`<tr style="${i===G.cur?'background:#faf7ee':''}"><td class="b">${x.name}</td><td>${CONCEPTS[x.concept].name}</td><td>${CITIES[x.cityI].name}</td>
+      <td>${x.rating.toFixed(1)}★</td><td>${cr(x.revToday)}</td><td class="${x.lastMonth&&x.lastMonth.profit<0?'down':'up'}">${x.lastMonth?cr(x.lastMonth.profit):'—'}</td>
+      <td>${Math.round(x.awareness)}</td><td><button class="btn" style="padding:2px 10px;font-size:11px" onclick="switchOutlet(${i})">manage</button></td></tr>`).join('')}
+  </tbody></table></div></div>
+  <div class="card" style="margin-top:12px"><h3>Group Infrastructure</h3>
+    ${HQ_PERKS.map(([k,n,c,d])=>{const own=G.chain.perks[k];const cost=Math.round(c*DX().costM);
+      return `<div class="shopitem"><div class="si-ic">${own?'✅':'🏗️'}</div><div class="si-b"><div class="si-t">${n}</div><div class="si-d">${d}</div></div>
+      <div style="text-align:right"><div class="b">${cr(cost)}</div><button class="btn" style="margin-top:4px;padding:4px 12px;font-size:11px" ${own?'disabled':''} onclick="buyPerk('${k}',${cost})">${own?'owned':'build'}</button></div></div>`;}).join('')}
+  </div>
+  ${G.chain.franchises.length?`<div class="card" style="margin-top:12px"><h3>Franchise Book (${G.chain.franchises.length})</h3>
+    ${G.chain.franchises.map(f=>row('Partner outlet — '+f.city,cr(f.roy)+'/mo royalty')).join('')}
+    ${row('<b>Total royalties</b>','<b>'+cr(G.chain.franchises.reduce((a,f)=>a+f.roy,0))+'/mo</b>')}</div>`:''}`;
+}
+window.buyPerk=(k,cost)=>{
+  if(G.cash<cost){toast('Not enough cash.','warn');return;}
+  G.cash-=cost;G.chain.perks[k]=true;
+  G.outlets.forEach(o=>{o.perks[k==='central'?'central':k==='warehouse'?'warehouse':k==='training'?'training':'hqops']=true;});
+  logEv(R(),'expand','Group infrastructure built: '+HQ_PERKS.find(p=>p[0]===k)[1]+'.');
+  toast('Built for the whole chain.','pos');renderTab();};
+function tabSettings(o){
+  return pageHead('Settings','Save, pace and the fine print.','')+
+  `<div class="cards cols-2">
+    <div class="card"><h3>Game</h3>
+      ${row('Difficulty',DIFFS[G.diff].name)}
+      ${row('Day',G.day+' · '+DOW[dow()])}
+      ${row('Autosave','every 6 in-game hours + daily')}
+      <div class="wrapf" style="margin-top:10px">
+        <button class="btn" onclick="saveGame();toast('Saved.','pos')">Save now</button>
+        <button class="btn" onclick="if(confirm('Wipe this save and start over?'))wipeGame()">New game (wipe save)</button>
+      </div>
+    </div>
+    <div class="card"><h3>About</h3>
+      <div class="sm" style="line-height:1.7">RASOI — a restaurant operations simulation.<br>
+      Built on the AATITHYA framework: silhouette-minimal UI, hourly ticks, CCTV floors, delegation-first management.<br>
+      Single file · offline · saves to this device.</div>
+    </div>
+  </div>`;
+}
+/* ============================ CCTV ============================ */
+function camList(o){
+  const L=[];
+  if(o.seats>0)L.push(['dining','Dining Hall']);
+  L.push(['kitchen','Kitchen Line']);
+  if(stationsCovered(o).has('coffee')||o.menu.some(m=>m.active&&DISH_LIB[m.k].st==='coffee'))L.push(['coffee','Coffee Bar']);
+  if(o.areas.includes('pickup')||CONCEPTS[o.concept].take>=.3||o.concept==='cloud')L.push(['pickup','Pickup Counter']);
+  if(o.concept==='drive'||o.areas.includes('drivelane'))L.push(['drive','Drive-Thru Lane']);
+  if(o.areas.includes('outdoor'))L.push(['outdoor','Terrace']);
+  if(o.seats>0)L.push(['waiting','Waiting Area']);
+  L.push(['storage','Store Room']);
+  return L;}
+function sil(x,y,s,drift){return `<g transform="translate(${x},${y}) scale(${s||1})" ${drift?`class="camWalk" style="--dd:${(6+(x%5))}s"`:''}><circle cx="0" cy="-25" r="5.5" fill="#151513"/><path d="M-7,-19 Q0,-23 7,-19 L7,4 Q0,7 -7,4 Z" fill="#151513"/></g>`;}
+function silSit(x,y,s){return `<g transform="translate(${x},${y}) scale(${s||1})"><circle cx="0" cy="-20" r="5" fill="#151513"/><path d="M-6,-15 Q0,-18 6,-15 L6,0 L-6,0 Z" fill="#151513"/></g>`;}
+function camScene(o,cam){
+  const rng=srng(hash32(o.id+cam+G.day+'h'+G.hour));
+  const W=640,H=250;const el=[];const info=[];
+  el.push(`<rect width="${W}" height="${H}" fill="#fdfdfb"/>`);
+  el.push(`<line x1="0" y1="${H-34}" x2="${W}" y2="${H-34}" stroke="#151513" stroke-width="1.5"/>`);
+  const open=isOpen(o,G.hour)&&!o._shut;
+  if(cam==='dining'){
+    const seated=o.tables.filter(t=>t.state==='seated');
+    const dirty=o.tables.filter(t=>t.state==='dirty').length;
+    const nT=Math.min(7,o.tables.length);
+    for(let i=0;i<nT;i++){
+      const x=60+i*86,y=H-44;
+      el.push(`<rect x="${x-24}" y="${y-16}" width="48" height="14" fill="none" stroke="#151513" stroke-width="1.8"/>`);
+      el.push(`<line x1="${x-18}" y1="${y-2}" x2="${x-18}" y2="${y+12}" stroke="#151513" stroke-width="1.8"/><line x1="${x+18}" y1="${y-2}" x2="${x+18}" y2="${y+12}" stroke="#151513" stroke-width="1.8"/>`);
+      if(i<seated.length){const n=Math.min(3,1+Math.floor(rng()*3));
+        for(let j=0;j<n;j++)el.push(silSit(x-14+j*15,y-16,.9));}
+      else if(i<seated.length+dirty)el.push(`<g transform="translate(${x},${H-64})"><circle r="3" cx="-6" fill="none" stroke="#151513"/><circle r="3" cx="4" cy="2" fill="none" stroke="#151513"/></g>`);
+    }
+    const srv=staffOn(o,'server').length;
+    for(let i=0;i<Math.min(3,srv);i++)el.push(sil(120+i*180+rng()*40,H-40,1,true));
+    info.push(['Seated',seated.length+'/'+o.tables.length],['Dirty',dirty],['Servers',srv],['Clean',Math.round(o.clean)]);
+  }
+  if(cam==='kitchen'){
+    el.push(`<rect x="30" y="${H-84}" width="${W-60}" height="16" fill="#151513"/>`);
+    for(let i=0;i<4;i++)el.push(`<rect x="${70+i*130}" y="${H-118}" width="52" height="30" fill="none" stroke="#151513" stroke-width="1.8"/>`);
+    const cooks=kitchenOn(o);
+    cooks.slice(0,5).forEach((s,i)=>{el.push(sil(90+i*118,H-88,1.05));
+      el.push(`<rect x="${82+i*118}" y="${H-136}" width="16" height="7" fill="#151513"/>`);}); // toque
+    for(let i=0;i<Math.min(8,o.kq.length);i++)el.push(`<rect x="${40+i*22}" y="34" width="14" height="20" fill="none" stroke="#151513" stroke-width="1.4"/>`);
+    if(o.kq.length)el.push(`<text x="40" y="26" font-size="10" fill="#5c5c55" font-family="monospace">ORDER RAIL — ${o.kq.length} TICKETS</text>`);
+    info.push(['Brigade',cooks.length],['Queue',o.kq.length+' orders'],['Backlog',Math.round(o._queueMin||0)+' min'],['Equipment',Math.round(o.equip)+'%'],['Hygiene',Math.round(o.hygiene)]);
+  }
+  if(cam==='coffee'){
+    el.push(`<rect x="60" y="${H-92}" width="300" height="20" fill="#151513"/>`);
+    el.push(`<rect x="90" y="${H-124}" width="44" height="30" fill="none" stroke="#151513" stroke-width="2"/><rect x="98" y="${H-116}" width="10" height="12" fill="#151513"/>`);
+    const b=staffOn(o,'barista').length;
+    if(b)el.push(sil(190,H-96,1.05));
+    const q=Math.min(4,Math.round((o.kq.filter(x=>x.items.some(i=>DISH_LIB[i.k].st==='coffee')).length)||rng()*2*(open?1:0)));
+    for(let i=0;i<q;i++)el.push(sil(420+i*44,H-40,1,i===0));
+    info.push(['Barista',b?'on bar':'—'],['Waiting',q],['Beans',invQty(o,'coffee').toFixed(1)+' kg']);
+  }
+  if(cam==='pickup'){
+    el.push(`<rect x="60" y="${H-88}" width="220" height="16" fill="#151513"/>`);
+    el.push(`<rect x="300" y="${H-140}" width="120" height="66" fill="none" stroke="#151513" stroke-width="1.6"/>`);
+    for(let i=0;i<3;i++)for(let j=0;j<2;j++)if(rng()<.6)el.push(`<rect x="${308+i*38}" y="${H-132+j*30}" width="26" height="20" fill="#151513" opacity=".85"/>`);
+    const riders=Math.min(4,(o.chToday.swiggy||0)+(o.chToday.zomato||0)>6?3:Math.round(rng()*2*(open?1:0)));
+    for(let i=0;i<riders;i++){el.push(sil(470+i*46,H-40,1));el.push(`<rect x="${460+i*46}" y="${H-64}" width="22" height="14" fill="none" stroke="#151513" stroke-width="1.6"/>`);}
+    info.push(['Parcels out',(o.chToday.swiggy||0)+(o.chToday.zomato||0)+(o.chToday.direct||0)+(o.chToday.phone||0)],['Riders',riders],['Packaging',Math.round(invQty(o,'pack'))+' pc']);
+  }
+  if(cam==='drive'){
+    el.push(`<rect x="40" y="${H-96}" width="130" height="30" fill="none" stroke="#151513" stroke-width="2"/><rect x="70" y="${H-66}" width="40" height="32" fill="#151513"/>`);
+    const cars=Math.min(5,open?Math.round((o.chToday.walkin||0)/8+rng()*3):0);
+    for(let i=0;i<cars;i++){const x=250+i*80;
+      el.push(`<g transform="translate(${x},${H-52})"><rect x="-30" y="-16" width="60" height="16" rx="4" fill="#151513"/><rect x="-18" y="-26" width="34" height="12" rx="3" fill="#151513"/><circle cx="-18" cy="2" r="6" fill="#151513"/><circle cx="18" cy="2" r="6" fill="#151513"/></g>`);}
+    info.push(['Cars in lane',cars],['Window',open?'serving':'closed']);
+  }
+  if(cam==='outdoor'){
+    for(let i=0;i<4;i++){const x=90+i*140;
+      el.push(`<line x1="${x}" y1="${H-120}" x2="${x}" y2="${H-40}" stroke="#151513" stroke-width="2"/><path d="M${x-46},${H-118} Q${x},${H-150} ${x+46},${H-118} Z" fill="#151513"/>`);
+      el.push(`<rect x="${x-20}" y="${H-56}" width="40" height="12" fill="none" stroke="#151513" stroke-width="1.6"/>`);
+      if(open&&rng()<.55){el.push(silSit(x-12,H-56,.85));el.push(silSit(x+12,H-56,.85));}}
+    info.push(['Terrace','built'],['Weather',pick(['clear','breezy','warm'])]);
+  }
+  if(cam==='waiting'){
+    el.push(`<rect x="80" y="${H-70}" width="200" height="8" fill="#151513"/><line x1="90" y1="${H-62}" x2="90" y2="${H-38}" stroke="#151513" stroke-width="2"/><line x1="270" y1="${H-62}" x2="270" y2="${H-38}" stroke="#151513" stroke-width="2"/>`);
+    o.waiting.slice(0,5).forEach((w,i)=>el.push(silSit(110+i*38,H-70,.95)));
+    const host=staffOn(o,'cashier').length;
+    if(host)el.push(sil(420,H-40,1.05));
+    el.push(`<rect x="400" y="${H-76}" width="60" height="14" fill="#151513"/>`);
+    info.push(['Waiting',o.waiting.length+' parties'],['Lost today',o.waitLost],['Host desk',host?'staffed':'empty']);
+  }
+  if(cam==='storage'){
+    for(let r=0;r<3;r++)el.push(`<line x1="60" y1="${70+r*52}" x2="380" y2="${70+r*52}" stroke="#151513" stroke-width="2.5"/>`);
+    const fill=clamp(ING_ORDER.reduce((a,k)=>a+invQty(o,k),0)/(o.caps.dry+o.caps.cold),0,1);
+    for(let r=0;r<3;r++)for(let i=0;i<8;i++)if(rng()<fill*1.1)el.push(`<rect x="${66+i*40}" y="${46+r*52}" width="30" height="22" fill="#151513" opacity=".88"/>`);
+    el.push(`<rect x="440" y="60" width="130" height="${H-94-60}" fill="none" stroke="#151513" stroke-width="2.5"/><line x1="505" y1="60" x2="505" y2="${H-34}" stroke="#151513" stroke-width="2"/><circle cx="495" cy="130" r="3" fill="#151513"/>`);
+    el.push(`<text x="446" y="52" font-size="10" fill="#5c5c55" font-family="monospace">COLD ROOM${o.areas.includes('coldstore')?' ×2':''}</text>`);
+    info.push(['Stock fill',Math.round(fill*100)+'%'],['Waste today',cr(o.wasteToday)],['Inbound',o.pending.length+' orders']);
+  }
+  if(!open)el.push(`<g transform="translate(${W/2},${H/2}) rotate(-8)"><rect x="-90" y="-20" width="180" height="40" fill="none" stroke="#7a2430" stroke-width="2.5"/><text x="0" y="7" text-anchor="middle" font-size="20" fill="#7a2430" font-family="monospace" letter-spacing="4">${o._shut?'SHUT':'CLOSED'}</text></g>`);
+  el.push(`<text x="${W-10}" y="${H-8}" text-anchor="end" font-size="9" fill="#8e8e85" font-family="monospace">CAM·${cam.toUpperCase()} D${G.day} ${String(G.hour).padStart(2,'0')}:00 · 1 FRAME/HR</text>`);
+  return {svg:`<svg viewBox="0 0 ${W} ${H}">${el.join('')}</svg>`,info};
+}
+function tabCameras(o){
+  const L=camList(o);
+  if(!G.camSel||!L.some(c=>c[0]===G.camSel))G.camSel=L[0][0];
+  const main=camScene(o,G.camSel);
+  const others=L.filter(c=>c[0]!==G.camSel).slice(0,3);
+  return pageHead('CCTV','One frame per in-game hour — the whole day plays back like a timelapse. Every figure on screen is real state.',
+    `<span class="camlive"><i></i>REC</span>`)+
+  `<div class="camsel"><select onchange="G.camSel=this.value;renderTab()">${L.map(c=>`<option value="${c[0]}" ${G.camSel===c[0]?'selected':''}>${c[1]}</option>`).join('')}</select></div>
+  <div class="camlayout">
+    <div class="camfeed cambig">
+      <div class="camhead"><span class="camtitle">${L.find(c=>c[0]===G.camSel)[1].toUpperCase()}</span><span class="camlive"><i></i>LIVE</span><span class="camtime">D${G.day} · ${String(G.hour).padStart(2,'0')}:00</span></div>
+      <div class="camview">${main.svg}</div>
+      <div class="caminfo">${main.info.map(x=>`<span>${x[0]}: <b>${x[1]}</b></span>`).join('')}</div>
+    </div>
+    <div class="camright">
+      ${others.map(c=>{const s=camScene(o,c[0]);
+        return `<div class="camfeed" style="cursor:pointer" onclick="G.camSel='${c[0]}';renderTab()">
+        <div class="camhead"><span class="camtitle">${c[1].toUpperCase()}</span><span class="camtime">${String(G.hour).padStart(2,'0')}:00</span></div>
+        <div class="camview">${s.svg}</div></div>`;}).join('')}
+    </div>
+  </div>`;
+}
+
+/* ============================ CLOCK & BOOT ============================ */
+let _acc=0,_last=Date.now();
+const HOUR_MS=1900;
+setInterval(()=>{
+  const now=Date.now();
+  if(!G||G.paused||$('#app').style.display!=='grid'){_last=now;return;}
+  _acc+=(now-_last)*G.speed;_last=now;
+  let n=0;
+  while(_acc>=HOUR_MS&&n<6){_acc-=HOUR_MS;tickHour();n++;}
+  if(_acc>HOUR_MS*6)_acc=0;
+},220);
+function setPause(v){if(!G)return;G.paused=v;$('#spP').classList.toggle('on',v);}
+$('#spP').onclick=()=>setPause(!G.paused);
+$$('.sp[data-sp]').forEach(b=>b.onclick=()=>{
+  if(!G)return;G.speed=+b.dataset.sp;setPause(false);
+  $$('.sp[data-sp]').forEach(x=>x.classList.toggle('on',x===b));});
+document.addEventListener('keydown',e=>{
+  if(!G||e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if(e.key===' '){e.preventDefault();setPause(!G.paused);}
+});
+(function boot(){
+  try{
+    if(localStorage.getItem(SAVEKEY)){
+      $('#contBtn').innerHTML='<button onclick="landContinue()" style="margin-left:10px;padding:12px 24px;border:1px solid #3a3a30;border-radius:3px;background:transparent;color:#cfccba;font-weight:700;font-size:13px;letter-spacing:.08em;cursor:pointer">CONTINUE SERVICE</button>';
+    }
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
